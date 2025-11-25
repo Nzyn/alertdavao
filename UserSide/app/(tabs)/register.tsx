@@ -24,16 +24,28 @@ const Register = () => {
   const [otpCode, setOtpCode] = useState('');
   const [isChecked, setChecked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [passwordMatchError, setPasswordMatchError] = useState("");
+  const [passwordsMatch, setPasswordsMatch] = useState(false);
+  const [registrationError, setRegistrationError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const router = useRouter();
 
   const handleRegister = async () => {
+    setRegistrationError("");
+    
     if (!isChecked) {
       alert("You must accept the Terms & Conditions before registering.");
       return;
     }
 
     if (password !== confirmpassword) {
-      alert("Passwords do not match!");
+      setPasswordMatchError("Passwords do not match");
+      return;
+    }
+    
+    if (!passwordsMatch) {
+      setPasswordMatchError("Passwords do not match");
       return;
     }
 
@@ -142,7 +154,8 @@ const Register = () => {
           }}
         ]);
       } else {
-        Alert.alert('Registration failed', regData.message || 'Failed to register');
+        const errorMessage = regData.message || 'Failed to register';
+        setRegistrationError(errorMessage);
         setOtpCode('');
       }
     } catch (err) {
@@ -170,6 +183,12 @@ const Register = () => {
       <Text style={styles.normalTxtCentered}>
         Register and Create an Account
       </Text>
+
+      {registrationError ? (
+        <Text style={{ color: '#E63946', fontSize: 12, marginBottom: 15, paddingHorizontal: 10, textAlign: 'center' }}>
+          {registrationError}
+        </Text>
+      ) : null}
 
       {/* Firstname */}
       <Text style={styles.subheading2}>Firstname</Text>
@@ -208,23 +227,88 @@ const Register = () => {
 
       {/* Password */}
       <Text style={styles.subheading2}>Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      <View style={{ position: 'relative' }}>
+        <TextInput
+          style={[styles.input, { paddingRight: 50 }]}
+          placeholder="Enter your password"
+          value={password}
+          onChangeText={(text) => {
+            setPassword(text);
+            setPasswordMatchError("");
+            // Check if passwords match when typing
+            if (confirmpassword) {
+              if (text === confirmpassword) {
+                setPasswordsMatch(true);
+              } else {
+                setPasswordsMatch(false);
+              }
+            }
+          }}
+          secureTextEntry={!showPassword}
+        />
+        <Pressable
+          onPress={() => setShowPassword(!showPassword)}
+          style={{
+            position: 'absolute',
+            right: 10,
+            top: 13,
+            paddingHorizontal: 8,
+          }}
+        >
+          <Text style={{ fontSize: 12, color: '#1D3557', fontWeight: '600' }}>
+            {showPassword ? 'HIDE' : 'SHOW'}
+          </Text>
+        </Pressable>
+      </View>
 
       {/* Confirm Password */}
       <Text style={styles.subheading2}>Confirm Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Re-enter your password"
-        value={confirmpassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-      />
+      <View style={{ position: 'relative' }}>
+        <TextInput
+          style={[styles.input, { paddingRight: 50 }]}
+          placeholder="Re-enter your password"
+          value={confirmpassword}
+          onChangeText={(text) => {
+            setConfirmPassword(text);
+            setPasswordMatchError("");
+            // Check if passwords match when typing
+            if (password) {
+              if (text === password) {
+                setPasswordsMatch(true);
+              } else {
+                setPasswordsMatch(false);
+              }
+            }
+          }}
+          secureTextEntry={!showConfirmPassword}
+        />
+        <Pressable
+          onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          style={{
+            position: 'absolute',
+            right: 10,
+            top: 13,
+            paddingHorizontal: 8,
+          }}
+        >
+          <Text style={{ fontSize: 12, color: '#1D3557', fontWeight: '600' }}>
+            {showConfirmPassword ? 'HIDE' : 'SHOW'}
+          </Text>
+        </Pressable>
+      </View>
+      {confirmpassword ? (
+        <View style={{ marginTop: -10, marginBottom: 15 }}>
+          {passwordsMatch ? (
+            <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '500' }}>
+              ✓ Passwords match
+            </Text>
+          ) : (
+            <Text style={{ color: '#E63946', fontSize: 12 }}>
+              Passwords do not match
+            </Text>
+          )}
+        </View>
+      ) : null}
 
       {/* Checkbox with disclaimer */}
       <View

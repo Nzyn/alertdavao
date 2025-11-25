@@ -62,7 +62,7 @@ class ReportController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Report::with(['user', 'location', 'media', 'policeStation'])
+        $query = Report::with(['user.verification', 'location', 'media', 'policeStation'])
             ->join('locations', 'reports.location_id', '=', 'locations.location_id');
         
         // Exclude reports without a location - must have valid coordinates
@@ -128,25 +128,64 @@ class ReportController extends Controller
     public function store(Request $request)
     {
         try {
+            // Handle both crime_types (JSON array from frontend) and location creation if needed
             $request->validate([
                 'user_id' => 'required|exists:users,id',
                 'title' => 'required|string',
                 'description' => 'required|string',
-                'report_type' => 'required|string',
-                'location_id' => 'required|exists:locations,location_id',
+                'crime_types' => 'required|json',  // Accept JSON array of crime types
+                'incident_date' => 'required|string',
+                'latitude' => 'required|numeric',
+                'longitude' => 'required|numeric',
+                'reporters_address' => 'nullable|string',
+                'barangay' => 'nullable|string',
+                'barangay_id' => 'nullable|integer',
                 'is_anonymous' => 'boolean',
+                'media' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,mp4,mov,avi,webm|max:25600', // 25MB
             ]);
 
-            $report = Report::create(array_merge($request->only([
-                'user_id',
-                'title',
-                'description',
-                'report_type',
-                'location_id',
-                'is_anonymous',
-            ]), [
-                'date_reported' => now(),
-            ]));
+            // Create or get the location record
+            $location = \App\Models\Location::create([
+                'latitude' => $request->latitude,
+                'longitude' => $request->longitude,
+                'address' => $request->reporters_address ?? '',
+                'barangay_id' => $request->barangay_id,
+            ]);
+
+            // Create report with crime_types stored as JSON
+            $reportData = [
+                'user_id' => $request->user_id,
+                'title' => $request->title,
+                'description' => $request->description,
+                'report_type' => $request->crime_types,  // Store the JSON array directly
+                'location_id' => $location->location_id,
+                'is_anonymous' => $request->boolean('is_anonymous', false),
+                'date_reported' => $request->incident_date,
+            ];
+
+            $report = Report::create($reportData);
+
+            // Handle media upload if present (supports multiple files)
+            if ($request->hasFile('media')) {
+                $files = $request->file('media');
+                // Handle both single and multiple files
+                if (!is_array($files)) {
+                    $files = [$files];
+                }
+                
+                foreach ($files as $file) {
+                    $path = $file->store('reports', 'public');
+                    
+                    // Determine media type extension from file
+                    $extension = strtolower($file->getClientOriginalExtension());
+                    
+                    ReportMedia::create([
+                        'report_id' => $report->report_id,
+                        'media_url' => $path,
+                        'media_type' => $extension,
+                    ]);
+                }
+            }
 
             // Automatically assign to the correct police station based on location
             $this->assignReportToStation($report);
@@ -163,6 +202,9 @@ class ReportController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
+            \Log::error('Error creating report: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create report: ' . $e->getMessage(),
@@ -171,14 +213,62 @@ class ReportController extends Controller
     }
 
     /**
+     * Get the proper URL for a media file
+     * Handles both storage disk paths and ensures proper accessibility
+     */
+    private function getMediaUrl($mediaUrl)
+    {
+        if (!$mediaUrl) {
+            return null;
+        }
+
+        // If already a full URL (starts with http), use as is
+        if (strpos($mediaUrl, 'http') === 0) {
+            return $mediaUrl;
+        }
+
+        // Check if file exists in public storage
+        if (Storage::disk('public')->exists($mediaUrl)) {
+            // Use the proper public URL for storage disk
+            return Storage::disk('public')->url($mediaUrl);
+        }
+
+        // Fallback: construct the URL manually if storage symlink is set up
+        // This handles paths like "reports/filename.jpg"
+        $url = url('/storage/' . ltrim($mediaUrl, '/'));
+        return $url;
+    }
+
+    /**
      * Get report details for modal display
+     * Now with properly formatted media URLs
      */
     public function getDetails($id)
     {
         try {
-            $report = Report::with(['user', 'location', 'media', 'policeStation'])->findOrFail($id);
+            $report = Report::with(['user.verification', 'location', 'media', 'policeStation'])->findOrFail($id);
+            
+            // Transform media URLs to ensure they're properly accessible
+            if ($report->media && count($report->media) > 0) {
+                foreach ($report->media as $media) {
+                    $media->display_url = $this->getMediaUrl($media->media_url);
+                    
+                    // Log media information for debugging
+                    \Log::debug('Media file info', [
+                        'media_id' => $media->media_id,
+                        'original_url' => $media->media_url,
+                        'display_url' => $media->display_url,
+                        'exists' => Storage::disk('public')->exists($media->media_url)
+                    ]);
+                }
+            }
+            
             return response()->json(['success' => true, 'data' => $report]);
         } catch (\Exception $e) {
+            \Log::error('Error loading report details', [
+                'report_id' => $id,
+                'error' => $e->getMessage()
+            ]);
             return response()->json(['success' => false, 'message' => 'Failed to load report details: ' . $e->getMessage()], 500);
         }
     }

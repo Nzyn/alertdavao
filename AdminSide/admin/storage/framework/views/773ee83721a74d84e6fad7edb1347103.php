@@ -1,8 +1,6 @@
-@extends('layouts.app')
+<?php $__env->startSection('title', 'Reports'); ?>
 
-@section('title', 'Reports')
-
-@section('styles')
+<?php $__env->startSection('styles'); ?>
     <style>
         .reports-header {
             display: flex;
@@ -645,9 +643,9 @@
             font-weight: bold;
         }
     </style>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
     <div class="reports-header">
         <div class="reports-title-section">
             <h1>Reports</h1>
@@ -680,18 +678,18 @@
                 </tr>
             </thead>
             <tbody>
-                @forelse($reports as $report)
-                            <tr data-report-id="{{ $report->report_id }}">
-                                <td class="report-id">{{ str_pad($report->report_id, 5, '0', STR_PAD_LEFT) }}</td>
+                <?php $__empty_1 = true; $__currentLoopData = $reports; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $report): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                            <tr data-report-id="<?php echo e($report->report_id); ?>">
+                                <td class="report-id"><?php echo e(str_pad($report->report_id, 5, '0', STR_PAD_LEFT)); ?></td>
                                 <td>
-                                    @if($report->user)
-                                        {{ substr($report->user->firstname, 0, 1) }}. {{ substr($report->user->lastname, 0, 1) }}.
-                                    @else
+                                    <?php if($report->user): ?>
+                                        <?php echo e(substr($report->user->firstname, 0, 1)); ?>. <?php echo e(substr($report->user->lastname, 0, 1)); ?>.
+                                    <?php else: ?>
                                         Unknown
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
-                                <td>{{ \Illuminate\Support\Str::limit($report->report_type ?? 'N/A', 10) }}</td>
-                                <td>{{ \Illuminate\Support\Str::limit($report->title, 30) }}</td>
+                                <td><?php echo e(\Illuminate\Support\Str::limit($report->report_type ?? 'N/A', 10)); ?></td>
+                                <td><?php echo e(\Illuminate\Support\Str::limit($report->title, 30)); ?></td>
                                 <td>
                                     <?php 
                                         $user = $report->user;
@@ -704,18 +702,18 @@
                         $verificationStatus = 'pending';
                     }
                                     ?>
-                                    <span class="verified-badge {{ $verificationStatus }}">
-                                        @if($verificationStatus === 'verified')
+                                    <span class="verified-badge <?php echo e($verificationStatus); ?>">
+                                        <?php if($verificationStatus === 'verified'): ?>
                                             Verified
-                                        @elseif($verificationStatus === 'pending')
+                                        <?php elseif($verificationStatus === 'pending'): ?>
                                             Pending
-                                        @else
+                                        <?php else: ?>
                                             Unverified
-                                        @endif
+                                        <?php endif; ?>
                                     </span>
                                 </td>
-                                <td>{{ $report->created_at->timezone('Asia/Manila')->format('m/d/Y H:i') }}</td>
-                                <td>{{ $report->updated_at->timezone('Asia/Manila')->format('m/d/Y H:i') }}</td>
+                                <td><?php echo e($report->created_at->timezone('Asia/Manila')->format('m/d/Y H:i')); ?></td>
+                                <td><?php echo e($report->updated_at->timezone('Asia/Manila')->format('m/d/Y H:i')); ?></td>
                                 <td>
                                     <?php    $reportId = $report->report_id;
                     $status = $report->status; ?>
@@ -743,7 +741,7 @@
                                     </button>
                                 </td>
                             </tr>
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <tr>
                         <td colspan="9" class="no-results">
                             <svg style="width: 48px; height: 48px; margin: 0 auto 1rem; opacity: 0.3;" viewBox="0 0 24 24"
@@ -753,7 +751,7 @@
                             <p>No reports found</p>
                         </td>
                     </tr>
-                @endforelse
+                <?php endif; ?>
             </tbody>
         </table>
     </div>
@@ -782,35 +780,35 @@
     </div>
 
     <!-- Pagination -->
-    @if($reports->hasPages())
+    <?php if($reports->hasPages()): ?>
         <div class="pagination">
-            {{-- Previous Page Link --}}
-            @if ($reports->onFirstPage())
+            
+            <?php if($reports->onFirstPage()): ?>
                 <span class="disabled">&lsaquo;</span>
-            @else
-                <a href="{{ $reports->previousPageUrl() }}">&lsaquo;</a>
-            @endif
+            <?php else: ?>
+                <a href="<?php echo e($reports->previousPageUrl()); ?>">&lsaquo;</a>
+            <?php endif; ?>
 
-            {{-- Pagination Elements --}}
-            @for ($i = 1; $i <= $reports->lastPage(); $i++)
-                @if ($i == $reports->currentPage())
-                    <span class="active">{{ $i }}</span>
-                @else
-                    <a href="{{ $reports->url($i) }}">{{ $i }}</a>
-                @endif
-            @endfor
+            
+            <?php for($i = 1; $i <= $reports->lastPage(); $i++): ?>
+                <?php if($i == $reports->currentPage()): ?>
+                    <span class="active"><?php echo e($i); ?></span>
+                <?php else: ?>
+                    <a href="<?php echo e($reports->url($i)); ?>"><?php echo e($i); ?></a>
+                <?php endif; ?>
+            <?php endfor; ?>
 
-            {{-- Next Page Link --}}
-            @if ($reports->hasMorePages())
-                <a href="{{ $reports->nextPageUrl() }}">&rsaquo;</a>
-            @else
+            
+            <?php if($reports->hasMorePages()): ?>
+                <a href="<?php echo e($reports->nextPageUrl()); ?>">&rsaquo;</a>
+            <?php else: ?>
                 <span class="disabled">&rsaquo;</span>
-            @endif
+            <?php endif; ?>
         </div>
-    @endif
-@endsection
+    <?php endif; ?>
+<?php $__env->stopSection(); ?>
 
-@section('scripts')
+<?php $__env->startSection('scripts'); ?>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
@@ -1430,4 +1428,5 @@
             }
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH D:\Codes\Laravel.ReactNative\AlertDavao\alertdavao\AdminSide\admin\resources\views/reports.blade.php ENDPATH**/ ?>

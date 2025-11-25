@@ -10,6 +10,7 @@ const styles = StyleSheet.create({
   textTitle: {
     fontSize: 36,
     fontWeight: "bold",
+    textAlign: 'center',
   },
   alert: {
     color: "#1D3557", // Dark Blue
@@ -771,6 +772,190 @@ const styles = StyleSheet.create({
 
   scrollContentContainer: {
     paddingBottom: 50,
+  },
+
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    maxWidth: 400,
+    width: '85%',
+    overflow: 'hidden',
+  },
+
+  detailRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+
+  detailValue: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+  },
+
+  modalCloseButton: {
+    backgroundColor: '#1D3557',
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+
+  modalCloseButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Enforcer Modal Styles
+  enforcerModalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    maxWidth: 420,
+    width: '90%',
+    overflow: 'hidden',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+
+  enforcerModalContent: {
+    backgroundColor: '#fff',
+  },
+
+  enforcerLoadingContainer: {
+    paddingVertical: 50,
+    paddingHorizontal: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  enforcerLoadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+
+  enforcerErrorContainer: {
+    paddingVertical: 40,
+    paddingHorizontal: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  enforcerErrorText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#E63946',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+
+  enforcerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    backgroundColor: '#f8f9fa',
+  },
+
+  enforcerHeaderTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+
+  enforcerModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1D3557',
+  },
+
+  enforcerCloseButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(29, 53, 87, 0.1)',
+  },
+
+  enforcerDivider: {
+    height: 1,
+    backgroundColor: '#e8e8e8',
+  },
+
+  enforcerDetailsContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+
+  enforcerDetailSection: {
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+
+  enforcerLastSection: {
+    borderBottomWidth: 0,
+    marginBottom: 10,
+  },
+
+  enforcerIconLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+
+  enforcerDetailLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  enforcerDetailValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1D3557',
+    marginLeft: 30,
+  },
+
+  enforcerCloseActionButton: {
+    backgroundColor: '#1D3557',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#1D3557',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+
+  enforcerCloseActionButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 
 });
