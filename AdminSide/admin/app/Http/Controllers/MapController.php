@@ -22,7 +22,7 @@ class MapController extends Controller
         if (auth()->user() && auth()->user()->role === 'police') {
             $userStationId = auth()->user()->station_id;
             if ($userStationId) {
-                $query->where('reports.station_id', $userStationId);
+                $query->where('reports.assigned_station_id', $userStationId);
                 \Log::info('Map filtering reports for police station', [
                     'user_id' => auth()->user()->id,
                     'station_id' => $userStationId
@@ -82,7 +82,7 @@ class MapController extends Controller
                 'status' => $report->status,
                 'date_reported' => $report->date_reported->timezone('Asia/Manila')->format('Y-m-d H:i:s'),
                 'reporter' => $report->user->firstname . ' ' . $report->user->lastname,
-                'station_id' => $report->station_id,
+                'station_id' => $report->assigned_station_id,
                 'station_name' => $report->policeStation ? $report->policeStation->station_name : 'Unassigned',
                 // Determine risk level based on report type or status
                 'risk_level' => $this->determineRiskLevel($report)

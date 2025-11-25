@@ -689,25 +689,66 @@
 <div class="pagination">
     {{-- Previous Page Link --}}
     @if ($reports->onFirstPage())
-        <span class="disabled">&lsaquo;</span>
+        <span class="disabled">&laquo;</span>
     @else
-        <a href="{{ $reports->previousPageUrl() }}">&lsaquo;</a>
+        <a href="{{ $reports->previousPageUrl() }}">&laquo;</a>
     @endif
 
     {{-- Pagination Elements --}}
-    @for ($i = 1; $i <= $reports->lastPage(); $i++)
-        @if ($i == $reports->currentPage())
+    @php
+        $currentPage = $reports->currentPage();
+        $lastPage = $reports->lastPage();
+        $maxPagesToShow = 10;
+        $halfMax = floor($maxPagesToShow / 2);
+        
+        // Calculate start and end pages
+        if ($lastPage <= $maxPagesToShow) {
+            $startPage = 1;
+            $endPage = $lastPage;
+        } else {
+            if ($currentPage <= $halfMax) {
+                $startPage = 1;
+                $endPage = $maxPagesToShow;
+            } elseif ($currentPage >= $lastPage - $halfMax) {
+                $startPage = $lastPage - $maxPagesToShow + 1;
+                $endPage = $lastPage;
+            } else {
+                $startPage = $currentPage - $halfMax;
+                $endPage = $currentPage + $halfMax;
+            }
+        }
+    @endphp
+
+    {{-- First Page --}}
+    @if ($startPage > 1)
+        <a href="{{ $reports->url(1) }}">1</a>
+        @if ($startPage > 2)
+            <span class="disabled">...</span>
+        @endif
+    @endif
+
+    {{-- Page Numbers --}}
+    @for ($i = $startPage; $i <= $endPage; $i++)
+        @if ($i == $currentPage)
             <span class="active">{{ $i }}</span>
         @else
             <a href="{{ $reports->url($i) }}">{{ $i }}</a>
         @endif
     @endfor
 
+    {{-- Last Page --}}
+    @if ($endPage < $lastPage)
+        @if ($endPage < $lastPage - 1)
+            <span class="disabled">...</span>
+        @endif
+        <a href="{{ $reports->url($lastPage) }}">{{ $lastPage }}</a>
+    @endif
+
     {{-- Next Page Link --}}
     @if ($reports->hasMorePages())
-        <a href="{{ $reports->nextPageUrl() }}">&rsaquo;</a>
+        <a href="{{ $reports->nextPageUrl() }}">&raquo;</a>
     @else
-        <span class="disabled">&rsaquo;</span>
+        <span class="disabled">&raquo;</span>
     @endif
 </div>
 @endif
@@ -968,29 +1009,17 @@ function showReportDetails(reportId) {
 }
 
 function getLocationDisplay(report) {
-    // Check if location object exists with coordinates
-    if (report.location) {
-        const lat = report.location.latitude;
-        const lng = report.location.longitude;
-        const barangay = report.location.barangay || '';
-        
-        // Build location string with coordinates
-        if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
-            if (barangay && barangay !== 'Unknown' && !barangay.startsWith('Lat:')) {
-                return barangay + ' (' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ')';
-            } else {
-                return '(' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ')';
-            }
+    // Check if location object exists with barangay name
+    if (report.location && report.location.barangay) {
+        const barangay = report.location.barangay;
+        // Only show barangay if it's not just coordinates
+        if (barangay && barangay !== 'Unknown' && !barangay.startsWith('Lat:') && !barangay.includes(',')) {
+            return barangay;
         }
     }
     
-    // Fallback: Check direct properties (shouldn't happen with current setup)
-    if (report.latitude && report.longitude) {
-        return '(' + report.latitude.toFixed(4) + ', ' + report.longitude.toFixed(4) + ')';
-    }
-    
-    // No location data found
-    return 'No location provided';
+    // No valid location name found
+    return 'Location not specified';
 }
 
 function closeModal() {
