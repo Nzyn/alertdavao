@@ -18,17 +18,17 @@ class DashboardController extends Controller
             $stationId = auth()->user()->station_id;
             
             if ($stationId) {
-                $totalReports = DB::table('reports')->where('station_id', $stationId)->count();
+                $totalReports = DB::table('reports')->where('assigned_station_id', $stationId)->count();
                 $pendingReports = DB::table('reports')
-                    ->where('station_id', $stationId)
+                    ->where('assigned_station_id', $stationId)
                     ->where('status', 'pending')
                     ->count();
                 $investigatingReports = DB::table('reports')
-                    ->where('station_id', $stationId)
+                    ->where('assigned_station_id', $stationId)
                     ->where('status', 'investigating')
                     ->count();
                 $resolvedReports = DB::table('reports')
-                    ->where('station_id', $stationId)
+                    ->where('assigned_station_id', $stationId)
                     ->where('status', 'resolved')
                     ->count();
                     

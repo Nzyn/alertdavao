@@ -780,33 +780,74 @@
         </div>
         <button class="lightbox-nav lightbox-next" onclick="changeImage(1)">&#8250;</button>
     </div>
+    <button class="lightbox-nav lightbox-next" onclick="changeImage(1)">&#8250;</button>
+</div>
 
-    <!-- Pagination -->
-    @if($reports->hasPages())
-        <div class="pagination">
-            {{-- Previous Page Link --}}
-            @if ($reports->onFirstPage())
-                <span class="disabled">&lsaquo;</span>
-            @else
-                <a href="{{ $reports->previousPageUrl() }}">&lsaquo;</a>
-            @endif
+<!-- Pagination -->
+@if($reports->hasPages())
+<div class="pagination">
+    {{-- Previous Page Link --}}
+    @if ($reports->onFirstPage())
+        <span class="disabled">&laquo;</span>
+    @else
+        <a href="{{ $reports->previousPageUrl() }}">&laquo;</a>
+    @endif
 
-            {{-- Pagination Elements --}}
-            @for ($i = 1; $i <= $reports->lastPage(); $i++)
-                @if ($i == $reports->currentPage())
-                    <span class="active">{{ $i }}</span>
-                @else
-                    <a href="{{ $reports->url($i) }}">{{ $i }}</a>
-                @endif
-            @endfor
+    {{-- Pagination Elements --}}
+    @php
+        $currentPage = $reports->currentPage();
+        $lastPage = $reports->lastPage();
+        $maxPagesToShow = 10;
+        $halfMax = floor($maxPagesToShow / 2);
+        
+        // Calculate start and end pages
+        if ($lastPage <= $maxPagesToShow) {
+            $startPage = 1;
+            $endPage = $lastPage;
+        } else {
+            if ($currentPage <= $halfMax) {
+                $startPage = 1;
+                $endPage = $maxPagesToShow;
+            } elseif ($currentPage >= $lastPage - $halfMax) {
+                $startPage = $lastPage - $maxPagesToShow + 1;
+                $endPage = $lastPage;
+            } else {
+                $startPage = $currentPage - $halfMax;
+                $endPage = $currentPage + $halfMax;
+            }
+        }
+    @endphp
 
-            {{-- Next Page Link --}}
-            @if ($reports->hasMorePages())
-                <a href="{{ $reports->nextPageUrl() }}">&rsaquo;</a>
-            @else
-                <span class="disabled">&rsaquo;</span>
-            @endif
-        </div>
+    {{-- First Page --}}
+    @if ($startPage > 1)
+        <a href="{{ $reports->url(1) }}">1</a>
+        @if ($startPage > 2)
+            <span class="disabled">...</span>
+        @endif
+    @endif
+
+    {{-- Page Numbers --}}
+    @for ($i = $startPage; $i <= $endPage; $i++)
+        @if ($i == $currentPage)
+            <span class="active">{{ $i }}</span>
+        @else
+            <a href="{{ $reports->url($i) }}">{{ $i }}</a>
+        @endif
+    @endfor
+
+    {{-- Last Page --}}
+    @if ($endPage < $lastPage)
+        @if ($endPage < $lastPage - 1)
+            <span class="disabled">...</span>
+        @endif
+        <a href="{{ $reports->url($lastPage) }}">{{ $lastPage }}</a>
+    @endif
+
+    {{-- Next Page Link --}}
+    @if ($reports->hasMorePages())
+        <a href="{{ $reports->nextPageUrl() }}">&raquo;</a>
+    @else
+        <span class="disabled">&raquo;</span>
     @endif
 @endsection
 
@@ -1073,121 +1114,105 @@
                             </div>
                         </div>
                     </div>
-                    ${mediaContent}
-                `;
-
-                        // Show the modal
-                        document.getElementById('reportModal').classList.add('active');
-                    } else {
-                        alert('Failed to load report details: ' + (data.message || 'Unknown error'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while loading report details: ' + error.message);
-                });
+                </div>
+                ${mediaContent}
+            `;
+            
+            // Show the modal
+            document.getElementById('reportModal').classList.add('active');
+        } else {
+            alert('Failed to load report details: ' + (data.message || 'Unknown error'));
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while loading report details: ' + error.message);
+    });
+}
 
-        function getVerificationBadge(report) {
-            if (!report.user) {
-                return '';
-            }
-
-            const verification = report.user.verification;
-            let badgeClass = 'verified-badge unverified';
-            let badgeText = 'Unverified';
-
-            if (verification) {
-                if (verification.is_verified === 1) {
-                    badgeClass = 'verified-badge verified';
-                    badgeText = 'Verified';
-                } else if (verification.is_verified === 0) {
-                    badgeClass = 'verified-badge pending';
-                    badgeText = 'Pending';
-                }
-            }
-
-            return `<span class="${badgeClass}" style="margin-left: 8px;">${badgeText}</span>`;
+function getLocationDisplay(report) {
+    // Check if location object exists with barangay name
+    if (report.location && report.location.barangay) {
+        const barangay = report.location.barangay;
+        // Only show barangay if it's not just coordinates
+        if (barangay && barangay !== 'Unknown' && !barangay.startsWith('Lat:') && !barangay.includes(',')) {
+            return barangay;
         }
+    }
+    
+    // No valid location name found
+    return 'Location not specified';
+}
 
-        function getLocationDisplay(report) {
-            // Check if location object exists with coordinates
-            if (report.location) {
-                const lat = report.location.latitude;
-                const lng = report.location.longitude;
-                const barangay = report.location.barangay || '';
+function closeModal() {
+    document.getElementById('reportModal').classList.remove('active');
+}
 
-                // Build location string with coordinates
-                if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
-                    if (barangay && barangay !== 'Unknown' && !barangay.startsWith('Lat:')) {
-                        return barangay + ' (' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ')';
-                    } else {
-                        return '(' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ')';
-                    }
-                }
-            }
-
-            // Fallback: Check direct properties (shouldn't happen with current setup)
-            if (report.latitude && report.longitude) {
-                return '(' + report.latitude.toFixed(4) + ', ' + report.longitude.toFixed(4) + ')';
-            }
-
-            // No location data found
-            return 'No location provided';
+function downloadReport(reportId) {
+    fetch(`/reports/${reportId}/details`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const report = data.data;
+            generatePDF(report);
+        } else {
+            alert('Failed to load report details: ' + (data.message || 'Unknown error'));
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while loading report details: ' + error.message);
+    });
+}
 
-        function closeModal() {
-            document.getElementById('reportModal').classList.remove('active');
-        }
-
-        function downloadReport(reportId) {
-            fetch(`/reports/${reportId}/details`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const report = data.data;
-                        generatePDF(report);
-                    } else {
-                        alert('Failed to load report details: ' + (data.message || 'Unknown error'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while loading report details: ' + error.message);
-                });
-        }
-
-        function generatePDF(report) {
-            // Create a temporary HTML element for rendering
-            const tempContainer = document.createElement('div');
-            tempContainer.style.position = 'absolute';
-            tempContainer.style.left = '-9999px';
-            tempContainer.style.width = '800px';
-            tempContainer.style.padding = '20px';
-            tempContainer.style.fontFamily = 'Arial, sans-serif';
-            tempContainer.style.backgroundColor = 'white';
-
-            // Get location display
-            const locationDisplay = getLocationDisplay(report);
-
-            // Get user display (anonymous or actual name)
-            const userDisplay = report.is_anonymous ? 'Anonymous' : (report.user ? report.user.firstname + ' ' + report.user.lastname : 'Unknown User');
-
-            // Get user verification status
-            let verificationStatus = 'Unverified';
-            if (report.user && report.user.verification) {
-                if (report.user.verification.is_verified === 1) {
-                    verificationStatus = 'Verified';
-                } else if (report.user.verification.is_verified === 0) {
-                    verificationStatus = 'Pending';
-                }
-            }
-
-            // Create HTML content for the PDF
-            tempContainer.innerHTML = `
-            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1D3557; padding-bottom: 20px;">
-                <div class="alertWelcome">Alert</div>
-                <div class="davao">Davao</div>
+function generatePDF(report) {
+    // Create a temporary HTML element for rendering
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = '800px';
+    tempContainer.style.padding = '20px';
+    tempContainer.style.fontFamily = 'Arial, sans-serif';
+    tempContainer.style.backgroundColor = 'white';
+    
+    // Get location display
+    const locationDisplay = getLocationDisplay(report);
+    
+    // Get user display (anonymous or actual name)
+    const userDisplay = report.is_anonymous ? 'Anonymous' : (report.user ? report.user.firstname + ' ' + report.user.lastname : 'Unknown User');
+    
+    // Create HTML content for the PDF
+    tempContainer.innerHTML = `
+        <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1D3557; padding-bottom: 20px;">
+            <div class="alertWelcome">Alert</div>
+            <div class="davao">Davao</div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Title</div>
+            <div style="margin-bottom: 15px; padding-left: 10px;">${report.title || 'No title provided'}</div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Location</div>
+            <div style="margin-bottom: 15px; padding-left: 10px;">${locationDisplay}</div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Description</div>
+            <div style="margin-bottom: 15px; padding-left: 10px;">${report.description || 'No description provided'}</div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div>
+                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Report ID</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">${report.report_id.toString().padStart(5, '0')}</div>
+                
+                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Report Type</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">${report.report_type || 'N/A'}</div>
+                
+                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Status</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">${report.status}</div>
             </div>
 
             <div style="margin-bottom: 20px;">
