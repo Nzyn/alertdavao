@@ -10,8 +10,9 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VerificationController;
-use App\Http\Controllers\BarangayController;
+// use App\Http\Controllers\BarangayController;
 use App\Http\Controllers\PersonnelController;
+use App\Http\Controllers\StatisticsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -43,9 +44,9 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/reports/{id}/status', [ReportController::class, 'updateStatus'])->name('reports.updateStatus');
     Route::get('/reports/{id}/details', [ReportController::class, 'getDetails'])->name('reports.details');
 
-    // Barangay management routes
-    Route::get('/barangays', [BarangayController::class, 'index'])->name('barangays.index');
-    Route::get('/barangays/{barangayId}', [BarangayController::class, 'show'])->name('barangays.show');
+    // Barangay management routes (commented out - controller missing)
+    // Route::get('/barangays', [BarangayController::class, 'index'])->name('barangays.index');
+    // Route::get('/barangays/{barangayId}', [BarangayController::class, 'show'])->name('barangays.show');
 
     Route::get('/users', function () {
         $users = \App\Models\User::with('roles')->orderBy('created_at', 'desc')->get();
@@ -82,9 +83,11 @@ Route::middleware(['auth'])->group(function () {
     // Police station routes
     Route::get('/api/police-stations', [PersonnelController::class, 'getPoliceStations']);
 
-    Route::get('/statistics', function () {
-        return view('statistics');
-    })->name('statistics');
+    // Statistics routes
+    Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics');
+    Route::get('/api/statistics/forecast', [StatisticsController::class, 'getForecast'])->name('statistics.forecast');
+    Route::get('/api/statistics/crime-stats', [StatisticsController::class, 'getCrimeStats'])->name('statistics.crime');
+    Route::get('/api/statistics/export', [StatisticsController::class, 'exportCrimeData'])->name('statistics.export');
 
     Route::get('/view-map', [MapController::class, 'index'])->name('view-map');
     Route::get('/api/reports', [MapController::class, 'getReports'])->name('api.reports');

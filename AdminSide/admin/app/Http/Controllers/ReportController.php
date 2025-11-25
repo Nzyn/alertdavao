@@ -36,7 +36,7 @@ class ReportController extends Controller
                 ->first();
 
             if ($barangay && $barangay->station_id) {
-                $report->station_id = $barangay->station_id;
+                $report->assigned_station_id = $barangay->station_id;
                 $report->save();
                 \Log::info('Report assigned to station', [
                     'report_id' => $report->report_id,
@@ -81,7 +81,7 @@ class ReportController extends Controller
             $userStationId = auth()->user()->station_id;
             if ($userStationId) {
                 // For police officers: show ONLY reports assigned to their station
-                $query->where('reports.station_id', $userStationId);
+                $query->where('reports.assigned_station_id', $userStationId);
                 \Log::info('Police user filtering reports', [
                     'user_id' => auth()->user()->id,
                     'station_id' => $userStationId

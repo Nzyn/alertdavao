@@ -18,7 +18,7 @@ class Report extends Model
         'report_type',
         'crime_type',
         'location_id',
-        'station_id',
+        'assigned_station_id',
         'status',
         'is_anonymous',
         'date_reported',
@@ -49,7 +49,7 @@ class Report extends Model
      */
     public function policeStation()
     {
-        return $this->belongsTo(PoliceStation::class, 'station_id', 'station_id');
+        return $this->belongsTo(PoliceStation::class, 'assigned_station_id', 'station_id');
     }
 
     /**
