@@ -27,3 +27,6 @@ UserSide/uploads/
 !UserSide/uploads/.gitkeep
 AdminSide/admin/storage/logs/
 !AdminSide/admin/storage/logs/.gitkeep
+
+# Android local config (machine-specific)
+**/android/local.properties
