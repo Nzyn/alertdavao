@@ -1,0 +1,332 @@
+const express = require("express");
+const cors = require("cors");
+const path = require('path');
+const multer = require('multer');
+
+// Configure multer for evidence files (reports)
+const evidenceStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, '../evidence'));
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'evidence-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// Configure multer for verification files
+const verificationStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, '../verifications'));
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'verification-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const evidenceUpload = multer({ 
+  storage: evidenceStorage,
+  fileFilter: function (req, file, cb) {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+
+const verificationUpload = multer({ 
+  storage: verificationStorage,
+  fileFilter: function (req, file, cb) {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+
+const handleRegister = require("./handleRegister");
+const { handleRegisterWithVerification, verifyEmail } = require("./handleEmailVerification");
+const { handleGoogleLogin, handleGoogleLoginWithToken } = require("./handleGoogleAuth");
+const handleLogin = require("./handleLogin");
+const {
+  testConnection,
+  getUserById,
+  upsertUser,
+  updateUserAddress,
+  executeQuery
+} = require("./handleUserProfile");
+const {
+  upload: reportUpload,
+  submitReport,
+  getUserReports,
+  getAllReports
+} = require("./handleReport");
+const {
+  // Police Stations
+  getAllPoliceStations,
+  getPoliceStationById,
+  getNearestStations,
+  // User Roles
+  getUserRoles,
+  assignUserRole,
+  // Verification
+  submitVerification,
+  uploadVerificationDocument,
+  getVerificationStatus,
+  updateVerification,
+  approveVerification,
+  rejectVerification,
+  // Messages
+  getUserConversations,
+  getMessagesBetweenUsers,
+  getUserMessages,
+  sendMessage,
+  markMessageAsRead,
+  markConversationAsRead,
+  getUnreadCount,
+  updateUserTypingStatus,
+  checkUserTypingStatus,
+  // Crime Analytics
+  getCrimeAnalytics,
+  getAllCrimeAnalytics,
+  // Crime Forecasts
+  getCrimeForecasts
+} = require("./handleNewFeatures");
+
+// Add this new function for handling notifications
+const { getUserNotifications, markNotificationAsRead } = require("./handleNotifications");
+
+// Add location service handler
+const { searchLocation, reverseGeocode, getDistance } = require("./handleLocation");
+
+// Add barangay handler
+const { getAllBarangays, getBarangayByCoordinates } = require("./handleBarangays");
+
+// Add police reports handler
+const { 
+  getReportsByStation, 
+  getReportsByStationAndStatus,
+  getStationDashboardStats 
+} = require("./getPoliceReports");
+
+// Add auto-assign reports handler
+const { autoAssignReports } = require("./autoAssignReports");
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middlewares
+app.use(cors({ origin: "*" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files statically from evidence folder
+app.use('/evidence', express.static(path.join(__dirname, '../evidence')));
+
+// Serve uploaded files statically from verifications folder
+app.use('/verifications', express.static(path.join(__dirname, '../verifications')));
+
+// Backward compatibility: serve old uploads from uploads/evidence folder
+app.use('/uploads/evidence', express.static(path.join(__dirname, '../uploads/evidence')));
+
+// Debug logger - BEFORE multer processes the request
+app.use((req, res, next) => {
+  console.log("\n" + "=".repeat(50));
+  console.log("📨 INCOMING REQUEST:");
+  console.log("   Method:", req.method);
+  console.log("   URL:", req.url);
+  console.log("   Content-Type:", req.headers['content-type']);
+  console.log("   Body keys:", Object.keys(req.body));
+  console.log("=".repeat(50) + "\n");
+  next();
+});
+
+// Authentication Routes
+app.post("/register", handleRegisterWithVerification); // ✅ Email verification required
+app.post("/register-direct", handleRegister); // Legacy direct registration (no email verification)
+app.get("/api/verify-email", verifyEmail); // Email verification endpoint
+app.post("/login", handleLogin);
+
+// OTP endpoints (phone verification / login OTP)
+const { sendOtp, verifyOtp } = require('./handleOtp');
+app.post('/api/send-otp', sendOtp);
+app.post('/api/verify-otp', verifyOtp);
+
+app.post("/google-login", handleGoogleLogin); // Google Sign-In (legacy)
+app.post("/google-login-token", handleGoogleLoginWithToken); // Google Sign-In with ID token verification (more secure)
+app.post("/api/auth/google", handleGoogleLoginWithToken); // ID token verification endpoint
+
+// User Profile API Routes
+app.get("/api/test-connection", testConnection);
+app.get("/api/users/:id", getUserById);
+app.post("/api/users/upsert", upsertUser);
+app.patch("/api/users/:id/address", updateUserAddress);
+app.post("/api/query", executeQuery);
+
+// Report API Routes - with detailed logging
+app.post("/api/reports", (req, res, next) => {
+  console.log("\n🎯 REPORT ENDPOINT HIT");
+  console.log("   Content-Type:", req.headers['content-type']);
+  console.log("   Is multipart?", req.headers['content-type']?.includes('multipart'));
+  next();
+}, reportUpload.single('media'), (req, res, next) => {
+  console.log("\n📦 AFTER MULTER:");
+  console.log("   req.file exists?", !!req.file);
+  console.log("   req.file:", req.file);
+  console.log("   req.body:", req.body);
+  next();
+}, submitReport);
+app.get("/api/reports", getAllReports);
+app.get("/api/reports/user/:userId", getUserReports);
+
+// Report Auto-Assignment Route
+app.post("/api/reports/auto-assign", autoAssignReports);
+
+// Police Reports Routes (Station-specific)
+// IMPORTANT: More specific routes must come BEFORE less specific routes
+app.get("/api/police/station/:stationId/dashboard", getStationDashboardStats);
+app.get("/api/police/station/:stationId/reports/:status", getReportsByStationAndStatus);
+app.get("/api/police/station/:stationId/reports", getReportsByStation);
+
+// Police Stations API Routes
+// IMPORTANT: More specific routes must come BEFORE less specific routes
+app.get("/api/police-stations/nearest", getNearestStations);
+app.get("/api/police-stations", getAllPoliceStations);
+app.get("/api/police-stations/:id", getPoliceStationById);
+
+// User Roles API Routes
+app.get("/api/users/:userId/roles", getUserRoles);
+app.post("/api/users/roles/assign", assignUserRole);
+
+// Verification API Routes
+app.post("/api/verification/submit", submitVerification);
+app.post("/api/verification/upload", verificationUpload.single('document'), uploadVerificationDocument);
+app.get("/api/verification/status/:userId", getVerificationStatus);
+app.put("/api/verification/:verificationId/update", updateVerification);
+app.post("/api/verification/approve", approveVerification);
+app.post("/api/verification/reject", rejectVerification);
+
+// Messages API Routes
+// IMPORTANT: Order matters! More specific routes must come before less specific routes
+app.get("/api/messages/conversations/:userId", getUserConversations);
+app.get("/api/messages/unread/:userId", getUnreadCount);
+app.post("/api/messages/typing", updateUserTypingStatus);
+app.get("/api/messages/typing-status/:senderId/:receiverId", checkUserTypingStatus);
+app.post("/api/messages", sendMessage);
+app.patch("/api/messages/conversation/read", markConversationAsRead);
+app.patch("/api/messages/:messageId/read", markMessageAsRead);
+app.get("/api/messages/:userId/:otherUserId", getMessagesBetweenUsers);
+app.get("/api/messages/:userId", getUserMessages);
+
+// Notifications API Routes
+app.get("/api/notifications/:userId", getUserNotifications);
+app.patch("/api/notifications/:notificationId/read", markNotificationAsRead);
+
+// Crime Analytics API Routes
+app.get("/api/analytics", getAllCrimeAnalytics);
+app.get("/api/analytics/:locationId", getCrimeAnalytics);
+
+// Crime Forecasts API Routes
+app.get("/api/forecasts/:locationId", getCrimeForecasts);
+
+// Location Service API Routes
+app.get("/api/location/search", searchLocation);
+app.get("/api/location/reverse", reverseGeocode);
+app.get("/api/location/distance", getDistance);
+
+// Barangay API Routes
+app.get("/api/barangays", getAllBarangays);
+app.get("/api/barangay/by-coordinates", getBarangayByCoordinates);
+
+// Geocoding API Route (legacy, kept for backward compatibility)
+app.post("/api/geocode", async (req, res) => {
+  try {
+    const { address } = req.body;
+    
+    if (!address || address.trim().length === 0) {
+      return res.status(400).json({ error: "Address is required" });
+    }
+    
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
+      {
+        headers: {
+          'User-Agent': 'AlertDavao/2.0 (Crime Reporting App)',
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Nominatim API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Geocoding error:", error);
+    res.status(500).json({ error: "Failed to geocode address" });
+  }
+});
+
+// Google OAuth redirect handler for Expo Go
+app.get('/auth/google/callback', (req, res) => {
+  const { code, state, error } = req.query;
+  
+  console.log('🔔 OAuth callback received:', { code: code ? 'present' : 'missing', state, error });
+  
+  if (error) {
+    console.error('❌ OAuth error:', error);
+    return res.send(`
+      <html>
+        <body>
+          <h2>Authentication failed</h2>
+          <p>Error: ${error}</p>
+          <script>
+            window.close();
+          </script>
+        </body>
+      </html>
+    `);
+  }
+  
+  // Instead of redirecting to exp://, we need to close the browser and let
+  // expo-auth-session handle the callback through its internal mechanism
+  res.send(`
+    <html>
+      <head>
+        <title>Success</title>
+      </head>
+      <body>
+        <h2>✅ Authentication successful!</h2>
+        <p>You can close this window and return to the app.</p>
+        <script>
+          // Try to close the window
+          window.close();
+          
+          // If that doesn't work, try to go back
+          setTimeout(function() {
+            if (!window.closed) {
+              window.history.back();
+            }
+          }, 500);
+        </script>
+      </body>
+    </html>
+  `);
+});
+
+// Start server
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});

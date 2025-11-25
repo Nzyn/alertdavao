@@ -1,0 +1,29 @@
+node_modules/
+.expo/
+.expo-shared/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+/dist
+/build
+
+# VSCode
+.vscode/
+
+# Others
+.idea/
+*.swp
+*.swo
+
+# Ignore uploads and logs but keep folders
+UserSide/uploads/
+!UserSide/uploads/.gitkeep
+AdminSide/admin/storage/logs/
+!AdminSide/admin/storage/logs/.gitkeep
