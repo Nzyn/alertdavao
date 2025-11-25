@@ -16,7 +16,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 
-const BACKEND_URL = 'http://192.168.1.11:3000';
+// Determine backend URL based on platform and environment
+const getBackendURL = () => {
+    if (Platform.OS === 'web') {
+        return 'http://localhost:3000';
+    }
+    // For native (iOS/Android), try localhost first, fallback to IP
+    return 'http://192.168.1.11:3000';
+};
+
+const BACKEND_URL = getBackendURL();
 
 // Conditional WebView import for native platforms only
 let WebView: any = null;
@@ -76,6 +85,8 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
     });
     const [loading, setLoading] = useState(false);
     const [loadingLocation, setLoadingLocation] = useState(false);
+    const [loadingBarangays, setLoadingBarangays] = useState(false);
+    const [barangaysError, setBarangaysError] = useState<string | null>(null);
     const addressTimeoutRef = useRef<any>(null);
     const webViewRef = useRef<any>(null);
 
@@ -88,16 +99,40 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
 
     const fetchBarangays = async () => {
         try {
+            console.log('🔄 Fetching barangays from:', `${BACKEND_URL}/api/barangays`);
+            setLoadingBarangays(true);
+            setBarangaysError(null);
+
             const response = await fetch(`${BACKEND_URL}/api/barangays`);
+            console.log('📡 Response status:', response.status);
+
             if (response.ok) {
                 const data = await response.json();
-                if (data.success) {
+                console.log('✅ Barangays received:', data);
+
+                if (data.success && data.data && Array.isArray(data.data)) {
+                    console.log('📍 Total barangays loaded:', data.data.length);
                     setBarangays(data.data);
+                    setBarangaysError(null);
+                } else {
+                    console.error('❌ Invalid response format:', data);
+                    setBarangaysError('Invalid data format received');
+                    Alert.alert('Error', 'Failed to load barangays: Invalid response format');
                 }
+            } else {
+                console.error('❌ Request failed with status:', response.status);
+                const errorText = await response.text();
+                console.error('Error response:', errorText);
+                setBarangaysError(`Server error: ${response.status}`);
+                Alert.alert('Error', `Failed to load barangays: Server error ${response.status}`);
             }
         } catch (error) {
-            console.error('Error fetching barangays:', error);
-            Alert.alert('Error', 'Failed to load barangays');
+            console.error('❌ Error fetching barangays:', error);
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            setBarangaysError(errorMsg);
+            Alert.alert('Error', `Failed to load barangays: ${errorMsg}`);
+        } finally {
+            setLoadingBarangays(false);
         }
     };
 
@@ -106,7 +141,7 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
         setSelectedBarangay(barangay);
         setBarangaySearch(barangay.barangay_name);
         setShowBarangayDropdown(false);
-        
+
         // Update map to barangay center
         setMapCoordinates({
             latitude: barangay.latitude,
@@ -144,7 +179,7 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
     const searchAddressSuggestions = async (query: string) => {
         try {
             setLoading(true);
-            const fullQuery = selectedBarangay 
+            const fullQuery = selectedBarangay
                 ? `${query}, ${selectedBarangay.barangay_name}, Davao City, Philippines`
                 : `${query}, Davao City, Philippines`;
 
@@ -170,10 +205,10 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
     const handleAddressSuggestionSelect = (suggestion: AddressSuggestion) => {
         setStreetAddress(suggestion.display_name);
         setShowAddressSuggestions(false);
-        
+
         const lat = parseFloat(suggestion.lat);
         const lon = parseFloat(suggestion.lon);
-        
+
         setMapCoordinates({ latitude: lat, longitude: lon });
         updateMapLocation(lat, lon);
 
@@ -271,7 +306,7 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
                 if (event.data && event.data.type === 'locationSelected') {
                     const { latitude, longitude } = event.data;
                     setMapCoordinates({ latitude, longitude });
-                    
+
                     // Reverse geocode
                     fetch(`${BACKEND_URL}/api/location/reverse?lat=${latitude}&lon=${longitude}`)
                         .then(res => res.json())
@@ -404,10 +439,11 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
 
                     {/* Barangay Selector */}
                     <View style={localStyles.section}>
-                        <Text style={localStyles.label}>Barangay *</Text>
+                        <Text style={localStyles.label}>Barangay * {loadingBarangays && '⏳'}</Text>
                         <TouchableOpacity
                             style={localStyles.dropdown}
                             onPress={() => setShowBarangayDropdown(!showBarangayDropdown)}
+                            disabled={loadingBarangays}
                         >
                             <TextInput
                                 style={localStyles.dropdownInput}
@@ -415,24 +451,104 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
                                 value={barangaySearch}
                                 onChangeText={setBarangaySearch}
                                 onFocus={() => setShowBarangayDropdown(true)}
+                                editable={!loadingBarangays}
                             />
-                            <Ionicons name="chevron-down" size={20} color="#666" />
+                            {loadingBarangays ? (
+                                <ActivityIndicator size="small" color="#1D3557" />
+                            ) : (
+                                <Ionicons name="chevron-down" size={20} color="#666" />
+                            )}
                         </TouchableOpacity>
 
-                        {showBarangayDropdown && (
-                            <View style={localStyles.dropdownList}>
-                                <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-                                    {filteredBarangays.map((item) => (
-                                        <TouchableOpacity
-                                            key={item.barangay_id.toString()}
-                                            style={localStyles.dropdownItem}
-                                            onPress={() => handleBarangaySelect(item)}
-                                        >
-                                            <Text style={localStyles.dropdownItemText}>{item.barangay_name}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
+                        {/* Error Message */}
+                        {barangaysError && (
+                            <View style={{
+                                backgroundColor: '#ffebee',
+                                padding: 10,
+                                borderRadius: 6,
+                                marginTop: 8,
+                                borderLeftWidth: 3,
+                                borderLeftColor: '#d32f2f'
+                            }}>
+                                <Text style={{ color: '#d32f2f', fontSize: 12, fontWeight: '500' }}>
+                                    ❌ {barangaysError}
+                                </Text>
                             </View>
+                        )}
+
+                        {/* Loading State */}
+                        {loadingBarangays && barangays.length === 0 && (
+                            <View style={localStyles.dropdownList}>
+                                <View style={{ padding: 20, alignItems: 'center' }}>
+                                    <ActivityIndicator size="large" color="#1D3557" />
+                                    <Text style={{ marginTop: 12, color: '#666', fontSize: 14 }}>
+                                        Loading barangays...
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
+                        {/* Dropdown List */}
+                        {showBarangayDropdown && !loadingBarangays && barangays.length > 0 && (
+                            <View style={localStyles.dropdownList}>
+                                <ScrollView style={{ maxHeight: 300 }} nestedScrollEnabled>
+                                    {filteredBarangays.length > 0 ? (
+                                        filteredBarangays.map((item) => (
+                                            <TouchableOpacity
+                                                key={item.barangay_id.toString()}
+                                                style={[
+                                                    localStyles.dropdownItem,
+                                                    selectedBarangay?.barangay_id === item.barangay_id && {
+                                                        backgroundColor: '#e3f2fd'
+                                                    }
+                                                ]}
+                                                onPress={() => handleBarangaySelect(item)}
+                                            >
+                                                <Text style={localStyles.dropdownItemText}>
+                                                    {selectedBarangay?.barangay_id === item.barangay_id ? '✓ ' : ''}
+                                                    {item.barangay_name}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))
+                                    ) : (
+                                        <View style={{ padding: 12 }}>
+                                            <Text style={{ color: '#999', textAlign: 'center', fontSize: 14 }}>
+                                                No barangay matches "{barangaySearch}"
+                                            </Text>
+                                        </View>
+                                    )}
+                                </ScrollView>
+                                {/* Footer showing total */}
+                                <View style={{
+                                    padding: 8,
+                                    borderTopWidth: 1,
+                                    borderTopColor: '#eee',
+                                    backgroundColor: '#f9f9f9',
+                                    alignItems: 'center'
+                                }}>
+                                    <Text style={{ fontSize: 12, color: '#999' }}>
+                                        Showing {filteredBarangays.length} of {barangays.length} barangays
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
+                        {/* No Results Message */}
+                        {showBarangayDropdown && !loadingBarangays && barangays.length === 0 && !barangaysError && (
+                            <View style={localStyles.dropdownList}>
+                                <View style={{ padding: 20, alignItems: 'center' }}>
+                                    <Text style={{ color: '#999', fontSize: 14 }}>
+                                        No barangays available
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
+                        {/* Info when no dropdown shown */}
+                        {!showBarangayDropdown && barangays.length > 0 && selectedBarangay && (
+                            <Text style={{ fontSize: 12, color: '#4CAF50', marginTop: 4, fontWeight: '500' }}>
+                                ✓ {selectedBarangay.barangay_name} selected
+                            </Text>
                         )}
                     </View>
 
@@ -501,7 +617,7 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
                                         if (data.type === 'locationSelected') {
                                             const { latitude, longitude } = data;
                                             setMapCoordinates({ latitude, longitude });
-                                            
+
                                             // Reverse geocode to get street address
                                             fetch(`${BACKEND_URL}/api/location/reverse?lat=${latitude}&lon=${longitude}`)
                                                 .then(res => res.json())
@@ -511,7 +627,7 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
                                                     }
                                                 })
                                                 .catch(err => console.error('Reverse geocode error:', err));
-                                            
+
                                             // Determine barangay
                                             determineBarangayFromCoordinates(latitude, longitude);
                                         }

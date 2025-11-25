@@ -140,4 +140,47 @@ export const userService = {
       throw error;
     }
   },
+
+  // Get user details with station information
+  async getUserWithStation(userId: string) {
+    try {
+      console.log('Fetching user with station details for user:', userId);
+      console.log('API URL:', buildApiUrl(API_CONFIG.ENDPOINTS.USERS, userId));
+      
+      const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.USERS, userId), {
+        method: 'GET',
+        headers: {
+          ...API_CONFIG.DEFAULT_HEADERS,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user details: HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('User with station response:', data);
+      
+      if (data.success && data.data) {
+        // Prepare the response object with proper fallbacks
+        const userData = data.data;
+        const stationData = userData.station;
+
+        return {
+          id: userData.id,
+          firstname: userData.firstName || userData.firstname || 'N/A',
+          lastname: userData.lastName || userData.lastname || 'N/A',
+          contact: userData.phone || userData.contact || 'N/A',
+          stationId: userData.station_id || null,
+          stationName: stationData?.station_name || 'Not Assigned',
+          stationAddress: stationData?.address || 'No address available',
+        };
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching user with station:', error);
+      throw error;
+    }
+  },
 };

@@ -12,12 +12,16 @@ import styles from "./styles";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [pendingPhone, setPendingPhone] = useState("");
   const [captchaWord, setCaptchaWord] = useState("");
   const [captchaInput, setCaptchaInput] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [captchaError, setCaptchaError] = useState("");
   const { setUser } = useUser();
   const router = useRouter();
   const { request, response, promptAsync } = useGoogleAuth();
@@ -94,6 +98,12 @@ const Login = () => {
     if (!code || code.length !== 6) {
       return;
     }
+    
+    // Prevent duplicate submissions
+    if (isLoading) {
+      return;
+    }
+    
     // Normalize phone number to match backend
     let normalizedPhone = pendingPhone.trim().replace(/\s+/g, '');
     if (normalizedPhone.startsWith('0')) {
@@ -135,12 +145,17 @@ const Login = () => {
         isVerified: Boolean(user.is_verified || user.isVerified),
         profileImage: user.profile_image || user.profileImage,
       });
+      // Clear states and close modal
       setShowOtpModal(false);
       setOtpCode("");
       setPendingPhone("");
       setIsLoading(false);
-      router.replace('/(tabs)');
+      // Navigate to home
+      setTimeout(() => {
+        router.replace('/(tabs)');
+      }, 300);
     } catch (err) {
+      console.error('❌ OTP submission error:', err);
       Alert.alert('OTP Error', 'Failed to verify OTP. Please try again.');
       setOtpCode("");
       setIsLoading(false);
@@ -148,6 +163,10 @@ const Login = () => {
   };
 
   const handleLogin = async () => {
+    setEmailError("");
+    setPasswordError("");
+    setCaptchaError("");
+    
     if (!email || !password) {
       Alert.alert('Error', 'Please enter email and password');
       return;
@@ -155,7 +174,7 @@ const Login = () => {
     
     // Verify captcha
     if (captchaInput.toUpperCase() !== captchaWord.toUpperCase()) {
-      Alert.alert('Captcha Error', 'Incorrect captcha. Please try again.');
+      setCaptchaError('Incorrect captcha. Please try again.');
       refreshCaptcha();
       return;
     }
@@ -230,7 +249,17 @@ const Login = () => {
         });
         router.replace('/(tabs)');
       } else {
-        Alert.alert('Login Failed', data.message || 'Login failed');
+        // Display error messages under relevant input fields
+        const errorMessage = data.message || 'Login failed';
+        const lowerError = errorMessage.toLowerCase();
+        
+        if (lowerError.includes('user') || lowerError.includes('email') || lowerError.includes('not found')) {
+          setEmailError(errorMessage);
+        } else if (lowerError.includes('password') || lowerError.includes('incorrect') || lowerError.includes('invalid')) {
+          setPasswordError(errorMessage);
+        } else {
+          Alert.alert('Login Failed', errorMessage);
+        }
         setIsLoading(false);
       }
     } catch (err: any) {
@@ -268,18 +297,49 @@ const Login = () => {
           style={styles.input}
           placeholder="Enter your email"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(text) => {
+            setEmail(text);
+            setEmailError("");
+          }}
           keyboardType="email-address"
         />
+        {emailError ? (
+          <Text style={{ color: '#E63946', fontSize: 12, marginBottom: 10, marginTop: -10 }}>
+            {emailError}
+          </Text>
+        ) : null}
 
         <Text style={styles.subheading2}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={true}
-        />
+        <View style={{ position: 'relative' }}>
+          <TextInput
+            style={[styles.input, { paddingRight: 50 }]}
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+              setPasswordError("");
+            }}
+            secureTextEntry={!showPassword}
+          />
+          <Pressable
+            onPress={() => setShowPassword(!showPassword)}
+            style={{
+              position: 'absolute',
+              right: 10,
+              top: 13,
+              paddingHorizontal: 8,
+            }}
+          >
+            <Text style={{ fontSize: 12, color: '#1D3557', fontWeight: '600' }}>
+              {showPassword ? 'HIDE' : 'SHOW'}
+            </Text>
+          </Pressable>
+        </View>
+        {passwordError ? (
+          <Text style={{ color: '#E63946', fontSize: 12, marginBottom: 10, marginTop: -10 }}>
+            {passwordError}
+          </Text>
+        ) : null}
 
         {/* Captcha Section */}
         <Text style={styles.subheading2}>Captcha Verification</Text>
@@ -292,10 +352,16 @@ const Login = () => {
             onChangeText={(text) => {
               const limited = text.replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase();
               setCaptchaInput(limited);
+              setCaptchaError("");
             }}
             autoCapitalize="characters"
             maxLength={6}
           />
+          {captchaError ? (
+            <Text style={{ color: '#E63946', fontSize: 12, marginBottom: 10, marginTop: -10 }}>
+              {captchaError}
+            </Text>
+          ) : null}
           <Pressable onPress={refreshCaptcha}>
             <Text style={{ color: '#1D3557', textAlign: 'center', marginTop: 4, fontSize: 13 }}>
               🔄 Refresh Captcha
@@ -361,10 +427,10 @@ const Login = () => {
               </Text>
               <TextInput
                 value={otpCode}
-                onChangeText={async (code) => {
+                onChangeText={(code) => {
                   setOtpCode(code);
                   if (code.length === 6 && !isLoading) {
-                    await submitLoginOtp(code);
+                    submitLoginOtp(code);
                   }
                 }}
                 keyboardType="number-pad"

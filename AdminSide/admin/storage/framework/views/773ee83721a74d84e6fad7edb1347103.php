@@ -1,8 +1,6 @@
-@extends('layouts.app')
+<?php $__env->startSection('title', 'Reports'); ?>
 
-@section('title', 'Reports')
-
-@section('styles')
+<?php $__env->startSection('styles'); ?>
     <style>
         .reports-header {
             display: flex;
@@ -645,9 +643,9 @@
             font-weight: bold;
         }
     </style>
-@endsection
+<?php $__env->stopSection(); ?>
 
-@section('content')
+<?php $__env->startSection('content'); ?>
     <div class="reports-header">
         <div class="reports-title-section">
             <h1>Reports</h1>
@@ -680,18 +678,18 @@
                 </tr>
             </thead>
             <tbody>
-                @forelse($reports as $report)
-                            <tr data-report-id="{{ $report->report_id }}">
-                                <td class="report-id">{{ str_pad($report->report_id, 5, '0', STR_PAD_LEFT) }}</td>
+                <?php $__empty_1 = true; $__currentLoopData = $reports; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $report): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                            <tr data-report-id="<?php echo e($report->report_id); ?>">
+                                <td class="report-id"><?php echo e(str_pad($report->report_id, 5, '0', STR_PAD_LEFT)); ?></td>
                                 <td>
-                                    @if($report->user)
-                                        {{ substr($report->user->firstname, 0, 1) }}. {{ substr($report->user->lastname, 0, 1) }}.
-                                    @else
+                                    <?php if($report->user): ?>
+                                        <?php echo e(substr($report->user->firstname, 0, 1)); ?>. <?php echo e(substr($report->user->lastname, 0, 1)); ?>.
+                                    <?php else: ?>
                                         Unknown
-                                    @endif
+                                    <?php endif; ?>
                                 </td>
-                                <td>{{ \Illuminate\Support\Str::limit($report->report_type ?? 'N/A', 10) }}</td>
-                                <td>{{ \Illuminate\Support\Str::limit($report->title, 30) }}</td>
+                                <td><?php echo e(\Illuminate\Support\Str::limit($report->report_type ?? 'N/A', 10)); ?></td>
+                                <td><?php echo e(\Illuminate\Support\Str::limit($report->title, 30)); ?></td>
                                 <td>
                                     <?php 
                                         $user = $report->user;
@@ -704,18 +702,18 @@
                         $verificationStatus = 'pending';
                     }
                                     ?>
-                                    <span class="verified-badge {{ $verificationStatus }}">
-                                        @if($verificationStatus === 'verified')
+                                    <span class="verified-badge <?php echo e($verificationStatus); ?>">
+                                        <?php if($verificationStatus === 'verified'): ?>
                                             Verified
-                                        @elseif($verificationStatus === 'pending')
+                                        <?php elseif($verificationStatus === 'pending'): ?>
                                             Pending
-                                        @else
+                                        <?php else: ?>
                                             Unverified
-                                        @endif
+                                        <?php endif; ?>
                                     </span>
                                 </td>
-                                <td>{{ $report->created_at->timezone('Asia/Manila')->format('m/d/Y H:i') }}</td>
-                                <td>{{ $report->updated_at->timezone('Asia/Manila')->format('m/d/Y H:i') }}</td>
+                                <td><?php echo e($report->created_at->timezone('Asia/Manila')->format('m/d/Y H:i')); ?></td>
+                                <td><?php echo e($report->updated_at->timezone('Asia/Manila')->format('m/d/Y H:i')); ?></td>
                                 <td>
                                     <?php    $reportId = $report->report_id;
                     $status = $report->status; ?>
@@ -743,7 +741,7 @@
                                     </button>
                                 </td>
                             </tr>
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <tr>
                         <td colspan="9" class="no-results">
                             <svg style="width: 48px; height: 48px; margin: 0 auto 1rem; opacity: 0.3;" viewBox="0 0 24 24"
@@ -753,7 +751,7 @@
                             <p>No reports found</p>
                         </td>
                     </tr>
-                @endforelse
+                <?php endif; ?>
             </tbody>
         </table>
     </div>
@@ -780,78 +778,37 @@
         </div>
         <button class="lightbox-nav lightbox-next" onclick="changeImage(1)">&#8250;</button>
     </div>
-    <button class="lightbox-nav lightbox-next" onclick="changeImage(1)">&#8250;</button>
-</div>
 
-<!-- Pagination -->
-@if($reports->hasPages())
-<div class="pagination">
-    {{-- Previous Page Link --}}
-    @if ($reports->onFirstPage())
-        <span class="disabled">&laquo;</span>
-    @else
-        <a href="{{ $reports->previousPageUrl() }}">&laquo;</a>
-    @endif
+    <!-- Pagination -->
+    <?php if($reports->hasPages()): ?>
+        <div class="pagination">
+            
+            <?php if($reports->onFirstPage()): ?>
+                <span class="disabled">&lsaquo;</span>
+            <?php else: ?>
+                <a href="<?php echo e($reports->previousPageUrl()); ?>">&lsaquo;</a>
+            <?php endif; ?>
 
-    {{-- Pagination Elements --}}
-    @php
-        $currentPage = $reports->currentPage();
-        $lastPage = $reports->lastPage();
-        $maxPagesToShow = 10;
-        $halfMax = floor($maxPagesToShow / 2);
-        
-        // Calculate start and end pages
-        if ($lastPage <= $maxPagesToShow) {
-            $startPage = 1;
-            $endPage = $lastPage;
-        } else {
-            if ($currentPage <= $halfMax) {
-                $startPage = 1;
-                $endPage = $maxPagesToShow;
-            } elseif ($currentPage >= $lastPage - $halfMax) {
-                $startPage = $lastPage - $maxPagesToShow + 1;
-                $endPage = $lastPage;
-            } else {
-                $startPage = $currentPage - $halfMax;
-                $endPage = $currentPage + $halfMax;
-            }
-        }
-    @endphp
+            
+            <?php for($i = 1; $i <= $reports->lastPage(); $i++): ?>
+                <?php if($i == $reports->currentPage()): ?>
+                    <span class="active"><?php echo e($i); ?></span>
+                <?php else: ?>
+                    <a href="<?php echo e($reports->url($i)); ?>"><?php echo e($i); ?></a>
+                <?php endif; ?>
+            <?php endfor; ?>
 
-    {{-- First Page --}}
-    @if ($startPage > 1)
-        <a href="{{ $reports->url(1) }}">1</a>
-        @if ($startPage > 2)
-            <span class="disabled">...</span>
-        @endif
-    @endif
+            
+            <?php if($reports->hasMorePages()): ?>
+                <a href="<?php echo e($reports->nextPageUrl()); ?>">&rsaquo;</a>
+            <?php else: ?>
+                <span class="disabled">&rsaquo;</span>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+<?php $__env->stopSection(); ?>
 
-    {{-- Page Numbers --}}
-    @for ($i = $startPage; $i <= $endPage; $i++)
-        @if ($i == $currentPage)
-            <span class="active">{{ $i }}</span>
-        @else
-            <a href="{{ $reports->url($i) }}">{{ $i }}</a>
-        @endif
-    @endfor
-
-    {{-- Last Page --}}
-    @if ($endPage < $lastPage)
-        @if ($endPage < $lastPage - 1)
-            <span class="disabled">...</span>
-        @endif
-        <a href="{{ $reports->url($lastPage) }}">{{ $lastPage }}</a>
-    @endif
-
-    {{-- Next Page Link --}}
-    @if ($reports->hasMorePages())
-        <a href="{{ $reports->nextPageUrl() }}">&raquo;</a>
-    @else
-        <span class="disabled">&raquo;</span>
-    @endif
-@endsection
-
-@section('scripts')
+<?php $__env->startSection('scripts'); ?>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
@@ -1114,105 +1071,121 @@
                             </div>
                         </div>
                     </div>
-                </div>
-                ${mediaContent}
-            `;
-            
-            // Show the modal
-            document.getElementById('reportModal').classList.add('active');
-        } else {
-            alert('Failed to load report details: ' + (data.message || 'Unknown error'));
+                    ${mediaContent}
+                `;
+
+                        // Show the modal
+                        document.getElementById('reportModal').classList.add('active');
+                    } else {
+                        alert('Failed to load report details: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while loading report details: ' + error.message);
+                });
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while loading report details: ' + error.message);
-    });
-}
 
-function getLocationDisplay(report) {
-    // Check if location object exists with barangay name
-    if (report.location && report.location.barangay) {
-        const barangay = report.location.barangay;
-        // Only show barangay if it's not just coordinates
-        if (barangay && barangay !== 'Unknown' && !barangay.startsWith('Lat:') && !barangay.includes(',')) {
-            return barangay;
+        function getVerificationBadge(report) {
+            if (!report.user) {
+                return '';
+            }
+
+            const verification = report.user.verification;
+            let badgeClass = 'verified-badge unverified';
+            let badgeText = 'Unverified';
+
+            if (verification) {
+                if (verification.is_verified === 1) {
+                    badgeClass = 'verified-badge verified';
+                    badgeText = 'Verified';
+                } else if (verification.is_verified === 0) {
+                    badgeClass = 'verified-badge pending';
+                    badgeText = 'Pending';
+                }
+            }
+
+            return `<span class="${badgeClass}" style="margin-left: 8px;">${badgeText}</span>`;
         }
-    }
-    
-    // No valid location name found
-    return 'Location not specified';
-}
 
-function closeModal() {
-    document.getElementById('reportModal').classList.remove('active');
-}
+        function getLocationDisplay(report) {
+            // Check if location object exists with coordinates
+            if (report.location) {
+                const lat = report.location.latitude;
+                const lng = report.location.longitude;
+                const barangay = report.location.barangay || '';
 
-function downloadReport(reportId) {
-    fetch(`/reports/${reportId}/details`)
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const report = data.data;
-            generatePDF(report);
-        } else {
-            alert('Failed to load report details: ' + (data.message || 'Unknown error'));
+                // Build location string with coordinates
+                if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
+                    if (barangay && barangay !== 'Unknown' && !barangay.startsWith('Lat:')) {
+                        return barangay + ' (' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ')';
+                    } else {
+                        return '(' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ')';
+                    }
+                }
+            }
+
+            // Fallback: Check direct properties (shouldn't happen with current setup)
+            if (report.latitude && report.longitude) {
+                return '(' + report.latitude.toFixed(4) + ', ' + report.longitude.toFixed(4) + ')';
+            }
+
+            // No location data found
+            return 'No location provided';
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while loading report details: ' + error.message);
-    });
-}
 
-function generatePDF(report) {
-    // Create a temporary HTML element for rendering
-    const tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '-9999px';
-    tempContainer.style.width = '800px';
-    tempContainer.style.padding = '20px';
-    tempContainer.style.fontFamily = 'Arial, sans-serif';
-    tempContainer.style.backgroundColor = 'white';
-    
-    // Get location display
-    const locationDisplay = getLocationDisplay(report);
-    
-    // Get user display (anonymous or actual name)
-    const userDisplay = report.is_anonymous ? 'Anonymous' : (report.user ? report.user.firstname + ' ' + report.user.lastname : 'Unknown User');
-    
-    // Create HTML content for the PDF
-    tempContainer.innerHTML = `
-        <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1D3557; padding-bottom: 20px;">
-            <div class="alertWelcome">Alert</div>
-            <div class="davao">Davao</div>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Title</div>
-            <div style="margin-bottom: 15px; padding-left: 10px;">${report.title || 'No title provided'}</div>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Location</div>
-            <div style="margin-bottom: 15px; padding-left: 10px;">${locationDisplay}</div>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Description</div>
-            <div style="margin-bottom: 15px; padding-left: 10px;">${report.description || 'No description provided'}</div>
-        </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-            <div>
-                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Report ID</div>
-                <div style="margin-bottom: 15px; padding-left: 10px;">${report.report_id.toString().padStart(5, '0')}</div>
-                
-                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Report Type</div>
-                <div style="margin-bottom: 15px; padding-left: 10px;">${report.report_type || 'N/A'}</div>
-                
-                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Status</div>
-                <div style="margin-bottom: 15px; padding-left: 10px;">${report.status}</div>
+        function closeModal() {
+            document.getElementById('reportModal').classList.remove('active');
+        }
+
+        function downloadReport(reportId) {
+            fetch(`/reports/${reportId}/details`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const report = data.data;
+                        generatePDF(report);
+                    } else {
+                        alert('Failed to load report details: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while loading report details: ' + error.message);
+                });
+        }
+
+        function generatePDF(report) {
+            // Create a temporary HTML element for rendering
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.width = '800px';
+            tempContainer.style.padding = '20px';
+            tempContainer.style.fontFamily = 'Arial, sans-serif';
+            tempContainer.style.backgroundColor = 'white';
+
+            // Get location display
+            const locationDisplay = getLocationDisplay(report);
+
+            // Get user display (anonymous or actual name)
+            const userDisplay = report.is_anonymous ? 'Anonymous' : (report.user ? report.user.firstname + ' ' + report.user.lastname : 'Unknown User');
+
+            // Get user verification status
+            let verificationStatus = 'Unverified';
+            if (report.user && report.user.verification) {
+                if (report.user.verification.is_verified === 1) {
+                    verificationStatus = 'Verified';
+                } else if (report.user.verification.is_verified === 0) {
+                    verificationStatus = 'Pending';
+                }
+            }
+
+            // Create HTML content for the PDF
+            tempContainer.innerHTML = `
+            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1D3557; padding-bottom: 20px;">
+                <div class="alertWelcome">Alert</div>
+                <div class="davao">Davao</div>
             </div>
 
             <div style="margin-bottom: 20px;">
@@ -1455,4 +1428,5 @@ function generatePDF(report) {
             }
         });
     </script>
-@endsection
+<?php $__env->stopSection(); ?>
+<?php echo $__env->make('layouts.app', \Illuminate\Support\Arr::except(get_defined_vars(), ['__data', '__path']))->render(); ?><?php /**PATH D:\Codes\Laravel.ReactNative\AlertDavao\alertdavao\AdminSide\admin\resources\views/reports.blade.php ENDPATH**/ ?>

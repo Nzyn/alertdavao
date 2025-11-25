@@ -19,7 +19,7 @@ class UserController extends Controller
     public function show(string $id): JsonResponse
     {
         try {
-            $user = User::findOrFail($id);
+            $user = User::with('policeStation')->findOrFail($id);
             
             return response()->json([
                 'success' => true,
@@ -34,6 +34,14 @@ class UserController extends Controller
                     'longitude' => $user->longitude,
                     'is_verified' => $user->is_verified,
                     'station_id' => $user->station_id,
+                    'station' => $user->policeStation ? [
+                        'station_id' => $user->policeStation->station_id,
+                        'station_name' => $user->policeStation->station_name,
+                        'address' => $user->policeStation->address,
+                        'latitude' => $user->policeStation->latitude,
+                        'longitude' => $user->policeStation->longitude,
+                        'contact_number' => $user->policeStation->contact_number,
+                    ] : null,
                 ]
             ]);
         } catch (ModelNotFoundException $e) {

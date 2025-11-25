@@ -77,6 +77,11 @@ class User extends Authenticatable
         return $this->hasMany(Verification::class, 'user_id');
     }
     
+    public function verification()
+    {
+        return $this->hasOne(Verification::class, 'user_id')->latest();
+    }
+    
     public function adminActions()
     {
         return $this->hasMany(AdminAction::class, 'admin_id');
