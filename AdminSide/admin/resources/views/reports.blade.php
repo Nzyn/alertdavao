@@ -849,6 +849,9 @@
     @else
         <span class="disabled">&raquo;</span>
     @endif
+</div>
+@endif
+
 @endsection
 
 @section('scripts')

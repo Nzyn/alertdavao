@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, Button, Modal, Alert, ScrollView, Pressable } from "react-native";
+import { View, Text, TextInput, Button, Alert, ScrollView, Pressable } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from "expo-router";
 import { useUser } from '../../contexts/UserContext';
@@ -14,9 +14,6 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [pendingPhone, setPendingPhone] = useState("");
   const [captchaWord, setCaptchaWord] = useState("");
   const [captchaInput, setCaptchaInput] = useState("");
   const [emailError, setEmailError] = useState("");
@@ -90,78 +87,6 @@ const Login = () => {
     setCaptchaInput("");
   };
 
-  const submitLoginOtp = async (code: string) => {
-    if (!pendingPhone) {
-      Alert.alert('OTP Error', 'No phone to verify');
-      return;
-    }
-    if (!code || code.length !== 6) {
-      return;
-    }
-    
-    // Prevent duplicate submissions
-    if (isLoading) {
-      return;
-    }
-    
-    // Normalize phone number to match backend
-    let normalizedPhone = pendingPhone.trim().replace(/\s+/g, '');
-    if (normalizedPhone.startsWith('0')) {
-      normalizedPhone = '+63' + normalizedPhone.slice(1);
-    }
-    setIsLoading(true);
-    console.log('🔐 Verifying OTP for phone:', normalizedPhone, 'code:', code);
-    try {
-      const resp = await fetch(`${BACKEND_URL}/api/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizedPhone, purpose: 'login', code })
-      });
-      const data = await resp.json();
-      console.log('📥 OTP verification response:', data);
-      if (!resp.ok) {
-        console.error('❌ OTP verification failed:', data);
-        Alert.alert('OTP Error', data.message || 'Invalid OTP');
-        setOtpCode("");
-        setIsLoading(false);
-        return;
-      }
-      const user = data.user;
-      if (!user) {
-        Alert.alert('Login Error', 'User not found after OTP verification');
-        setOtpCode("");
-        setIsLoading(false);
-        return;
-      }
-      console.log('✅ OTP verified, logging in user:', user.email);
-      await AsyncStorage.setItem('userData', JSON.stringify(user));
-      setUser({
-        id: user.id?.toString() || '0',
-        firstName: user.firstname || user.firstName || '',
-        lastName: user.lastname || user.lastName || '',
-        email: user.email || '',
-        phone: user.contact || user.phone || '',
-        address: user.address || '',
-        isVerified: Boolean(user.is_verified || user.isVerified),
-        profileImage: user.profile_image || user.profileImage,
-      });
-      // Clear states and close modal
-      setShowOtpModal(false);
-      setOtpCode("");
-      setPendingPhone("");
-      setIsLoading(false);
-      // Navigate to home
-      setTimeout(() => {
-        router.replace('/(tabs)');
-      }, 300);
-    } catch (err) {
-      console.error('❌ OTP submission error:', err);
-      Alert.alert('OTP Error', 'Failed to verify OTP. Please try again.');
-      setOtpCode("");
-      setIsLoading(false);
-    }
-  };
-
   const handleLogin = async () => {
     setEmailError("");
     setPasswordError("");
@@ -190,52 +115,15 @@ const Login = () => {
       const data = await response.json();
       console.log('📥 Login response:', data);
       if (response.ok) {
-        if (data.need_otp) {
-          console.log('🔐 OTP required for login');
-          const phone = data.user?.contact || data.user?.phone || data.user?.mobile;
-          if (!phone) {
-            Alert.alert('Login error', 'No phone number available for OTP');
-            setIsLoading(false);
-            return;
-          }
-          console.log('📱 Sending OTP to:', phone);
-          try {
-            const sendResp = await fetch(`${BACKEND_URL}/api/send-otp`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ phone, purpose: 'login', userId: data.user?.id })
-            });
-            const sendData = await sendResp.json();
-            console.log('📤 OTP send response:', sendData);
-            if (!sendResp.ok) {
-              Alert.alert('OTP Error', sendData.message || 'Failed to send OTP');
-              setIsLoading(false);
-              return;
-            }
-            if (sendData.debugOtp) {
-              console.log('🔐🔐🔐 YOUR OTP CODE IS:', sendData.debugOtp, '🔐🔐🔐');
-              Alert.alert(
-                '🔐 Development OTP',
-                `Your OTP code is: ${sendData.debugOtp}\n\n(This will be sent via SMS in production)`,
-                [{ text: 'OK' }]
-              );
-            }
-            setPendingPhone(phone);
-            setIsLoading(false);
-            setShowOtpModal(true);
-          } catch (err) {
-            console.error('❌ Failed to send OTP:', err);
-            Alert.alert('OTP Error', 'Failed to send OTP');
-            setIsLoading(false);
-          }
-          return;
-        }
+        // Direct login - no OTP required for sign-in
+        // OTP is only used during registration for phone verification
         const user = data.user || data;
         if (user.role === 'police' || user.role === 'admin') {
           Alert.alert('Error', 'Police and Admin users must log in through the AdminSide dashboard.');
           setIsLoading(false);
           return;
         }
+        console.log('✅ Login successful for:', user.email);
         await AsyncStorage.setItem('userData', JSON.stringify(user));
         setUser({
           id: user.id?.toString() || '0',
@@ -412,60 +300,6 @@ const Login = () => {
             🔐 Sign in with Google
           </Text>
         </Pressable>
-
-        <Modal visible={showOtpModal} animationType="slide" transparent={true}>
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-            <View style={{ width: 320, padding: 20, backgroundColor: '#fff', borderRadius: 8 }}>
-              <Text style={{ fontSize: 18, marginBottom: 8, fontWeight: '600', textAlign: 'center' }}>
-                Verify OTP
-              </Text>
-              <Text style={{ fontSize: 14, marginBottom: 4, color: '#666', textAlign: 'center' }}>
-                Enter the 6-digit code sent to
-              </Text>
-              <Text style={{ fontSize: 14, marginBottom: 16, color: '#1D3557', textAlign: 'center', fontWeight: '600' }}>
-                {pendingPhone || 'your phone'}
-              </Text>
-              <TextInput
-                value={otpCode}
-                onChangeText={(code) => {
-                  setOtpCode(code);
-                  if (code.length === 6 && !isLoading) {
-                    submitLoginOtp(code);
-                  }
-                }}
-                keyboardType="number-pad"
-                maxLength={6}
-                style={[styles.input, {
-                  marginBottom: 12,
-                  backgroundColor: '#fff',
-                  textAlign: 'center',
-                  fontSize: 24,
-                  letterSpacing: 8,
-                  fontWeight: '600'
-                }]}
-                editable={!isLoading}
-                autoFocus={true}
-                placeholder="000000"
-                placeholderTextColor="#ccc"
-                selectTextOnFocus={true}
-              />
-              {isLoading && (
-                <View style={{ alignItems: 'center', gap: 8 }}>
-                  <Text style={{ color: '#1D3557', fontWeight: '600' }}>Verifying...</Text>
-                </View>
-              )}
-              <Button
-                title="Cancel"
-                onPress={() => {
-                  setShowOtpModal(false);
-                  setOtpCode("");
-                  setIsLoading(false);
-                }}
-                disabled={isLoading}
-              />
-            </View>
-          </View>
-        </Modal>
       </View>
     </ScrollView>
   );

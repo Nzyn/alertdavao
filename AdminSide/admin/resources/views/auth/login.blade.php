@@ -253,7 +253,7 @@
                 </div>
             @endif
 
-            <form id="loginForm">
+            <form id="loginForm" method="POST" action="{{ route('login') }}">
                @csrf
                
                <div id="emailPasswordForm">
@@ -291,27 +291,7 @@
 
                    @include('components.captcha')
 
-                   <button type="button" class="submit-btn" id="proceedBtn">Login</button>
-               </div>
-
-               <div id="otpForm" style="display:none;">
-                   <div class="form-group">
-                       <label class="form-label">Enter OTP sent to your phone</label>
-                       <p style="font-size: 0.75rem; color: #666; margin: 0.5rem 0 1rem 0;">Auto-proceeds when complete</p>
-                       <input 
-                           type="text" 
-                           id="otpCode" 
-                           name="otp_code" 
-                           class="form-input" 
-                           placeholder="000000"
-                           maxlength="6"
-                           inputmode="numeric"
-                           style="text-align: center; font-size: 24px; letter-spacing: 8px; font-weight: 600; tracking-code"
-                       >
-                       <span class="error-message" id="otpError" style="display:none;"></span>
-                   </div>
-                   <p id="verifyingText" style="text-align: center; color: #1D3557; font-weight: 600; display: none; margin-top: 1rem;">Verifying...</p>
-                   <button type="button" class="submit-btn" id="backBtn" style="background: #6c757d;">Back</button>
+                   <button type="submit" class="submit-btn" id="proceedBtn">Login</button>
                </div>
 
                 <div style="display: flex; align-items: center; margin: 20px 0;">
@@ -338,19 +318,10 @@
     </div>
 
     <script>
-        const proceedBtn = document.getElementById('proceedBtn');
-        const backBtn = document.getElementById('backBtn');
         const loginForm = document.getElementById('loginForm');
-        const emailPasswordForm = document.getElementById('emailPasswordForm');
-        const otpForm = document.getElementById('otpForm');
-        const otpCode = document.getElementById('otpCode');
-        const verifyingText = document.getElementById('verifyingText');
-        let currentUserEmail = '';
-        let currentUserPhone = '';
 
-        // Handle Proceed to OTP button
-        proceedBtn.addEventListener('click', async function(e) {
-            e.preventDefault();
+        // Handle login form submission - direct login without OTP
+        loginForm.addEventListener('submit', function(e) {
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const captchaInput = document.getElementById('captchaInput').value.toUpperCase();
@@ -358,6 +329,7 @@
 
             // Validate captcha
             if (captchaInput !== captchaWord) {
+                e.preventDefault();
                 document.getElementById('captchaError').style.display = 'block';
                 document.getElementById('captchaInput').focus();
                 alert('Invalid Security Code\n\nPlease enter the correct code shown in the image.');
@@ -366,154 +338,14 @@
 
             // Validate email and password
             if (!email || !password) {
+                e.preventDefault();
                 alert('Please enter email and password');
                 return false;
             }
 
-            proceedBtn.disabled = true;
-            proceedBtn.innerHTML = '<span class="spinner" style="margin-right:8px;width:18px;height:18px;display:inline-block;border:2px solid #fff;border-top:2px solid #1D3557;border-radius:50%;animation:spin 1s linear infinite;"></span>Verifying...';
-
-            try {
-                // Call backend to verify email/password and trigger OTP send
-                const response = await fetch('{{ route("login") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                    },
-                    body: JSON.stringify({
-                        email: email,
-                        password: password,
-                        send_otp: true
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!data.success) {
-                    alert(data.message || 'Invalid credentials. Please try again.');
-                    proceedBtn.disabled = false;
-                    proceedBtn.innerHTML = 'Proceed to OTP';
-                    return;
-                }
-
-                // Store email and phone for OTP verification
-                currentUserEmail = email;
-                currentUserPhone = data.phone;
-
-                // Show OTP form
-                emailPasswordForm.style.display = 'none';
-                otpForm.style.display = 'block';
-                otpCode.focus();
-
-                // Log OTP to console instead of alert popup
-                if (data.debugOtp) {
-                    console.log('🔐🔐🔐 ADMINSIDE OTP CODE:', data.debugOtp);
-                    console.log('📱 Check the backend terminal/logs for the OTP code');
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                alert('An error occurred. Please try again.');
-            } finally {
-                proceedBtn.disabled = false;
-                proceedBtn.innerHTML = 'Proceed to OTP';
-            }
+            // Allow form submission
+            return true;
         });
-
-        // Handle Back button
-        backBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            emailPasswordForm.style.display = 'block';
-            otpForm.style.display = 'none';
-            otpCode.value = '';
-            document.getElementById('otpError').style.display = 'none';
-            verifyingText.style.display = 'none';
-        });
-
-        // Auto-submit OTP when 6 digits are entered
-        otpCode.addEventListener('input', async function() {
-            const code = this.value.trim();
-            if (code.length === 6 && /^\d{6}$/.test(code)) {
-                verifyingText.style.display = 'block';
-                try {
-                    const response = await fetch('/api/otp/verify', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                        },
-                        body: JSON.stringify({
-                            phone: currentUserPhone,
-                            code: code,
-                            purpose: 'login'
-                        })
-                    });
-
-                    const data = await response.json();
-
-                    if (!data.success) {
-                        document.getElementById('otpError').style.display = 'block';
-                        document.getElementById('otpError').textContent = data.message || 'Invalid OTP';
-                        otpCode.value = '';
-                        verifyingText.style.display = 'none';
-                        return;
-                    }
-
-                    // OTP verified, now complete login with email/password
-                    loginForm.method = 'POST';
-                    loginForm.action = '{{ route("login") }}';
-                    const emailInput = document.createElement('input');
-                    emailInput.type = 'hidden';
-                    emailInput.name = 'email';
-                    emailInput.value = currentUserEmail;
-                    loginForm.appendChild(emailInput);
-
-                    const passwordInput = document.querySelector('input[name="password"]');
-                    const tokenInput = document.querySelector('input[name="_token"]');
-                    const rememberInput = document.querySelector('input[name="remember"]');
-
-                    // Create new form for final submission
-                    const finalForm = document.createElement('form');
-                    finalForm.method = 'POST';
-                    finalForm.action = '{{ route("login") }}';
-
-                    finalForm.appendChild(emailInput.cloneNode(true));
-                    const pwdInput = document.createElement('input');
-                    pwdInput.type = 'hidden';
-                    pwdInput.name = 'password';
-                    pwdInput.value = passwordInput.value;
-                    finalForm.appendChild(pwdInput);
-
-                    const tokenInput2 = document.createElement('input');
-                    tokenInput2.type = 'hidden';
-                    tokenInput2.name = '_token';
-                    tokenInput2.value = tokenInput.value;
-                    finalForm.appendChild(tokenInput2);
-
-                    if (rememberInput.checked) {
-                        const rememberInput2 = document.createElement('input');
-                        rememberInput2.type = 'hidden';
-                        rememberInput2.name = 'remember';
-                        rememberInput2.value = 'on';
-                        finalForm.appendChild(rememberInput2);
-                    }
-
-                    document.body.appendChild(finalForm);
-                    finalForm.submit();
-                } catch (err) {
-                    console.error('Error verifying OTP:', err);
-                    document.getElementById('otpError').style.display = 'block';
-                    document.getElementById('otpError').textContent = 'Failed to verify OTP. Please try again.';
-                    verifyingText.style.display = 'none';
-                }
-            }
-        });
-
-        // Spinner animation
-        const style = document.createElement('style');
-        style.innerHTML = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
-        document.head.appendChild(style);
     </script>
 </body>
 </html>

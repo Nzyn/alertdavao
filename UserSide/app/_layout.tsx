@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import LoadingScreen from '../components/LoadingScreen';
 import LoadingOverlay from '../components/LoadingOverlay';
+import GradientBackground from '../components/GradientBackground';
 import { UserProvider } from '../contexts/UserContext';
 import { LoadingProvider, useLoading } from '../contexts/LoadingContext';
 
@@ -62,7 +63,7 @@ function AppContent() {
   const { isLoading, loadingMessage } = useLoading();
 
   return (
-    <>
+    <GradientBackground>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack
           screenOptions={{
@@ -99,6 +100,6 @@ function AppContent() {
         <StatusBar style="auto" />
       </ThemeProvider>
       <LoadingOverlay visible={isLoading} message={loadingMessage} />
-    </>
+    </GradientBackground>
   );
 }
