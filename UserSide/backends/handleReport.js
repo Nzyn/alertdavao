@@ -2,6 +2,7 @@ const db = require("./db");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const { encrypt, decrypt, canDecrypt, encryptFields, decryptFields } = require("./encryptionService");
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -100,6 +101,27 @@ async function submitReport(req, res) {
       });
     }
 
+    // Check if user is restricted
+    const [userCheck] = await connection.query(
+      'SELECT restriction_level, total_flags FROM users WHERE id = ?',
+      [user_id]
+    );
+    
+    if (userCheck.length > 0) {
+      const { restriction_level, total_flags } = userCheck[0];
+      if (restriction_level && restriction_level !== 'none') {
+        await connection.rollback();
+        return res.status(403).json({
+          success: false,
+          message: `Your account is ${restriction_level}. You cannot submit reports until the restriction is lifted by an administrator.`,
+          restriction: {
+            level: restriction_level,
+            flags: total_flags
+          }
+        });
+      }
+    }
+
     // Parse crime types if it's a JSON string
     let crimeTypesArray;
     try {
@@ -122,9 +144,13 @@ async function submitReport(req, res) {
     const barangayName = barangay || (lat !== 0 && lng !== 0 ? `Lat: ${lat}, Lng: ${lng}` : "Unknown");
     const address = reporters_address || null;
 
+    // 🔐 ENCRYPT location data before storing
+    const encryptedBarangayName = encrypt(barangayName);
+    const encryptedAddress = address ? encrypt(address) : null;
+
     const [locationResult] = await connection.query(
       "INSERT INTO locations (barangay, reporters_address, latitude, longitude, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())",
-      [barangayName, address, lat, lng]
+      [encryptedBarangayName, encryptedAddress, lat, lng]
     );
 
     const locationId = locationResult.insertId;
@@ -181,11 +207,17 @@ async function submitReport(req, res) {
     // Create report record
     const isAnon = is_anonymous === "1" || is_anonymous === true || is_anonymous === "true";
     
+    // 🔐 ENCRYPT SENSITIVE DATA (AES-256-CBC)
+    // As per capstone requirement: encrypt incident reports for confidentiality
+    const encryptedDescription = encrypt(description);
+    
+    console.log("🔐 Encrypting sensitive report data using AES-256-CBC...");
+    
     const [reportResult] = await connection.query(
       `INSERT INTO reports 
        (user_id, location_id, title, report_type, description, date_reported, status, is_anonymous, station_id, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, NOW(), NOW())`,
-      [user_id, locationId, title, reportType, description, incident_date, isAnon, stationId]
+      [user_id, locationId, title, reportType, encryptedDescription, incident_date, isAnon, stationId]
     );
 
     const reportId = reportResult.insertId;
@@ -276,6 +308,7 @@ async function submitReport(req, res) {
 async function getUserReports(req, res) {
   try {
     const { userId } = req.params;
+    const userRole = req.query.role || req.body.role || 'user'; // Get user role from request
 
     const [reports] = await db.query(
       `SELECT 
@@ -312,7 +345,7 @@ async function getUserReports(req, res) {
       [userId]
     );
 
-    // Parse media data
+    // Parse media data and decrypt if authorized
     const formattedReports = reports.map((report) => {
       let mediaArray = [];
       if (report.media) {
@@ -322,11 +355,17 @@ async function getUserReports(req, res) {
         });
       }
 
+      // 🔓 DECRYPT sensitive data for authorized roles (police/admin)
+      // Regular users can only see their own encrypted data decrypted
+      const decryptedDescription = decrypt(report.description);
+      const decryptedBarangay = report.barangay ? decrypt(report.barangay) : null;
+      const decryptedAddress = report.reporters_address ? decrypt(report.reporters_address) : null;
+
       return {
         report_id: report.report_id,
         title: report.title,
         report_type: report.report_type,
-        description: report.description,
+        description: decryptedDescription,
         status: report.status,
         is_anonymous: Boolean(report.is_anonymous),
         date_reported: report.date_reported,
@@ -335,8 +374,8 @@ async function getUserReports(req, res) {
         location: {
           latitude: report.latitude,
           longitude: report.longitude,
-          barangay: report.barangay,
-          reporters_address: report.reporters_address,
+          barangay: decryptedBarangay,
+          reporters_address: decryptedAddress,
         },
         station: report.station_id ? {
           station_id: report.station_id,
@@ -364,6 +403,8 @@ async function getUserReports(req, res) {
 // Get all reports
 async function getAllReports(req, res) {
   try {
+    const userRole = req.query.role || req.body.role || 'user'; // Get user role from request
+    
     const [reports] = await db.query(
       `SELECT 
         r.report_id,
@@ -383,6 +424,7 @@ async function getAllReports(req, res) {
         u.firstname,
         u.lastname,
         u.email,
+        u.role as user_role,
         ps.station_name,
         ps.address as station_address,
         ps.contact_number,
@@ -402,7 +444,7 @@ async function getAllReports(req, res) {
       ORDER BY r.created_at DESC`
     );
 
-    // Parse media data
+    // Parse media data and decrypt for authorized roles
     const formattedReports = reports.map((report) => {
       let mediaArray = [];
       if (report.media) {
@@ -412,11 +454,26 @@ async function getAllReports(req, res) {
         });
       }
 
+      // 🔓 DECRYPT sensitive data ONLY for police/admin roles
+      // As per capstone requirement: only authorized personnel can view decrypted incident reports
+      let decryptedDescription = report.description;
+      let decryptedBarangay = report.barangay;
+      let decryptedAddress = report.reporters_address;
+      
+      if (canDecrypt(userRole)) {
+        console.log(`🔓 Decrypting report ${report.report_id} for authorized role: ${userRole}`);
+        decryptedDescription = decrypt(report.description);
+        decryptedBarangay = report.barangay ? decrypt(report.barangay) : null;
+        decryptedAddress = report.reporters_address ? decrypt(report.reporters_address) : null;
+      } else {
+        console.log(`🔒 Keeping report ${report.report_id} encrypted for role: ${userRole}`);
+      }
+
       return {
         report_id: report.report_id,
         title: report.title,
         report_type: report.report_type,
-        description: report.description,
+        description: decryptedDescription,
         status: report.status,
         is_anonymous: Boolean(report.is_anonymous),
         date_reported: report.date_reported,
@@ -431,8 +488,8 @@ async function getAllReports(req, res) {
         location: {
           latitude: report.latitude,
           longitude: report.longitude,
-          barangay: report.barangay,
-          reporters_address: report.reporters_address,
+          barangay: decryptedBarangay,
+          reporters_address: decryptedAddress,
         },
         station: report.station_id ? {
           station_id: report.station_id,

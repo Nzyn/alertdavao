@@ -1,5 +1,6 @@
 // Ensure default roles exist (admin, police, user) on initialization
 const db = require("./db");
+const { encrypt, decrypt, canDecrypt } = require("./encryptionService");
 
 // Initialize default roles (admin, police, user)
 const initDefaultRoles = async () => {
@@ -204,6 +205,14 @@ const submitVerification = async (req, res) => {
     // Current timestamp for created_at and updated_at
     const currentTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
     
+    // 🔐 ENCRYPT sensitive verification document paths (AES-256-CBC)
+    // As per capstone requirement: encrypt verification documents
+    const encryptedIdPicture = idPicture ? encrypt(idPicture) : null;
+    const encryptedIdSelfie = idSelfie ? encrypt(idSelfie) : null;
+    const encryptedBillingDoc = billingDocument ? encrypt(billingDocument) : null;
+    
+    console.log("🔐 Encrypting verification documents using AES-256-CBC...");
+    
     // Check if user already has a verification record
     const [existingVerifications] = await db.query(
       "SELECT * FROM verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
@@ -236,7 +245,7 @@ const submitVerification = async (req, res) => {
           UPDATE verifications 
           SET id_picture = ?, id_selfie = ?, billing_document = ?, status = 'pending', is_verified = FALSE, expiration = ?, updated_at = ?
           WHERE verification_id = ?
-        `, [idPicture, idSelfie, billingDocument, expiration, currentTime, existingVerification.verification_id]);
+        `, [encryptedIdPicture, encryptedIdSelfie, encryptedBillingDoc, expiration, currentTime, existingVerification.verification_id]);
         
         verificationId = existingVerification.verification_id;
       } else {
@@ -244,7 +253,7 @@ const submitVerification = async (req, res) => {
         const [result] = await db.query(`
           INSERT INTO verifications (user_id, otp_code, expiration, status, id_picture, id_selfie, billing_document, is_verified, created_at, updated_at)
           VALUES (?, ?, ?, 'pending', ?, ?, ?, FALSE, ?, ?)
-        `, [userId, Math.floor(100000 + Math.random() * 900000).toString(), expiration, idPicture, idSelfie, billingDocument, currentTime, currentTime]);
+        `, [userId, Math.floor(100000 + Math.random() * 900000).toString(), expiration, encryptedIdPicture, encryptedIdSelfie, encryptedBillingDoc, currentTime, currentTime]);
         
         verificationId = result.insertId;
       }
@@ -253,7 +262,7 @@ const submitVerification = async (req, res) => {
       const [result] = await db.query(`
         INSERT INTO verifications (user_id, otp_code, expiration, status, id_picture, id_selfie, billing_document, is_verified, created_at, updated_at)
         VALUES (?, ?, ?, 'pending', ?, ?, ?, FALSE, ?, ?)
-      `, [userId, Math.floor(100000 + Math.random() * 900000).toString(), expiration, idPicture, idSelfie, billingDocument, currentTime, currentTime]);
+      `, [userId, Math.floor(100000 + Math.random() * 900000).toString(), expiration, encryptedIdPicture, encryptedIdSelfie, encryptedBillingDoc, currentTime, currentTime]);
       
       verificationId = result.insertId;
     }
@@ -263,6 +272,8 @@ const submitVerification = async (req, res) => {
       INSERT INTO notifications (user_id, type, message, \`read\`)
       VALUES (?, 'verification', 'New verification request submitted', FALSE)
     `, [userId]);
+    
+    console.log("✅ Verification documents encrypted and stored");
     
     res.json({
       success: true,
@@ -308,6 +319,7 @@ const uploadVerificationDocument = async (req, res) => {
 // Get verification status
 const getVerificationStatus = async (req, res) => {
   const { userId } = req.params;
+  const userRole = req.query.role || req.body.role || 'user';
   
   try {
     const [verifications] = await db.query(
@@ -323,6 +335,18 @@ const getVerificationStatus = async (req, res) => {
       const allowedStatuses = ['pending', 'verified', 'expired', 'not verified', 'rejected'];
       if (!allowedStatuses.includes(verification.status)) {
         verification.status = verification.is_verified ? 'verified' : 'not verified';
+      }
+      
+      // 🔓 DECRYPT verification documents ONLY for admin/police roles
+      // Regular users don't need to see the decrypted paths
+      if (canDecrypt(userRole)) {
+        console.log(`🔓 Decrypting verification documents for authorized role: ${userRole}`);
+        verification.id_picture = verification.id_picture ? decrypt(verification.id_picture) : null;
+        verification.id_selfie = verification.id_selfie ? decrypt(verification.id_selfie) : null;
+        verification.billing_document = verification.billing_document ? decrypt(verification.billing_document) : null;
+      } else {
+        console.log(`🔒 Keeping verification documents encrypted for role: ${userRole}`);
+        // For regular users, send encrypted paths (they won't be able to use them anyway)
       }
       
       res.json({
@@ -385,11 +409,18 @@ const updateVerification = async (req, res) => {
     // Current timestamp for updated_at
     const currentTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
     
+    // 🔐 ENCRYPT verification documents before updating
+    const encryptedIdPicture = idPicture ? encrypt(idPicture) : null;
+    const encryptedIdSelfie = idSelfie ? encrypt(idSelfie) : null;
+    const encryptedBillingDoc = billingDocument ? encrypt(billingDocument) : null;
+    
+    console.log("🔐 Encrypting updated verification documents...");
+    
     const [result] = await db.query(`
       UPDATE verifications 
       SET id_picture = ?, id_selfie = ?, billing_document = ?, status = 'pending', is_verified = FALSE, updated_at = ?
       WHERE verification_id = ?
-    `, [idPicture, idSelfie, billingDocument, currentTime, verificationId]);
+    `, [encryptedIdPicture, encryptedIdSelfie, encryptedBillingDoc, currentTime, verificationId]);
     
     if (result.affectedRows === 0) {
       return res.status(404).json({

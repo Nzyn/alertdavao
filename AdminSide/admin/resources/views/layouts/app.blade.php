@@ -354,6 +354,14 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a href="{{ route('flagged-users') }}" class="nav-link {{ request()->routeIs('flagged-users') ? 'active' : '' }}">
+                            <svg class="nav-icon" viewBox="0 0 24 24">
+                                <path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                            </svg>
+                            Flagged Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="{{ route('personnel') }}" class="nav-link {{ request()->routeIs('personnel') ? 'active' : '' }}">
                             <svg class="nav-icon" viewBox="0 0 24 24">
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>

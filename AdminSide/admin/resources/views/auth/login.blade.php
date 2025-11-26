@@ -258,7 +258,7 @@
                
                <div id="emailPasswordForm">
                    <div class="form-group">
-                       <label for="email" class="form-label">Your Email</label>
+                       <label for="email" class="form-label">Your Email <span style="color: #ef4444;">*</span></label>
                        <input 
                            type="email" 
                            id="email" 
@@ -272,7 +272,7 @@
                    </div>
 
                    <div class="form-group password-group">
-                       <label for="password" class="form-label">Password</label>
+                       <label for="password" class="form-label">Password <span style="color: #ef4444;">*</span></label>
                        <input 
                            type="password" 
                            id="password" 
@@ -319,29 +319,119 @@
 
     <script>
         const loginForm = document.getElementById('loginForm');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const emailError = document.getElementById('emailError');
+        const passwordError = document.getElementById('passwordError');
+
+        // Sanitization functions
+        function sanitizeEmail(email) {
+            return email.trim().toLowerCase().slice(0, 100);
+        }
+
+        // Real-time email validation
+        emailInput.addEventListener('input', function() {
+            const value = sanitizeEmail(this.value);
+            this.value = value;
+            
+            if (!value) {
+                emailError.textContent = '';
+                emailError.style.display = 'none';
+                this.classList.remove('error');
+                return;
+            }
+            
+            const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            if (!value.includes('@')) {
+                emailError.textContent = 'Email must contain @ symbol';
+                emailError.style.display = 'block';
+                this.classList.add('error');
+            } else if (!emailRegex.test(value)) {
+                emailError.textContent = 'Please enter a valid email address';
+                emailError.style.display = 'block';
+                this.classList.add('error');
+            } else {
+                emailError.textContent = '';
+                emailError.style.display = 'none';
+                this.classList.remove('error');
+                this.style.borderColor = '#22c55e';
+            }
+        });
+
+        // Real-time password validation (removed length check for login)
+        passwordInput.addEventListener('input', function() {
+            const value = this.value;
+            
+            if (!value) {
+                passwordError.textContent = '';
+                passwordError.style.display = 'none';
+                this.classList.remove('error');
+                return;
+            }
+            
+            // No validation on login, just clear errors if password is entered
+            passwordError.textContent = '';
+            passwordError.style.display = 'none';
+            this.classList.remove('error');
+            this.style.borderColor = '#22c55e';
+        });
 
         // Handle login form submission - direct login without OTP
         loginForm.addEventListener('submit', function(e) {
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            const captchaInput = document.getElementById('captchaInput').value.toUpperCase();
-            const captchaWord = document.getElementById('captchaWord').value;
+            const email = sanitizeEmail(emailInput.value);
+            const password = passwordInput.value;
+            const captchaInputEl = document.getElementById('captchaInput');
+            const captchaInput = captchaInputEl ? captchaInputEl.value.toUpperCase() : '';
+            const captchaWordEl = document.getElementById('captchaWord');
+            const captchaWord = captchaWordEl ? captchaWordEl.value : '';
+
+            let hasError = false;
+
+            // Validate email
+            if (!email) {
+                e.preventDefault();
+                emailError.textContent = 'Email is required';
+                emailError.style.display = 'block';
+                emailInput.classList.add('error');
+                emailInput.focus();
+                hasError = true;
+            } else if (!email.includes('@')) {
+                e.preventDefault();
+                emailError.textContent = 'Email must contain @ symbol';
+                emailError.style.display = 'block';
+                emailInput.classList.add('error');
+                emailInput.focus();
+                hasError = true;
+            }
+
+            // Validate password (no length check on login)
+            if (!password) {
+                e.preventDefault();
+                passwordError.textContent = 'Password is required';
+                passwordError.style.display = 'block';
+                passwordInput.classList.add('error');
+                if (!hasError) passwordInput.focus();
+                hasError = true;
+            }
 
             // Validate captcha
             if (captchaInput !== captchaWord) {
                 e.preventDefault();
-                document.getElementById('captchaError').style.display = 'block';
-                document.getElementById('captchaInput').focus();
+                const captchaError = document.getElementById('captchaError');
+                if (captchaError) {
+                    captchaError.style.display = 'block';
+                }
+                if (captchaInputEl && !hasError) captchaInputEl.focus();
                 alert('Invalid Security Code\n\nPlease enter the correct code shown in the image.');
+                hasError = true;
+            }
+
+            if (hasError) {
                 return false;
             }
 
-            // Validate email and password
-            if (!email || !password) {
-                e.preventDefault();
-                alert('Please enter email and password');
-                return false;
-            }
+            // Update email field with sanitized value
+            emailInput.value = email;
 
             // Allow form submission
             return true;

@@ -123,6 +123,13 @@ const {
 // Add auto-assign reports handler
 const { autoAssignReports } = require("./autoAssignReports");
 
+// Add user restrictions handler
+const { 
+  handleCheckRestrictions, 
+  handleFlagUser, 
+  handleGetFlagHistory 
+} = require("./handleUserRestrictions");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -248,6 +255,11 @@ app.get("/api/location/distance", getDistance);
 // Barangay API Routes
 app.get("/api/barangays", getAllBarangays);
 app.get("/api/barangay/by-coordinates", getBarangayByCoordinates);
+
+// User Restrictions/Flagging API Routes
+app.get("/api/users/:userId/restrictions", handleCheckRestrictions);
+app.get("/api/users/:userId/flags", handleGetFlagHistory);
+app.post("/api/users/flag", handleFlagUser);
 
 // Geocoding API Route (legacy, kept for backward compatibility)
 app.post("/api/geocode", async (req, res) => {

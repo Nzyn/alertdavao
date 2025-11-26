@@ -564,7 +564,8 @@ function renderTrendChart(historical, forecast) {
                     backgroundColor: 'rgba(29, 53, 87, 0.1)',
                     borderWidth: 2,
                     tension: 0.4,
-                    fill: false
+                    fill: false,
+                    yAxisID: 'y'
                 },
                 {
                     label: 'Forecast',
@@ -574,7 +575,8 @@ function renderTrendChart(historical, forecast) {
                     borderWidth: 2,
                     borderDash: [5, 5],
                     tension: 0.4,
-                    fill: false
+                    fill: false,
+                    yAxisID: 'y1'
                 },
                 {
                     label: 'Upper CI',
@@ -583,7 +585,8 @@ function renderTrendChart(historical, forecast) {
                     backgroundColor: 'rgba(230, 57, 70, 0.1)',
                     borderWidth: 1,
                     fill: '+1',
-                    pointRadius: 0
+                    pointRadius: 0,
+                    yAxisID: 'y1'
                 },
                 {
                     label: 'Lower CI',
@@ -592,7 +595,8 @@ function renderTrendChart(historical, forecast) {
                     backgroundColor: 'rgba(230, 57, 70, 0.1)',
                     borderWidth: 1,
                     fill: false,
-                    pointRadius: 0
+                    pointRadius: 0,
+                    yAxisID: 'y1'
                 }
             ]
         },
@@ -609,11 +613,24 @@ function renderTrendChart(historical, forecast) {
                 }
             },
             scales: {
+                // Primary axis for historical data
                 y: {
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Number of Reports'
+                        text: 'Number of Reports (Historical)'
+                    }
+                },
+                // Secondary axis for forecast (separate scale so large forecasts don't squash history)
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    grid: {
+                        drawOnChartArea: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Forecast (Model)'
                     }
                 },
                 x: {

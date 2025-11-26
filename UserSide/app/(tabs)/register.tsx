@@ -39,6 +39,18 @@ const Register = () => {
       return;
     }
 
+    // Validate required fields
+    if (!firstname || !lastname || !email || !contact || !password || !confirmpassword) {
+      Alert.alert('Missing Fields', 'Please fill in all required fields marked with *');
+      return;
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      Alert.alert('Invalid Password', 'Password must be at least 6 characters long');
+      return;
+    }
+
     if (password !== confirmpassword) {
       setPasswordMatchError("Passwords do not match");
       return;
@@ -191,34 +203,39 @@ const Register = () => {
       ) : null}
 
       {/* Firstname */}
-      <Text style={styles.subheading2}>Firstname</Text>
+      <Text style={styles.subheading2}>Firstname <Text style={{color: '#ef4444'}}>*</Text></Text>
       <TextInput
         style={styles.input}
         placeholder="Enter your first name"
         value={firstname}
-        onChangeText={setFirstname}
+        onChangeText={(text) => setFirstname(text.replace(/[^a-zA-Z\s]/g, ''))}
+        maxLength={50}
       />
 
       {/* Lastname */}
-      <Text style={styles.subheading2}>Lastname</Text>
+      <Text style={styles.subheading2}>Lastname <Text style={{color: '#ef4444'}}>*</Text></Text>
       <TextInput
         style={styles.input}
         placeholder="Enter your last name"
         value={lastname}
-        onChangeText={setLastname}
+        onChangeText={(text) => setLastname(text.replace(/[^a-zA-Z\s]/g, ''))}
+        maxLength={50}
       />
 
       {/* Email */}
-      <Text style={styles.subheading2}>Email</Text>
+      <Text style={styles.subheading2}>Email <Text style={{color: '#ef4444'}}>*</Text></Text>
       <TextInput
         style={styles.input}
         placeholder="Enter your email"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(text) => setEmail(text.trim().toLowerCase())}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        maxLength={100}
       />
 
       {/* Contact */}
-      <Text style={styles.subheading2}>Contact Number</Text>
+      <Text style={styles.subheading2}>Contact Number <Text style={{color: '#ef4444'}}>*</Text></Text>
       <PhoneInput
         value={contact}
         onChangeText={setContact}
@@ -226,7 +243,10 @@ const Register = () => {
       />
 
       {/* Password */}
-      <Text style={styles.subheading2}>Password</Text>
+      <Text style={styles.subheading2}>Password <Text style={{color: '#ef4444'}}>*</Text></Text>
+      <Text style={{fontSize: 11, color: '#6b7280', marginBottom: 6}}>
+        Must be at least 6 characters long
+      </Text>
       <View style={{ position: 'relative' }}>
         <TextInput
           style={[styles.input, { paddingRight: 50 }]}
@@ -245,6 +265,7 @@ const Register = () => {
             }
           }}
           secureTextEntry={!showPassword}
+          minLength={6}
         />
         <Pressable
           onPress={() => setShowPassword(!showPassword)}
@@ -262,7 +283,7 @@ const Register = () => {
       </View>
 
       {/* Confirm Password */}
-      <Text style={styles.subheading2}>Confirm Password</Text>
+      <Text style={styles.subheading2}>Confirm Password <Text style={{color: '#ef4444'}}>*</Text></Text>
       <View style={{ position: 'relative' }}>
         <TextInput
           style={[styles.input, { paddingRight: 50 }]}
@@ -304,7 +325,7 @@ const Register = () => {
             </Text>
           ) : (
             <Text style={{ color: '#E63946', fontSize: 12 }}>
-              Passwords do not match
+              ✗ Passwords do not match
             </Text>
           )}
         </View>
@@ -336,13 +357,15 @@ const Register = () => {
           <Text style={{ color: "#1D3557", fontWeight: "bold" }}>
             Terms & Conditions
           </Text>
-          ,{"\n"}that you are over 18 and aware of our reporting policies!
+          {", that you are over 18 and aware of our reporting policies!"}
         </Text>
       </View>
 
       {/* Obfuscated text captcha */}
       <View style={{ marginTop: 12, marginBottom: 12 }}>
-        <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8 }}>Security Check</Text>
+        <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8 }}>
+          Security Check <Text style={{color: '#ef4444'}}>*</Text>
+        </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <CaptchaObfuscated word={captchaWord} />
           <Pressable

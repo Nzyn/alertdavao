@@ -159,13 +159,145 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
             
-            // Add logic to flag the user (this could be a separate table or a flag in the users table)
-            // For now, we'll just return a success response
-            // In a real implementation, you would update a flagged status in the database
+            // Validate the request
+            $validated = $request->validate([
+                'violation_type' => 'required|in:false_report,prank_spam,harassment,offensive_content,impersonation,multiple_accounts,system_abuse,inappropriate_media,misleading_info,other',
+                'reason' => 'nullable|string|max:500'
+            ]);
+            
+            // Check if user_flags table exists
+            $tableExists = DB::select("SHOW TABLES LIKE 'user_flags'");
+            if (empty($tableExists)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User flags system is not set up. Please run migration.'
+                ], 500);
+            }
+            
+            // Insert flag record
+            DB::table('user_flags')->insert([
+                'user_id' => $id,
+                'flagged_by' => auth()->id() ?? 1, // Default to admin if not authenticated
+                'violation_type' => $validated['violation_type'],
+                'reason' => $validated['reason'] ?? null,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+            
+            // Get total flags for this user
+            $totalFlags = DB::table('user_flags')
+                ->where('user_id', $id)
+                ->where('status', 'active')
+                ->count();
+            
+            // Update user's total_flags count
+            DB::table('users')
+                ->where('id', $id)
+                ->update([
+                    'total_flags' => $totalFlags,
+                    'updated_at' => now()
+                ]);
+            
+            // Auto-apply restriction: apply restriction immediately on first flag
+            $restrictionType = null;
+            if ($totalFlags >= 1) {
+                // Apply a warning restriction for the first flag. Change to 'suspended' or 'banned' if stricter action is desired.
+                $restrictionType = 'warning';
+            }
+            
+            if ($restrictionType) {
+                // Check if active restriction exists
+                $existingRestriction = DB::table('user_restrictions')
+                    ->where('user_id', $id)
+                    ->where('is_active', true)
+                    ->first();
+                
+                if (!$existingRestriction) {
+                    // Create new restriction
+                    DB::table('user_restrictions')->insert([
+                        'user_id' => $id,
+                        'restriction_type' => $restrictionType,
+                        'reason' => "Auto-restriction: {$totalFlags} violations",
+                        'restricted_by' => auth()->id() ?? 1,
+                        'is_active' => true,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                    
+                    // Update user restriction level
+                    DB::table('users')
+                        ->where('id', $id)
+                        ->update([
+                            'restriction_level' => $restrictionType,
+                            'updated_at' => now()
+                        ]);
+                }
+            }
             
             return response()->json([
                 'success' => true,
-                'message' => 'User has been flagged successfully'
+                'message' => 'User has been flagged successfully',
+                'data' => [
+                    'total_flags' => $totalFlags,
+                    'restriction_applied' => $restrictionType
+                ]
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while flagging the user: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Remove user restrictions and flags
+     */
+    public function unflagUser(Request $request, string $id): JsonResponse
+    {
+        try {
+            $user = User::findOrFail($id);
+            
+            // Deactivate all flags (mark as dismissed)
+            DB::table('user_flags')
+                ->where('user_id', $id)
+                ->update([
+                    'status' => 'dismissed',
+                    'updated_at' => now()
+                ]);
+            
+            // Deactivate all restrictions
+            DB::table('user_restrictions')
+                ->where('user_id', $id)
+                ->update([
+                    'is_active' => false,
+                    'lifted_at' => now(),
+                    'updated_at' => now()
+                ]);
+            
+            // Update user record
+            DB::table('users')
+                ->where('id', $id)
+                ->update([
+                    'total_flags' => 0,
+                    'restriction_level' => 'none',
+                    'updated_at' => now()
+                ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'User restrictions have been removed successfully'
             ]);
         } catch (ModelNotFoundException $e) {
             return response()->json([
@@ -175,7 +307,7 @@ class UserController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred while flagging the user'
+                'message' => 'An error occurred while unflagging the user: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -415,6 +547,51 @@ class UserController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'An error occurred while assigning the user to the station: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get flag history for a user.
+     */
+    public function getFlagHistory(string $id): JsonResponse
+    {
+        try {
+            $user = User::findOrFail($id);
+            
+            // Get all flags for this user with flagged_by user information
+            $flags = DB::table('user_flags')
+                ->leftJoin('users as flaggers', 'user_flags.flagged_by', '=', 'flaggers.id')
+                ->where('user_flags.user_id', $id)
+                ->select(
+                    'user_flags.*',
+                    'flaggers.name as flagged_by_name',
+                    'flaggers.email as flagged_by_email'
+                )
+                ->orderBy('user_flags.created_at', 'desc')
+                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'flags' => $flags,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'total_flags' => $user->total_flags,
+                    'restriction_level' => $user->restriction_level
+                ]
+            ]);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        } catch (\Exception $e) {
+            \Log::error('Exception in getFlagHistory', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while fetching flag history'
             ], 500);
         }
     }
