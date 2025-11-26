@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, Button, Alert, ScrollView, Pressable } from "react-native";
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  Alert, 
+  ScrollView, 
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
+  StyleSheet,
+  TouchableOpacity
+} from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from "expo-router";
 import { useUser } from '../../contexts/UserContext';
@@ -7,7 +19,14 @@ import { BACKEND_URL } from '../../config/backend';
 import CaptchaObfuscated, { generateCaptchaWord } from '../../components/CaptchaObfuscated';
 import { useGoogleAuth, getGoogleUserInfo } from '../../config/googleAuth';
 import * as Google from 'expo-auth-session/providers/google';
-import styles from "./styles";
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const isSmallScreen = SCREEN_WIDTH < 360;
+
+// Sanitization helpers
+const sanitizeEmail = (email: string): string => {
+  return email.trim().toLowerCase().slice(0, 100);
+};
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -19,6 +38,7 @@ const Login = () => {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [captchaError, setCaptchaError] = useState("");
+  const [captchaValid, setCaptchaValid] = useState(false);
   const { setUser } = useUser();
   const router = useRouter();
   const { request, response, promptAsync } = useGoogleAuth();
@@ -83,8 +103,10 @@ const Login = () => {
   };
 
   const refreshCaptcha = () => {
-    setCaptchaWord(generateCaptchaWord(6));
+    const newWord = generateCaptchaWord(6);
+    setCaptchaWord(newWord);
     setCaptchaInput("");
+    setCaptchaValid(false);
   };
 
   const handleLogin = async () => {
@@ -92,25 +114,34 @@ const Login = () => {
     setPasswordError("");
     setCaptchaError("");
     
-    if (!email || !password) {
+    // Sanitize email
+    const sanitizedEmail = sanitizeEmail(email);
+    
+    if (!sanitizedEmail || !password) {
       Alert.alert('Error', 'Please enter email and password');
       return;
     }
     
+    // Validate email format
+    if (!sanitizedEmail.includes('@')) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+    
     // Verify captcha
-    if (captchaInput.toUpperCase() !== captchaWord.toUpperCase()) {
+    if (!captchaValid) {
       setCaptchaError('Incorrect captcha. Please try again.');
       refreshCaptcha();
       return;
     }
     
     setIsLoading(true);
-    console.log('🔑 Starting login for:', email);
+    console.log('🔑 Starting login for:', sanitizedEmail);
     try {
       const response = await fetch(`${BACKEND_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: sanitizedEmail, password }),
       });
       const data = await response.json();
       console.log('📥 Login response:', data);
@@ -165,144 +196,356 @@ const Login = () => {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingTop: 20, paddingBottom: 150, alignItems: 'center' }}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={true}
+    <KeyboardAvoidingView 
+      style={localStyles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={{ width: '100%', maxWidth: 440, paddingHorizontal: 20 }}>
-        <Text style={styles.textTitle}>
-          <Text style={styles.alertWelcome}>Alert</Text>
-          <Text style={styles.davao}>Davao</Text>
-        </Text>
-
-        <Text style={styles.subheadingCenter}>Welcome back to AlertDavao!</Text>
-        <Text style={styles.normalTxtCentered}>Sign in to your account</Text>
-
-        <Text style={styles.subheading2}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your email"
-          value={email}
-          onChangeText={(text) => {
-            setEmail(text);
-            setEmailError("");
-          }}
-          keyboardType="email-address"
-        />
-        {emailError ? (
-          <Text style={{ color: '#E63946', fontSize: 12, marginBottom: 10, marginTop: -10 }}>
-            {emailError}
+      <ScrollView
+        style={localStyles.container}
+        contentContainerStyle={localStyles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
+      >
+        <View style={localStyles.formContainer}>
+          {/* Title */}
+          <Text style={localStyles.title}>
+            <Text style={localStyles.alertText}>Alert</Text>
+            <Text style={localStyles.davaoText}>Davao</Text>
           </Text>
-        ) : null}
 
-        <Text style={styles.subheading2}>Password</Text>
-        <View style={{ position: 'relative' }}>
-          <TextInput
-            style={[styles.input, { paddingRight: 50 }]}
-            placeholder="Enter your password"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              setPasswordError("");
-            }}
-            secureTextEntry={!showPassword}
-          />
-          <Pressable
-            onPress={() => setShowPassword(!showPassword)}
-            style={{
-              position: 'absolute',
-              right: 10,
-              top: 13,
-              paddingHorizontal: 8,
-            }}
+          <Text style={localStyles.subtitle}>Welcome back to AlertDavao!</Text>
+          <Text style={localStyles.description}>Sign in to your account</Text>
+
+          {/* Email Field */}
+          <View style={localStyles.fieldContainer}>
+            <Text style={localStyles.label}>Email <Text style={{color: '#ef4444'}}>*</Text></Text>
+            <TextInput
+              style={[localStyles.input, emailError && localStyles.inputError]}
+              placeholder="Enter your email"
+              placeholderTextColor="#9ca3af"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(sanitizeEmail(text));
+                setEmailError("");
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              maxLength={100}
+            />
+            {emailError ? (
+              <Text style={localStyles.errorText}>⚠️ {emailError}</Text>
+            ) : null}
+          </View>
+
+          {/* Password Field */}
+          <View style={localStyles.fieldContainer}>
+            <Text style={localStyles.label}>Password <Text style={{color: '#ef4444'}}>*</Text></Text>
+            <View style={localStyles.inputWrapper}>
+                <TextInput
+                style={[localStyles.input, localStyles.passwordInput, passwordError && localStyles.inputError]}
+                placeholder="Enter your password"
+                placeholderTextColor="#9ca3af"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setPasswordError("");
+                }}
+                secureTextEntry={!showPassword}
+              />
+              <Pressable
+                onPress={() => setShowPassword(!showPassword)}
+                style={localStyles.toggleButton}
+              >
+                <Text style={localStyles.toggleText}>
+                  {showPassword ? 'HIDE' : 'SHOW'}
+                </Text>
+              </Pressable>
+            </View>
+            {passwordError ? (
+              <Text style={localStyles.errorText}>⚠️ {passwordError}</Text>
+            ) : null}
+          </View>
+
+          {/* Captcha Section */}
+          <View style={localStyles.captchaSection}>
+            <Text style={localStyles.label}>Captcha Verification <Text style={{color: '#ef4444'}}>*</Text></Text>
+            <View style={localStyles.captchaRow}>
+              <View style={localStyles.captchaDisplay}>
+                <CaptchaObfuscated word={captchaWord} />
+              </View>
+              <Pressable onPress={refreshCaptcha} style={localStyles.refreshButton}>
+                <Text style={localStyles.refreshIcon}>↻</Text>
+              </Pressable>
+            </View>
+            <TextInput
+              style={[
+                localStyles.input,
+                localStyles.captchaInput,
+                captchaInput && (captchaValid ? localStyles.inputValid : localStyles.inputError)
+              ]}
+              placeholder="Enter captcha above"
+              placeholderTextColor="#9ca3af"
+              value={captchaInput}
+              onChangeText={(text) => {
+                const limited = text.replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase();
+                setCaptchaInput(limited);
+                setCaptchaValid(limited === captchaWord.toUpperCase());
+                setCaptchaError("");
+              }}
+              autoCapitalize="characters"
+              maxLength={6}
+            />
+            {captchaInput && (
+              <Text style={[localStyles.captchaStatus, { color: captchaValid ? '#22c55e' : '#ef4444' }]}>
+                {captchaValid ? '✓ Correct' : '✗ Incorrect code'}
+              </Text>
+            )}
+            {captchaError ? (
+              <Text style={localStyles.errorText}>⚠️ {captchaError}</Text>
+            ) : null}
+          </View>
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[
+              localStyles.loginButton,
+              (!captchaValid || isLoading) && localStyles.loginButtonDisabled
+            ]}
+            onPress={handleLogin}
+            disabled={!captchaValid || isLoading}
           >
-            <Text style={{ fontSize: 12, color: '#1D3557', fontWeight: '600' }}>
-              {showPassword ? 'HIDE' : 'SHOW'}
+            <Text style={localStyles.loginButtonText}>
+              {isLoading ? "Logging in..." : "Login"}
+            </Text>
+          </TouchableOpacity>
+
+          <Text onPress={handleForgotPassword} style={localStyles.forgotPassword}>
+            Forgot Password?
+          </Text>
+
+          <Text style={localStyles.signUpPrompt}>
+            Don't have an account?{' '}
+            <Text onPress={handleSignUp} style={localStyles.signUpLink}>
+              Sign Up
+            </Text>
+          </Text>
+
+          {/* Divider */}
+          <View style={localStyles.divider}>
+            <View style={localStyles.dividerLine} />
+            <Text style={localStyles.dividerText}>or continue with</Text>
+            <View style={localStyles.dividerLine} />
+          </View>
+
+          {/* Google Sign-In */}
+          <Pressable
+            onPress={() => promptAsync()}
+            disabled={!request || isLoading}
+            style={localStyles.googleButton}
+          >
+            <Text style={localStyles.googleButtonText}>
+              🔐 Sign in with Google
             </Text>
           </Pressable>
         </View>
-        {passwordError ? (
-          <Text style={{ color: '#E63946', fontSize: 12, marginBottom: 10, marginTop: -10 }}>
-            {passwordError}
-          </Text>
-        ) : null}
-
-        {/* Captcha Section */}
-        <Text style={styles.subheading2}>Captcha Verification</Text>
-        <View style={{ marginBottom: 16 }}>
-          <CaptchaObfuscated word={captchaWord} />
-          <TextInput
-            style={styles.input}
-            placeholder="Enter captcha above"
-            value={captchaInput}
-            onChangeText={(text) => {
-              const limited = text.replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase();
-              setCaptchaInput(limited);
-              setCaptchaError("");
-            }}
-            autoCapitalize="characters"
-            maxLength={6}
-          />
-          {captchaError ? (
-            <Text style={{ color: '#E63946', fontSize: 12, marginBottom: 10, marginTop: -10 }}>
-              {captchaError}
-            </Text>
-          ) : null}
-          <Pressable onPress={refreshCaptcha}>
-            <Text style={{ color: '#1D3557', textAlign: 'center', marginTop: 4, fontSize: 13 }}>
-              🔄 Refresh Captcha
-            </Text>
-          </Pressable>
-        </View>
-
-        <Button
-          title={isLoading ? "Logging in..." : "Login"}
-          onPress={handleLogin}
-          disabled={isLoading || captchaInput.toUpperCase() !== captchaWord.toUpperCase()}
-          color={captchaInput.toUpperCase() === captchaWord.toUpperCase() ? "#1D3557" : "#999"}
-        />
-
-        <Text onPress={handleForgotPassword} style={{ color: '#1D3557', textAlign: 'center', marginTop: 10 }}>
-          Forgot Password?
-        </Text>
-
-        <Text style={styles.normalTxtCentered}>
-          Don't have an account?{' '}
-          <Text onPress={handleSignUp} style={{ color: '#1D3557', fontWeight: '600' }}>
-            Sign Up
-          </Text>
-        </Text>
-
-        {/* Google Sign-In Section */}
-        <Text style={{ textAlign: 'center', color: '#999', marginTop: 20, marginBottom: 10 }}>
-          or continue with
-        </Text>
-
-        <Pressable
-          onPress={() => promptAsync()}
-          disabled={!request || isLoading}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#fff',
-            borderWidth: 1,
-            borderColor: '#ddd',
-            borderRadius: 8,
-            paddingVertical: 12,
-            paddingHorizontal: 16,
-            marginBottom: 20,
-          }}
-        >
-          <Text style={{ fontSize: 16, color: '#333', fontWeight: '500' }}>
-            🔐 Sign in with Google
-          </Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
+
+// Responsive styles
+const localStyles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 50,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
+    alignItems: 'center',
+  },
+  formContainer: {
+    width: '100%',
+    maxWidth: 420,
+  },
+  title: {
+    fontSize: Math.min(32, SCREEN_WIDTH * 0.08),
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  alertText: {
+    color: '#1D3557',
+  },
+  davaoText: {
+    color: '#000',
+  },
+  subtitle: {
+    fontSize: Math.min(18, SCREEN_WIDTH * 0.045),
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  description: {
+    fontSize: isSmallScreen ? 13 : 14,
+    textAlign: 'center',
+    color: '#6b7280',
+    marginBottom: 24,
+  },
+  fieldContainer: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1.5,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    backgroundColor: '#fff',
+    color: '#1f2937',
+  },
+  passwordInput: {
+    paddingRight: 60,
+  },
+  inputValid: {
+    borderColor: '#22c55e',
+  },
+  inputError: {
+    borderColor: '#ef4444',
+  },
+  toggleButton: {
+    position: 'absolute',
+    right: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  toggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1D3557',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 4,
+  },
+  captchaSection: {
+    marginBottom: 20,
+  },
+  captchaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  captchaDisplay: {
+    flex: 1,
+  },
+  refreshButton: {
+    backgroundColor: '#3b82f6',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  refreshIcon: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  captchaInput: {
+    height: 40,
+  },
+  captchaStatus: {
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  loginButton: {
+    backgroundColor: '#1D3557',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  loginButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  forgotPassword: {
+    color: '#1D3557',
+    textAlign: 'center',
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  signUpPrompt: {
+    textAlign: 'center',
+    color: '#6b7280',
+    fontSize: 14,
+    marginBottom: 20,
+  },
+  signUpLink: {
+    color: '#1D3557',
+    fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e5e7eb',
+  },
+  dividerText: {
+    paddingHorizontal: 12,
+    color: '#9ca3af',
+    fontSize: 13,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  googleButtonText: {
+    fontSize: 15,
+    color: '#374151',
+    fontWeight: '500',
+  },
+});
 
 export default Login;

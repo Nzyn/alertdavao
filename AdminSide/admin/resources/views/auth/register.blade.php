@@ -261,29 +261,43 @@
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="firstname" class="form-label">First Name</label>
+                        <label for="firstname" class="form-label">First Name <span style="color: #ef4444;">*</span></label>
                         <input 
                             type="text" 
                             id="firstname" 
                             name="firstname" 
                             class="form-input @error('firstname') error @enderror" 
                             value="{{ old('firstname') }}"
+                            pattern="[a-zA-Z\s'-]{2,50}"
+                            placeholder="e.g., Juan"
+                            maxlength="50"
+                            title="Only letters, spaces, hyphens and apostrophes (2-50 characters)"
                             required
                         >
+                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">
+                            Letters only, 2-50 characters
+                        </small>
                         @error('firstname')
                             <span class="error-message">{{ $message }}</span>
                         @enderror
                     </div>
                     <div class="form-group">
-                        <label for="lastname" class="form-label">Last Name</label>
+                        <label for="lastname" class="form-label">Last Name <span style="color: #ef4444;">*</span></label>
                         <input 
                             type="text" 
                             id="lastname" 
                             name="lastname" 
                             class="form-input @error('lastname') error @enderror" 
                             value="{{ old('lastname') }}"
+                            pattern="[a-zA-Z\s'-]{2,50}"
+                            placeholder="e.g., Dela Cruz"
+                            maxlength="50"
+                            title="Only letters, spaces, hyphens and apostrophes (2-50 characters)"
                             required
                         >
+                        <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">
+                            Letters only, 2-50 characters
+                        </small>
                         @error('lastname')
                             <span class="error-message">{{ $message }}</span>
                         @enderror
@@ -292,7 +306,7 @@
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="email" class="form-label">Email</label>
+                        <label for="email" class="form-label">Email <span style="color: #ef4444;">*</span></label>
                         <input 
                             type="email" 
                             id="email" 
@@ -311,23 +325,30 @@
                         @enderror
                     </div>
                     <div class="form-group">
-                        <label for="contact" class="form-label">Contact Number</label>
-                        <input 
-                            type="text" 
-                            id="contact" 
-                            name="contact" 
-                            class="form-input @error('contact') error @enderror" 
-                            value="{{ old('contact') }}"
-                            required
-                        >
-                        @error('contact')
-                            <span class="error-message">{{ $message }}</span>
-                        @enderror
-                    </div>
+                         <label for="contact" class="form-label">Contact Number <span style="color: #ef4444;">*</span></label>
+                         <input 
+                             type="tel" 
+                             id="contact" 
+                             name="contact" 
+                             class="form-input @error('contact') error @enderror" 
+                             value="{{ old('contact') }}"
+                             pattern="^[0-9\+\-\s()]{7,20}$"
+                             placeholder="e.g., +639123456789 or 09123456789"
+                             maxlength="20"
+                             title="Valid phone number (7-20 characters, digits only with optional +, -, spaces, parentheses)"
+                             required
+                         >
+                         <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">
+                             Philippine mobile: 09XX XXX XXXX or +639XX XXX XXXX
+                         </small>
+                         @error('contact')
+                             <span class="error-message">{{ $message }}</span>
+                         @enderror
+                     </div>
                 </div>
 
                 <div class="form-group full-width password-row">
-                    <label for="password" class="form-label">Password</label>
+                    <label for="password" class="form-label">Password <span style="color: #ef4444;">*</span></label>
                     <input 
                         type="password" 
                         id="password" 
@@ -346,7 +367,7 @@
                 </div>
 
                 <div class="form-group full-width confirm-password">
-                    <label for="password_confirmation" class="form-label">Confirm Password</label>
+                    <label for="password_confirmation" class="form-label">Confirm Password <span style="color: #ef4444;">*</span></label>
                     <input 
                         type="password" 
                         id="password_confirmation" 
@@ -422,7 +443,7 @@
                     detectSessionInUrl: false,
                 }
             });
-            console.log('✅ Supabase client initialized for OTP');
+            console.log('✅ Supabase client initialized for OTP SMS');
         } else {
             console.warn('⚠️ Supabase credentials not configured. OTP will use fallback method.');
         }
@@ -446,8 +467,30 @@
         let normalizedPhone = '';
         let countdownTimer = null;
         let canResend = false;
+        let resendCooldownSeconds = 60; // 60-second cooldown for resend
 
-        console.log('🔐 Register page loaded');
+        console.log('🔐 AdminSide Register page loaded');
+
+        // Sanitization Functions
+        function sanitizeText(text) {
+            // Remove dangerous characters, keep letters, spaces, hyphens, apostrophes
+            return text.trim().replace(/[^a-zA-Z\s'-]/g, '').slice(0, 50);
+        }
+
+        function sanitizeEmail(email) {
+            // Basic email sanitization - trim whitespace
+            return email.trim().toLowerCase().slice(0, 100);
+        }
+
+        function sanitizePhone(phone) {
+            // Keep only digits, +, -, spaces, parentheses
+            return phone.replace(/[^0-9\+\-\s()]/g, '').trim();
+        }
+
+        function sanitizePassword(password) {
+            // Passwords should not be modified, only validated
+            return password;
+        }
 
         // Normalize phone number to international format
         function normalizePhoneNumber(phone) {
@@ -461,10 +504,47 @@
             return normalized;
         }
 
-        // Start resend countdown timer
+        // Real-time input sanitization event listeners
+        const firstnameInput = document.getElementById('firstname');
+        const lastnameInput = document.getElementById('lastname');
+        const emailInput = document.getElementById('email');
+        const contactInput = document.getElementById('contact');
+
+        // Sanitize name inputs in real-time
+        firstnameInput.addEventListener('input', function() {
+            const sanitized = sanitizeText(this.value);
+            if (this.value !== sanitized) {
+                this.value = sanitized;
+            }
+        });
+
+        lastnameInput.addEventListener('input', function() {
+            const sanitized = sanitizeText(this.value);
+            if (this.value !== sanitized) {
+                this.value = sanitized;
+            }
+        });
+
+        // Sanitize email in real-time
+        emailInput.addEventListener('input', function() {
+            const sanitized = sanitizeEmail(this.value);
+            if (this.value !== sanitized) {
+                this.value = sanitized;
+            }
+        });
+
+        // Sanitize phone in real-time
+        contactInput.addEventListener('input', function() {
+            const sanitized = sanitizePhone(this.value);
+            if (this.value !== sanitized) {
+                this.value = sanitized;
+            }
+        });
+
+        // Start resend countdown timer (60 seconds)
         function startResendCountdown() {
             canResend = false;
-            let seconds = 60;
+            let seconds = resendCooldownSeconds;
             resendBtn.style.display = 'none';
             resendCountdown.style.display = 'inline';
             resendCountdown.textContent = `Resend OTP in ${seconds}s`;
@@ -484,13 +564,19 @@
             }, 1000);
         }
 
-        // Send OTP via Supabase
+        /**
+         * Send OTP via Supabase SMS
+         * Uses Supabase's native signInWithOtp which sends SMS directly to user's phone
+         * SMS Message (configured in Supabase Dashboard):
+         * Sender: AlertDavao
+         * Message: "Your verification code is {{.Token}}. It is valid for 5 minutes. Do not share this code with anyone for your security."
+         */
         async function sendOtpToPhone(phone) {
             normalizedPhone = normalizePhoneNumber(phone);
-            console.log('📱 Sending OTP to:', normalizedPhone);
+            console.log('📱 Sending OTP via Supabase SMS to:', normalizedPhone);
             
             if (supabaseClient) {
-                // Use Supabase OTP
+                // Use Supabase native SMS OTP
                 try {
                     const { data, error } = await supabaseClient.auth.signInWithOtp({
                         phone: normalizedPhone,
@@ -501,51 +587,57 @@
 
                     if (error) {
                         console.error('❌ Supabase OTP send error:', error);
-                        return { success: false, message: error.message || 'Failed to send OTP' };
+                        // Fall through to backend fallback
+                        throw error;
                     }
 
-                    console.log('✅ Supabase OTP sent successfully');
-                    return { success: true, message: 'OTP sent successfully' };
+                    console.log('✅ Supabase OTP sent successfully via SMS');
+                    return { success: true, message: 'Verification code sent to your phone via SMS' };
                 } catch (err) {
-                    console.error('❌ Exception sending Supabase OTP:', err);
-                    return { success: false, message: err.message || 'Failed to send OTP' };
+                    console.warn('⚠️ Supabase SMS failed, trying backend fallback:', err.message);
+                    // Fall through to backend fallback
                 }
-            } else {
-                // Fallback to backend OTP
-                try {
-                    const response = await fetch('/api/otp/send', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                        },
-                        body: JSON.stringify({
-                            phone: normalizedPhone,
-                            purpose: 'register'
-                        })
-                    });
+            }
+            
+            // Fallback to backend OTP if Supabase fails
+            try {
+                console.log('📲 Using backend fallback for OTP...');
+                const response = await fetch('/api/otp/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                    },
+                    body: JSON.stringify({
+                        phone: normalizedPhone,
+                        purpose: 'register'
+                    })
+                });
 
-                    const data = await response.json();
-                    
-                    if (data.debugOtp) {
-                        console.log('🔐🔐🔐 ADMINSIDE REGISTER OTP CODE:', data.debugOtp);
-                    }
-                    
-                    return data;
-                } catch (err) {
-                    console.error('❌ Error sending fallback OTP:', err);
-                    return { success: false, message: 'Failed to send OTP' };
+                const data = await response.json();
+                
+                if (data.debugOtp) {
+                    console.log('🔐🔐🔐 ADMINSIDE REGISTER OTP CODE:', data.debugOtp);
                 }
+                
+                return data;
+            } catch (err) {
+                console.error('❌ Error sending fallback OTP:', err);
+                return { success: false, message: 'Failed to send OTP' };
             }
         }
 
-        // Verify OTP via Supabase
+        /**
+         * Verify OTP via Supabase
+         * Uses Supabase's native verifyOtp for SMS verification
+         * Standard command: const { data, error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms'})
+         */
         async function verifyOtpCode(phone, code) {
             const normalPhone = normalizePhoneNumber(phone);
             console.log('🔐 Verifying OTP for:', normalPhone, 'code:', code);
             
             if (supabaseClient) {
-                // Use Supabase verification
+                // Use Supabase native verification
                 try {
                     const { data, error } = await supabaseClient.auth.verifyOtp({
                         phone: normalPhone,
@@ -555,12 +647,13 @@
 
                     if (error) {
                         console.error('❌ Supabase OTP verify error:', error);
-                        return { success: false, message: error.message || 'Invalid OTP code' };
+                        return { success: false, message: error.message || 'Invalid verification code' };
                     }
 
                     console.log('✅ Supabase OTP verified successfully');
                     
-                    // Sign out immediately since we're only using this for verification
+                    // Sign out immediately since we're only using this for phone verification
+                    // We don't want to create a Supabase session, just verify the phone
                     await supabaseClient.auth.signOut();
                     
                     return { success: true, message: 'Phone number verified successfully' };
@@ -571,6 +664,7 @@
             } else {
                 // Fallback to backend verification
                 try {
+                    console.log('📲 Using backend fallback for OTP verification...');
                     const response = await fetch('/api/otp/verify', {
                         method: 'POST',
                         headers: {
@@ -650,81 +744,162 @@
         registerForm.addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            const captchaInputValue = captchaInput.value.toUpperCase();
-            const captchaWord = document.getElementById('captchaWord').value;
-            
-            // Validate captcha
-            if (captchaInputValue !== captchaWord) {
-                document.getElementById('captchaError').style.display = 'block';
-                captchaInput.focus();
-                alert('Invalid Security Code\n\nPlease enter the correct code shown in the image.');
-                return false;
-            }
+            try {
+                // Validate terms checkbox
+                if (!termsCheckbox.checked) {
+                    alert('❌ Error\n\nPlease accept the Terms & Conditions to proceed.');
+                    termsCheckbox.focus();
+                    return false;
+                }
 
-            const emailInput = document.getElementById('email');
-            const emailValue = emailInput.value.trim();
-            const contactInput = document.getElementById('contact');
-            const contactValue = contactInput.value.trim();
+                // Get and sanitize form inputs
+                const firstnameInput = document.getElementById('firstname');
+                const firstnameValue = sanitizeText(firstnameInput.value);
+                
+                const lastnameInput = document.getElementById('lastname');
+                const lastnameValue = sanitizeText(lastnameInput.value);
+                
+                const emailInput = document.getElementById('email');
+                const emailValue = sanitizeEmail(emailInput.value);
+                
+                const contactInput = document.getElementById('contact');
+                const contactValue = sanitizePhone(contactInput.value);
+                
+                const passwordInput = document.getElementById('password');
+                const passwordValue = passwordInput.value; // Don't modify passwords
+                
+                const passwordConfirmInput = document.getElementById('password_confirmation');
+                const passwordConfirmValue = passwordConfirmInput.value;
 
-            // Validate email
-            if (!emailValue.includes('@')) {
-                alert('Invalid Email Format\n\nEmail must contain @ symbol.\nFor example: user@gmail.com');
-                emailInput.focus();
-                return false;
-            }
+                const captchaInputValue = captchaInput.value.toUpperCase().trim();
+                const captchaWord = document.getElementById('captchaWord').value;
 
-            const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-            if (!emailRegex.test(emailValue)) {
-                alert('Invalid Email Address\n\nPlease enter a valid email address.\nExamples:\n• user@gmail.com\n• admin@yahoo.com\n• police@outlook.com');
-                emailInput.focus();
-                return false;
-            }
+                // Validate first name
+                if (!firstnameValue || firstnameValue.length < 2) {
+                    alert('❌ Invalid First Name\n\nFirst name must be 2-50 characters.\nOnly letters, spaces, hyphens, and apostrophes allowed.\nExample: Juan');
+                    firstnameInput.focus();
+                    return false;
+                }
 
-            // Validate password
-            const passwordInput = document.getElementById('password');
-            const passwordValue = passwordInput.value;
-            const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-            if (!passwordRegex.test(passwordValue)) {
-                alert('Weak Password\n\nPassword must contain:\n• Minimum 8 characters\n• At least one letter\n• At least one number\n• At least one symbol (@$!%*?&)');
-                passwordInput.focus();
-                return false;
-            }
+                const nameRegex = /^[a-zA-Z\s'-]{2,50}$/;
+                if (!nameRegex.test(firstnameValue)) {
+                    alert('❌ Invalid First Name\n\nOnly letters, spaces, hyphens, and apostrophes allowed.');
+                    firstnameInput.focus();
+                    return false;
+                }
 
-            // Store registration data for after OTP verification
-            pendingRegistrationData = {
-                firstname: document.getElementById('firstname').value,
-                lastname: document.getElementById('lastname').value,
-                email: emailValue,
-                contact: contactValue,
-                password: passwordValue,
-                password_confirmation: document.getElementById('password_confirmation').value,
-                terms: termsCheckbox.checked ? 'on' : '',
-                captcha_input: captchaInputValue,
-                captcha_word: captchaWord
-            };
+                // Validate last name
+                if (!lastnameValue || lastnameValue.length < 2) {
+                    alert('❌ Invalid Last Name\n\nLast name must be 2-50 characters.\nOnly letters, spaces, hyphens, and apostrophes allowed.\nExample: Dela Cruz');
+                    lastnameInput.focus();
+                    return false;
+                }
 
-            userPhone = contactValue;
+                if (!nameRegex.test(lastnameValue)) {
+                    alert('❌ Invalid Last Name\n\nOnly letters, spaces, hyphens, and apostrophes allowed.');
+                    lastnameInput.focus();
+                    return false;
+                }
 
-            // Send OTP
-            registerBtn.disabled = true;
-            registerBtn.innerHTML = '<span class="spinner" style="margin-right:8px;width:18px;height:18px;display:inline-block;border:2px solid #fff;border-top:2px solid #1D3557;border-radius:50%;animation:spin 1s linear infinite;"></span>Sending OTP...';
+                // Validate email
+                if (!emailValue.includes('@')) {
+                    alert('❌ Invalid Email Format\n\nEmail must contain @ symbol.\nExample: user@gmail.com');
+                    emailInput.focus();
+                    return false;
+                }
 
-            const result = await sendOtpToPhone(userPhone);
+                const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                if (!emailRegex.test(emailValue)) {
+                    alert('❌ Invalid Email Address\n\nPlease enter a valid email.\nExamples:\n• user@gmail.com\n• admin@yahoo.com\n• police@outlook.com');
+                    emailInput.focus();
+                    return false;
+                }
 
-            if (!result.success) {
-                alert(result.message || 'Failed to send OTP');
+                // Validate phone number
+                if (!contactValue || contactValue.length < 7) {
+                    alert('❌ Invalid Phone Number\n\nPhone must be 7-20 characters.\nExamples:\n• 09123456789\n• +639123456789');
+                    contactInput.focus();
+                    return false;
+                }
+
+                const phoneRegex = /^[0-9\+\-\s()]{7,20}$/;
+                if (!phoneRegex.test(contactValue)) {
+                    alert('❌ Invalid Phone Number\n\nOnly digits, +, -, spaces, and parentheses allowed.\nExample: 09123456789');
+                    contactInput.focus();
+                    return false;
+                }
+
+                // Validate password
+                if (!passwordValue) {
+                    alert('❌ Password Required\n\nPlease enter a password.');
+                    passwordInput.focus();
+                    return false;
+                }
+
+                const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+                if (!passwordRegex.test(passwordValue)) {
+                    alert('❌ Weak Password\n\nPassword must contain:\n• Minimum 8 characters\n• At least one letter\n• At least one number\n• At least one symbol (@$!%*?&)');
+                    passwordInput.focus();
+                    return false;
+                }
+
+                // Validate password confirmation
+                if (passwordValue !== passwordConfirmValue) {
+                    alert('❌ Passwords Do Not Match\n\nPlease ensure both password fields are identical.');
+                    passwordConfirmInput.focus();
+                    return false;
+                }
+
+                // Validate captcha
+                if (captchaInputValue !== captchaWord) {
+                    document.getElementById('captchaError').style.display = 'block';
+                    captchaInput.focus();
+                    alert('❌ Invalid Security Code\n\nPlease enter the correct code shown in the image.');
+                    return false;
+                }
+
+                // All validations passed - prepare data and send OTP
+                pendingRegistrationData = {
+                    firstname: firstnameValue,
+                    lastname: lastnameValue,
+                    email: emailValue,
+                    contact: contactValue,
+                    password: passwordValue,
+                    password_confirmation: passwordConfirmValue,
+                    terms: termsCheckbox.checked ? 'on' : '',
+                    captcha_input: captchaInputValue,
+                    captcha_word: captchaWord
+                };
+
+                userPhone = contactValue;
+                console.log('✅ All validations passed, sending OTP to:', userPhone);
+
+                // Send OTP
+                registerBtn.disabled = true;
+                registerBtn.innerHTML = '<span class="spinner" style="margin-right:8px;width:18px;height:18px;display:inline-block;border:2px solid #fff;border-top:2px solid #1D3557;border-radius:50%;animation:spin 1s linear infinite;"></span>Sending OTP...';
+
+                const result = await sendOtpToPhone(userPhone);
+
+                if (!result.success) {
+                    alert('❌ OTP Error\n\n' + (result.message || 'Failed to send OTP'));
+                    registerBtn.disabled = false;
+                    registerBtn.innerHTML = 'Send OTP';
+                    return;
+                }
+
+                // Show OTP modal
+                otpPhoneDisplay.textContent = normalizedPhone;
+                otpModal.style.display = 'flex';
+                otpInput.focus();
+                startResendCountdown();
+                
+                alert('✅ OTP Sent\n\nYour verification code has been sent to ' + normalizedPhone + '.\nIt is valid for 5 minutes.');
+            } catch (err) {
+                console.error('❌ Error in form submission:', err);
+                alert('❌ An error occurred. Please try again.');
                 registerBtn.disabled = false;
                 registerBtn.innerHTML = 'Send OTP';
-                return;
             }
-
-            // Show OTP modal
-            otpPhoneDisplay.textContent = normalizedPhone;
-            otpModal.style.display = 'flex';
-            otpInput.focus();
-            startResendCountdown();
-            
-            alert('Your verification code has been sent to ' + normalizedPhone + '. It is valid for 5 minutes.');
         });
 
         // Auto-submit OTP when 6 digits are entered

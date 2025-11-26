@@ -164,6 +164,38 @@
         color: #6b7280;
         margin-right: 0.25rem;
     }
+
+    .action-btn.disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        border-color: #e5e7eb;
+        color: #9ca3af;
+        background: #ffffff;
+    }
+
+    /* Flag badge (small red circle with count) */
+    .flag-user-btn {
+        position: relative;
+    }
+
+    .flag-badge {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        border-radius: 9999px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    }
     
     .action-btn:hover {
         background: #f9fafb;
@@ -174,6 +206,11 @@
     .action-btn.danger:hover {
         border-color: #ef4444;
         color: #ef4444;
+    }
+    
+    .action-btn.success:hover {
+        border-color: #10b981;
+        color: #10b981;
     }
     
     .action-icon {
@@ -462,6 +499,72 @@
         border-color: #9ca3af;
     }
     
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .form-group label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-group label .required {
+        color: #ef4444;
+        margin-left: 2px;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1.5px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: #1f2937;
+        background-color: #fff;
+        transition: all 0.2s ease;
+    }
+    
+    .form-control:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .form-control::placeholder {
+        color: #9ca3af;
+    }
+    
+    textarea.form-control {
+        resize: vertical;
+        min-height: 80px;
+        font-family: inherit;
+    }
+    
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 2rem;
+        line-height: 1;
+        cursor: pointer;
+        color: #6b7280;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .modal-close:hover {
+        background-color: #f3f4f6;
+        color: #1f2937;
+    }
+    
     .btn-assign {
         padding: 0.75rem 1.5rem;
         border: none;
@@ -550,17 +653,35 @@
                 <td class="address-cell">{{ $user->address ?? 'N/A' }}</td>
                 <td>{{ $user->created_at->timezone('Asia/Manila')->format('m/d/Y') }}</td>
                 <td>
-                    <span class="status-badge {{ $user->is_verified ? 'verified' : 'pending' }}">
-                        {{ $user->is_verified ? 'Verified' : 'Pending' }}
-                    </span>
+                    @if(($user->total_flags ?? 0) > 0 || ($user->restriction_level ?? 'none') !== 'none')
+                        <span class="status-badge flagged">Flagged</span>
+                    @else
+                        <span class="status-badge {{ $user->is_verified ? 'verified' : 'pending' }}">
+                            {{ $user->is_verified ? 'Verified' : 'Pending' }}
+                        </span>
+                    @endif
                 </td>
                 <td>
                     <div class="action-buttons-group">
-                        <button class="action-btn danger flag-user-btn" data-user-id="{{ $user->id }}" title="Flag User">
+                        <?php $hasFlags = ($user->total_flags ?? 0) > 0 || ($user->restriction_level ?? 'none') !== 'none'; ?>
+                        <button
+                            class="action-btn success {{ $hasFlags ? '' : 'disabled' }}"
+                            onclick="if({{ $hasFlags ? 'true' : 'false' }}) unflagUser({{ $user->id }});"
+                            title="{{ $hasFlags ? 'Remove Restrictions (' . ($user->total_flags ?? 0) . ' flags)' : 'No flags' }}"
+                            {{ $hasFlags ? '' : 'disabled' }}
+                        >
+                            <svg class="action-icon" viewBox="0 0 24 24">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger flag-user-btn" data-user-id="{{ $user->id }}" data-total-flags="{{ $user->total_flags ?? 0 }}" data-restriction-level="{{ $user->restriction_level ?? 'none' }}" title="Flag User">
                             <svg class="action-icon" viewBox="0 0 24 24">
                                 <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
                                 <line x1="4" y1="22" x2="4" y2="15"/>
                             </svg>
+                            @if(($user->total_flags ?? 0) > 0)
+                                <span class="flag-badge">{{ $user->total_flags }}</span>
+                            @endif
                         </button>
                         <button class="action-btn change-role-btn" data-user-id="{{ $user->id }}" data-current-role="{{ $user->role }}" title="Change Role">
                             <svg class="action-icon" viewBox="0 0 24 24">
@@ -634,23 +755,56 @@
                     </svg>
                 </div>
             </div>
-            
-            <div class="role-option-card" data-role="barangay">
-                <div class="role-option-info">
-                    <span class="role-option-name">Barangay</span>
-                    <span class="role-option-desc">Can manage barangay-level reports</span>
-                </div>
-                <div class="role-check-circle">
-                    <svg class="role-check-icon" viewBox="0 0 24 24">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                </div>
-            </div>
         </div>
         
         <div class="modal-buttons">
             <button class="btn-cancel" id="roleCancelBtn">Cancel</button>
             <button class="btn-assign" id="roleChangeBtn">Change Role</button>
+        </div>
+    </div>
+</div>
+
+<!-- Flag User Modal -->
+<div class="modal-overlay" id="flagUserModal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2 class="modal-title">🚩 Flag User for Violation</h2>
+            <button class="modal-close" onclick="closeFlagModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="violationType">
+                    Violation Type <span class="required">*</span>
+                </label>
+                <select id="violationType" class="form-control" required>
+                    <option value="">Select violation type...</option>
+                    <option value="false_report">📝 False Report</option>
+                    <option value="prank_spam">🗑️ Prank/Spam Report</option>
+                    <option value="harassment">⚠️ Harassment</option>
+                    <option value="offensive_content">🚫 Offensive Content</option>
+                    <option value="impersonation">👤 Impersonation</option>
+                    <option value="multiple_accounts">👥 Multiple Accounts</option>
+                    <option value="system_abuse">⚙️ System Abuse</option>
+                    <option value="inappropriate_media">📷 Inappropriate Media</option>
+                    <option value="misleading_info">❌ Misleading Information</option>
+                    <option value="other">🔹 Other</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-top: 15px;">
+                <label for="flagReason">Reason (Optional)</label>
+                <textarea id="flagReason" class="form-control" rows="3" placeholder="Provide additional details about the violation..."></textarea>
+            </div>
+                <div style="padding: 12px; background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px; margin-top: 15px;">
+                <p style="margin: 0; font-size: 0.875rem; color: #92400e;">
+                    <strong>⚠️ Auto-Restrictions:</strong><br>
+                    • 1 flag = Warning (automatic restriction applied)<br>
+                    • Repeated flags may escalate the restriction level
+                </p>
+            </div>
+        </div>
+        <div class="modal-buttons">
+            <button class="btn-cancel" onclick="closeFlagModal()">Cancel</button>
+            <button class="btn-assign" onclick="submitFlag()">Flag User</button>
         </div>
     </div>
 </div>
@@ -661,6 +815,82 @@
 <script>
 let selectedRole = null;
 let currentUserId = null;
+let userToFlag = null;
+
+function openFlagModal(userId) {
+    userToFlag = userId;
+    document.getElementById('violationType').value = '';
+    document.getElementById('flagReason').value = '';
+    document.getElementById('flagUserModal').classList.add('active');
+}
+
+function closeFlagModal() {
+    document.getElementById('flagUserModal').classList.remove('active');
+    userToFlag = null;
+}
+
+function submitFlag() {
+    const violationType = document.getElementById('violationType').value;
+    const reason = document.getElementById('flagReason').value;
+    
+    if (!violationType) {
+        alert('Please select a violation type');
+        return;
+    }
+    
+    fetch('/users/' + userToFlag + '/flag', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({
+            violation_type: violationType,
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message + (data.data.restriction_applied ? '\\nRestriction: ' + data.data.restriction_applied : ''));
+            closeFlagModal();
+            location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while flagging the user');
+    });
+}
+
+function unflagUser(userId) {
+    if (!confirm('Are you sure you want to remove all restrictions for this user?')) {
+        return;
+    }
+    
+    fetch('/users/' + userId + '/unflag', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while unflagging the user');
+    });
+}
 
 function openRoleModal(userId, currentRole) {
     currentUserId = userId;
@@ -811,41 +1041,7 @@ function sortUsersTable(columnIndex) {
 }
 
 function flagUser(userId) {
-    console.log('flagUser called with userId:', userId);
-    console.log('customConfirm function exists?', typeof customConfirm);
-    
-    customConfirm('Are you sure you want to flag this user?', 'Flag User')
-        .then(confirmed => {
-            console.log('Confirmation result:', confirmed);
-            if (!confirmed) return;
-            
-            showLoading('Flagging user...');
-            
-            fetch('/users/' + userId + '/flag', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify({})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    customAlert('User has been flagged successfully', 'success', 'User Flagged')
-                        .then(() => location.reload());
-                } else {
-                    customAlert('Error: ' + data.message, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                customAlert('An error occurred while flagging the user', 'error');
-            })
-            .finally(() => {
-                hideLoading();
-            });
-        });
+    openFlagModal(userId);
 }
 
 // Add event listeners after the DOM is loaded
@@ -853,13 +1049,35 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, customAlert exists?', typeof customAlert);
     console.log('DOM loaded, customConfirm exists?', typeof customConfirm);
     
-    // Flag user button click handler
-    document.querySelectorAll('.flag-user-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const userId = this.getAttribute('data-user-id');
-            flagUser(userId);
-        });
+    // Flag user button click handler (toggle: flag -> open modal, flagged -> unflag)
+    // Use event delegation on document to handle dynamically generated buttons
+    document.addEventListener('click', function(e) {
+        const flagBtn = e.target.closest('.flag-user-btn');
+        if (!flagBtn) return;
+        
+        e.preventDefault();
+        const userId = flagBtn.getAttribute('data-user-id');
+        const totalFlags = parseInt(flagBtn.getAttribute('data-total-flags') || '0', 10);
+        const restrictionLevel = flagBtn.getAttribute('data-restriction-level') || 'none';
+
+        // If user already has flags or active restriction, treat the action as "unflag"
+        if (totalFlags > 0 || restrictionLevel !== 'none') {
+            // Use customConfirm for consistent UI (returns a Promise)
+            if (typeof customConfirm === 'function') {
+                customConfirm('This user currently has ' + totalFlags + ' flag(s) and/or an active restriction ("' + restrictionLevel + '").\n\nRemove all flags and lift restrictions?', 'Confirm Unflag')
+                    .then(confirmed => {
+                        if (confirmed) unflagUser(userId);
+                    });
+            } else {
+                // Fallback to native confirm if customConfirm is not available
+                if (confirm('This user currently has ' + totalFlags + ' flag(s) and/or an active restriction ("' + restrictionLevel + '").\n\nPress OK to remove all flags and lift restrictions, or Cancel to keep them.')) {
+                    unflagUser(userId);
+                }
+            }
+        } else {
+            // Open flag modal to add a new flag
+            openFlagModal(userId);
+        }
     });
     
     // Change role button click handler

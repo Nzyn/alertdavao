@@ -1,29 +1,65 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, Button, TextInput, ScrollView, TouchableOpacity, Alert, Modal, Pressable } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  ScrollView, 
+  TouchableOpacity, 
+  Alert, 
+  Modal, 
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions,
+  StyleSheet
+} from "react-native";
 import Checkbox from "expo-checkbox";
 import CaptchaObfuscated, { generateCaptchaWord } from '../components/CaptchaObfuscated';
-import styles from "./(tabs)/styles";
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOptimalBackendUrl } from '../config/backend';
 import { useLoading } from '../contexts/LoadingContext';
-import { PhoneInput, validatePhoneNumber } from '../components/PhoneInput';
 import { sendSupabaseOtp, verifySupabaseOtp, normalizePhoneNumber } from '../services/supabaseOtp';
+import { 
+  validateName, 
+  validateEmail, 
+  validatePhone, 
+  validatePassword, 
+  validatePasswordMatch, 
+  sanitizeTextInput,
+  sanitizeEmail,
+  sanitizePhone
+} from '../utils/inputSanitizer';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const isSmallScreen = SCREEN_WIDTH < 360;
 
 const Register = () => {
+  // Form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmpassword, setConfirmPassword] = useState("");
   const [firstname, setFirstname] = useState("");
   const [lastname, setLastname] = useState("");
   const [contact, setContact] = useState("");
+  
+  // Validation states for real-time feedback
+  const [validation, setValidation] = useState({
+    firstname: { touched: false, valid: false, error: '' },
+    lastname: { touched: false, valid: false, error: '' },
+    email: { touched: false, valid: false, error: '' },
+    contact: { touched: false, valid: false, error: '' },
+    password: { touched: false, valid: false, error: '' },
+    confirmpassword: { touched: false, valid: false, error: '' },
+  });
+  
+  // Password visibility toggles
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [captchaValid, setCaptchaValid] = useState(false);
-  const [captchaWord, setCaptchaWord] = useState(() => {
-    const word = generateCaptchaWord(6);
-    console.log('🔐 Register captcha word generated:', word);
-    return word;
-  });
+  const [captchaWord, setCaptchaWord] = useState(() => generateCaptchaWord(6));
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [isChecked, setChecked] = useState(false);
@@ -31,6 +67,60 @@ const Register = () => {
   const [resendCountdown, setResendCountdown] = useState(60);
   const { showLoading, hideLoading } = useLoading();
   const router = useRouter();
+  
+  // Validation helper functions
+  const validateField = useCallback((field: string, value: string) => {
+    let result = { valid: false, error: '' };
+    
+    switch(field) {
+      case 'firstname':
+      case 'lastname':
+        const nameResult = validateName(sanitizeTextInput(value));
+        result = { valid: nameResult.valid, error: nameResult.error || '' };
+        break;
+      case 'email':
+        const emailResult = validateEmail(sanitizeEmail(value));
+        result = { valid: emailResult.valid, error: emailResult.error || '' };
+        break;
+      case 'contact':
+        const phoneResult = validatePhone(sanitizePhone(value));
+        result = { valid: phoneResult.valid, error: phoneResult.error || '' };
+        break;
+      case 'password':
+        const passResult = validatePassword(value);
+        result = { valid: passResult.valid, error: passResult.error || '' };
+        break;
+      case 'confirmpassword':
+        const matchResult = validatePasswordMatch(password, value);
+        result = { valid: matchResult.valid, error: matchResult.error || '' };
+        break;
+    }
+    
+    setValidation(prev => ({
+      ...prev,
+      [field]: { ...prev[field as keyof typeof prev], valid: result.valid, error: result.error }
+    }));
+    
+    return result;
+  }, [password]);
+  
+  const handleFieldBlur = (field: string) => {
+    setValidation(prev => ({
+      ...prev,
+      [field]: { ...prev[field as keyof typeof prev], touched: true }
+    }));
+  };
+  
+  // Check if form is complete
+  const isFormComplete = 
+    validation.firstname.valid &&
+    validation.lastname.valid &&
+    validation.email.valid &&
+    validation.contact.valid &&
+    validation.password.valid &&
+    validation.confirmpassword.valid &&
+    captchaValid &&
+    isChecked;
 
   // Check if user is already logged in
   useEffect(() => {
@@ -38,90 +128,79 @@ const Register = () => {
       try {
         const userData = await AsyncStorage.getItem('userData');
         if (userData) {
-          // User is already logged in, redirect to tabs
           router.replace("/(tabs)");
         }
       } catch (error) {
         console.log("Error checking login status:", error);
       }
     };
-
     checkLoggedIn();
   }, []);
+  
+  // Re-validate confirm password when password changes
+  useEffect(() => {
+    if (validation.confirmpassword.touched && confirmpassword) {
+      validateField('confirmpassword', confirmpassword);
+    }
+  }, [password]);
 
   const handleRegister = async () => {
-    if (!isChecked) {
-      alert("You must accept the Terms & Conditions before registering.");
-      return;
-    }
-
-    // Validate email format
-    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!email || !emailRegex.test(email)) {
-      Alert.alert(
-        "Invalid Email",
-        "Please enter a valid email address (e.g., example@gmail.com, user@yahoo.com). Email must contain @ and a domain."
-      );
-      return;
-    }
-
-    // Additional check to ensure email has @ symbol
-    if (!email.includes('@')) {
-      Alert.alert(
-        "Invalid Email Format",
-        "Email must contain @ symbol. For example: nicolequim@gmail.com"
-      );
-      return;
-    }
-
-    if (password !== confirmpassword) {
-      alert("Passwords do not match!");
-      return;
-    }
-
-    // Validate password requirements
-    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!passwordRegex.test(password)) {
-      Alert.alert(
-        "Weak Password",
-        "Password must contain:\n• Minimum 8 characters\n• At least one letter\n• At least one number\n• At least one symbol (@$!%*?&)"
-      );
-      return;
-    }
-
-    // Validate phone number
-    if (!validatePhoneNumber(contact)) {
-      Alert.alert('Invalid Phone', 'Please enter a valid Philippine mobile number (e.g., +639123456789)');
-      return;
-    }
-
-    if (!captchaValid) {
-      Alert.alert('Captcha Required', 'Please type the word shown in the captcha.');
-      return;
-    }
-
-    showLoading('Sending OTP...');
     try {
-      // Normalize phone number to international format
-      const normalizedPhone = normalizePhoneNumber(contact);
+      // Sanitize all inputs
+      const sanitizedFirstname = sanitizeTextInput(firstname);
+      const sanitizedLastname = sanitizeTextInput(lastname);
+      const sanitizedEmail = sanitizeEmail(email);
+      const sanitizedContact = sanitizePhone(contact);
+
+      // Validate terms
+      if (!isChecked) {
+        Alert.alert('❌ Error', 'You must accept the Terms & Conditions before registering.');
+        return;
+      }
+
+      // Validate all fields
+      const validations = [
+        { field: 'firstname', result: validateName(sanitizedFirstname) },
+        { field: 'lastname', result: validateName(sanitizedLastname) },
+        { field: 'email', result: validateEmail(sanitizedEmail) },
+        { field: 'contact', result: validatePhone(sanitizedContact) },
+        { field: 'password', result: validatePassword(password) },
+        { field: 'confirmpassword', result: validatePasswordMatch(password, confirmpassword) },
+      ];
+      
+      for (const { field, result } of validations) {
+        if (!result.valid) {
+          Alert.alert('❌ Validation Error', result.error || `Invalid ${field}`);
+          return;
+        }
+      }
+
+      if (!captchaValid) {
+        Alert.alert('❌ Captcha Required', 'Please type the word shown in the captcha correctly.');
+        return;
+      }
+
+      console.log('✅ All validations passed, proceeding with OTP...');
+      showLoading('Sending OTP...');
+
+      const normalizedPhone = normalizePhoneNumber(sanitizedContact);
       console.log('📱 Sending OTP to:', normalizedPhone);
       
-      // Send OTP via Supabase
       const result = await sendSupabaseOtp(normalizedPhone);
       
       hideLoading();
       
       if (!result.success) {
-        Alert.alert('OTP Error', result.message);
+        Alert.alert('❌ OTP Error', result.message || 'Failed to send OTP');
         return;
       }
 
-      // Show OTP modal and start resend countdown
+      console.log('✅ OTP sent successfully');
+
       setShowOtpModal(true);
       setCanResend(false);
       setResendCountdown(60);
       
-      // Start countdown timer
       const timer = setInterval(() => {
         setResendCountdown(prev => {
           if (prev <= 1) {
@@ -134,13 +213,13 @@ const Register = () => {
       }, 1000);
       
       Alert.alert(
-        'OTP Sent',
-        `Your verification code has been sent to ${normalizedPhone}. It is valid for 5 minutes.`,
+        '✅ OTP Sent',
+        `Your verification code has been sent to ${normalizedPhone}.\nIt is valid for 5 minutes.`,
         [{ text: 'OK' }]
       );
     } catch (err) {
-      console.error('Register OTP error:', err);
-      Alert.alert('Error', 'Failed to send OTP');
+      console.error('❌ Register error:', err);
+      Alert.alert('❌ Error', 'An error occurred. Please try again.');
       hideLoading();
     }
   };
@@ -258,217 +337,665 @@ const Register = () => {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingTop: 20, paddingBottom: 200, alignItems: 'center' }}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={true}
+    <KeyboardAvoidingView 
+      style={localStyles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={{ width: '100%', maxWidth: 440, paddingHorizontal: 20 }}>
-      {/* Title */}
-      <Text style={styles.textTitle}>
-        <Text style={styles.alertWelcome}>Alert</Text>
-        <Text style={styles.davao}>Davao</Text>
-      </Text>
-
-      <Text style={styles.subheadingCenter}>Welcome to AlertDavao!</Text>
-      <Text style={styles.normalTxtCentered}>
-        Register and Create an Account
-      </Text>
-
-      {/* Firstname */}
-      <Text style={styles.subheading2}>Firstname</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your first name"
-        value={firstname}
-        onChangeText={setFirstname}
-      />
-
-      {/* Lastname */}
-      <Text style={styles.subheading2}>Lastname</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your last name"
-        value={lastname}
-        onChangeText={setLastname}
-      />
-
-      {/* Email */}
-      <Text style={styles.subheading2}>Email</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your email"
-        value={email}
-        onChangeText={setEmail}
-      />
-
-      {/* Contact */}
-      <Text style={styles.subheading2}>Contact Number</Text>
-      <PhoneInput
-        value={contact}
-        onChangeText={setContact}
-        placeholder="9XX XXX XXXX"
-      />
-
-      {/* Password */}
-      <Text style={styles.subheading2}>Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      <Text style={{ fontSize: 11, color: '#666', marginTop: -8, marginBottom: 12 }}>
-        Min. 8 characters with letter, number & symbol
-      </Text>
-
-      {/* Confirm Password */}
-      <Text style={styles.subheading2}>Confirm Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Re-enter your password"
-        value={confirmpassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-      />
-
-      {/* Checkbox with disclaimer */}
-      <View style={styles.checkboxContainer}>
-        <Checkbox
-          value={isChecked}
-          onValueChange={setChecked}
-          color={isChecked ? "#1D3557" : undefined}
-        />
-        <Text style={styles.checkboxText}>
-          By clicking you agree to accept our{" "}
-          <Text style={styles.termsText}>
-            Terms & Conditions
+      <ScrollView
+        style={localStyles.container}
+        contentContainerStyle={localStyles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
+      >
+        <View style={localStyles.formContainer}>
+          {/* Title */}
+          <Text style={localStyles.title}>
+            <Text style={localStyles.alertText}>Alert</Text>
+            <Text style={localStyles.davaoText}>Davao</Text>
           </Text>
-          ,{"\n"}that you are over 18 and aware of our reporting policies!
-        </Text>
-      </View>
 
-      {/* Captcha */}
-      <View style={{ marginTop: 12, marginBottom: 12 }}>
-        <Text style={{ fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8 }}>Security Check</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <CaptchaObfuscated word={captchaWord} />
-          <Pressable
-            onPress={() => {
-              const newWord = generateCaptchaWord(6);
-              setCaptchaWord(newWord);
-              setCaptchaAnswer('');
-              setCaptchaValid(false);
-              console.log('🔄 Captcha refreshed:', newWord);
-            }}
-            style={{
-              backgroundColor: '#3b82f6',
-              paddingVertical: 10,
-              paddingHorizontal: 12,
-              borderRadius: 8,
-              height: 44,
-              minWidth: 44,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: '600' }}>↻</Text>
-          </Pressable>
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter the code above"
-          value={captchaAnswer}
-          onChangeText={text => {
-            // Only allow max 6 characters
-            const limited = text.replace(/[^A-Z0-9]/gi, '').slice(0, 6);
-            setCaptchaAnswer(limited);
-            const isValid = limited.trim().toUpperCase() === captchaWord.toUpperCase();
-            setCaptchaValid(isValid);
-            console.log('🔐 Captcha check:', { input: limited.toUpperCase(), expected: captchaWord.toUpperCase(), valid: isValid });
-          }}
-          autoCapitalize="characters"
-          maxLength={6}
-        />
-      </View>
+          <Text style={localStyles.subtitle}>Welcome to AlertDavao!</Text>
+          <Text style={localStyles.description}>Register and Create an Account</Text>
 
-      <Modal visible={showOtpModal} animationType="slide" transparent={true}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={{ width: 320, padding: 20, backgroundColor: '#fff', borderRadius: 8 }}>
-            <Text style={{ fontSize: 16, marginBottom: 4, fontWeight: '600', textAlign: 'center' }}>Verify Your Phone Number</Text>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 4, textAlign: 'center' }}>Enter the 6-digit code sent to your phone</Text>
-            <Text style={{ fontSize: 12, color: '#1D3557', marginBottom: 12, textAlign: 'center', fontWeight: '600' }}>{contact}</Text>
-            <TextInput
-              style={[styles.input, { marginBottom: 12, backgroundColor: '#fff', textAlign: 'center', fontSize: 24, letterSpacing: 8, fontWeight: '600' }]}
-              placeholder="000000"
-              placeholderTextColor="#ccc"
-              value={otpCode}
-              onChangeText={async (code) => {
-                setOtpCode(code);
-                // Auto-submit when 6 digits are entered
-                if (code.length === 6) {
-                  console.log('📝 OTP code complete, triggering submission:', code);
-                  await submitOtpAndRegister(code);
-                }
-              }}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus={true}
-              editable={true}
-              selectTextOnFocus={true}
-            />
-            
-            {/* Resend OTP Section */}
-            <View style={{ alignItems: 'center', marginTop: 8 }}>
-              {canResend ? (
-                <TouchableOpacity onPress={handleResendOtp}>
-                  <Text style={{ color: '#1D3557', fontWeight: '600', fontSize: 14 }}>Resend OTP</Text>
-                </TouchableOpacity>
-              ) : (
-                <Text style={{ color: '#666', fontSize: 12 }}>
-                  Resend OTP in {resendCountdown}s
+          {/* Name Fields Row */}
+          <View style={localStyles.nameRow}>
+            {/* Firstname */}
+            <View style={localStyles.nameField}>
+              <Text style={localStyles.label}>First Name <Text style={localStyles.required}>*</Text></Text>
+              <View style={localStyles.inputWrapper}>
+                <TextInput
+                  style={[
+                    localStyles.input,
+                    validation.firstname.touched && (validation.firstname.valid ? localStyles.inputValid : localStyles.inputError)
+                  ]}
+                  placeholder="e.g., Juan"
+                  placeholderTextColor="#9ca3af"
+                  value={firstname}
+                  onChangeText={(text) => {
+                    const sanitized = sanitizeTextInput(text);
+                    setFirstname(sanitized);
+                    validateField('firstname', sanitized);
+                  }}
+                  onBlur={() => handleFieldBlur('firstname')}
+                  autoCapitalize="words"
+                  maxLength={50}
+                />
+                {validation.firstname.touched && (
+                  <Text style={[localStyles.statusIcon, { color: validation.firstname.valid ? '#22c55e' : '#ef4444' }]}>
+                    {validation.firstname.valid ? '✓' : '✗'}
+                  </Text>
+                )}
+              </View>
+              {validation.firstname.touched && !validation.firstname.valid && (
+                <Text style={localStyles.errorText}>{validation.firstname.error}</Text>
+              )}
+              <Text style={localStyles.hint}>Letters only, 2-50 chars</Text>
+            </View>
+
+            {/* Lastname */}
+            <View style={localStyles.nameField}>
+              <Text style={localStyles.label}>Last Name <Text style={localStyles.required}>*</Text></Text>
+              <View style={localStyles.inputWrapper}>
+                <TextInput
+                  style={[
+                    localStyles.input,
+                    validation.lastname.touched && (validation.lastname.valid ? localStyles.inputValid : localStyles.inputError)
+                  ]}
+                  placeholder="e.g., Dela Cruz"
+                  placeholderTextColor="#9ca3af"
+                  value={lastname}
+                  onChangeText={(text) => {
+                    const sanitized = sanitizeTextInput(text);
+                    setLastname(sanitized);
+                    validateField('lastname', sanitized);
+                  }}
+                  onBlur={() => handleFieldBlur('lastname')}
+                  autoCapitalize="words"
+                  maxLength={50}
+                />
+                {validation.lastname.touched && (
+                  <Text style={[localStyles.statusIcon, { color: validation.lastname.valid ? '#22c55e' : '#ef4444' }]}>
+                    {validation.lastname.valid ? '✓' : '✗'}
+                  </Text>
+                )}
+              </View>
+              {validation.lastname.touched && !validation.lastname.valid && (
+                <Text style={localStyles.errorText}>{validation.lastname.error}</Text>
+              )}
+              <Text style={localStyles.hint}>Letters only, 2-50 chars</Text>
+            </View>
+          </View>
+
+          {/* Email */}
+          <View style={localStyles.fieldContainer}>
+            <Text style={localStyles.label}>Email Address <Text style={localStyles.required}>*</Text></Text>
+            <View style={localStyles.inputWrapper}>
+              <TextInput
+                style={[
+                  localStyles.input,
+                  validation.email.touched && (validation.email.valid ? localStyles.inputValid : localStyles.inputError)
+                ]}
+                placeholder="your.email@example.com"
+                placeholderTextColor="#9ca3af"
+                value={email}
+                onChangeText={(text) => {
+                  const sanitized = sanitizeEmail(text);
+                  setEmail(sanitized);
+                  validateField('email', sanitized);
+                }}
+                onBlur={() => handleFieldBlur('email')}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                maxLength={100}
+              />
+              {validation.email.touched && (
+                <Text style={[localStyles.statusIcon, { color: validation.email.valid ? '#22c55e' : '#ef4444' }]}>
+                  {validation.email.valid ? '✓' : '✗'}
                 </Text>
               )}
             </View>
+            {validation.email.touched && !validation.email.valid && (
+              <Text style={localStyles.errorText}>{validation.email.error}</Text>
+            )}
+            <Text style={localStyles.hint}>Valid email with @ and domain</Text>
+          </View>
+
+          {/* Contact Number */}
+          <View style={localStyles.fieldContainer}>
+            <Text style={localStyles.label}>Contact Number <Text style={localStyles.required}>*</Text></Text>
+            <View style={localStyles.inputWrapper}>
+              <TextInput
+                style={[
+                  localStyles.input,
+                  validation.contact.touched && (validation.contact.valid ? localStyles.inputValid : localStyles.inputError)
+                ]}
+                placeholder="09XX XXX XXXX"
+                placeholderTextColor="#9ca3af"
+                value={contact}
+                onChangeText={(text) => {
+                  const sanitized = sanitizePhone(text);
+                  setContact(sanitized);
+                  validateField('contact', sanitized);
+                }}
+                onBlur={() => handleFieldBlur('contact')}
+                keyboardType="phone-pad"
+                maxLength={20}
+              />
+              {validation.contact.touched && (
+                <Text style={[localStyles.statusIcon, { color: validation.contact.valid ? '#22c55e' : '#ef4444' }]}>
+                  {validation.contact.valid ? '✓' : '✗'}
+                </Text>
+              )}
+            </View>
+            {validation.contact.touched && !validation.contact.valid && (
+              <Text style={localStyles.errorText}>{validation.contact.error}</Text>
+            )}
+            <Text style={localStyles.hint}>Philippine mobile: 09XX or +639XX</Text>
+          </View>
+
+          {/* Password */}
+          <View style={localStyles.fieldContainer}>
+            <Text style={localStyles.label}>Password <Text style={localStyles.required}>*</Text></Text>
+            <View style={localStyles.inputWrapper}>
+              <TextInput
+                style={[
+                  localStyles.input,
+                  localStyles.passwordInput,
+                  validation.password.touched && (validation.password.valid ? localStyles.inputValid : localStyles.inputError)
+                ]}
+                placeholder="Create a strong password"
+                placeholderTextColor="#9ca3af"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  validateField('password', text);
+                }}
+                onBlur={() => handleFieldBlur('password')}
+                secureTextEntry={!showPassword}
+              />
+              <Pressable
+                onPress={() => setShowPassword(!showPassword)}
+                style={localStyles.toggleButton}
+              >
+                <Text style={localStyles.toggleText}>{showPassword ? 'HIDE' : 'SHOW'}</Text>
+              </Pressable>
+            </View>
+            {validation.password.touched && !validation.password.valid && (
+              <Text style={localStyles.errorText}>{validation.password.error}</Text>
+            )}
+            <Text style={localStyles.hint}>Min 8 chars: letter + number + symbol (@$!%*?&)</Text>
             
-            {/* Cancel Button */}
-            <TouchableOpacity 
-              onPress={() => {
-                setShowOtpModal(false);
-                setOtpCode('');
+            {/* Password Strength Indicator */}
+            {password && (
+              <View style={localStyles.strengthContainer}>
+                <View style={localStyles.strengthBars}>
+                  {[0, 1, 2, 3, 4].map((i) => {
+                    let strength = 0;
+                    if (password.length >= 8) strength++;
+                    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+                    if (/\d/.test(password)) strength++;
+                    if (/[@$!%*?&]/.test(password)) strength++;
+                    if (password.length >= 12) strength++;
+                    const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#10b981'];
+                    return (
+                      <View
+                        key={i}
+                        style={[
+                          localStyles.strengthBar,
+                          { backgroundColor: i < strength ? colors[strength - 1] : '#e5e7eb' }
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Confirm Password */}
+          <View style={localStyles.fieldContainer}>
+            <Text style={localStyles.label}>Confirm Password <Text style={localStyles.required}>*</Text></Text>
+            <View style={localStyles.inputWrapper}>
+              <TextInput
+                style={[
+                  localStyles.input,
+                  localStyles.passwordInput,
+                  validation.confirmpassword.touched && (validation.confirmpassword.valid ? localStyles.inputValid : localStyles.inputError)
+                ]}
+                placeholder="Re-enter your password"
+                placeholderTextColor="#9ca3af"
+                value={confirmpassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  validateField('confirmpassword', text);
+                }}
+                onBlur={() => handleFieldBlur('confirmpassword')}
+                secureTextEntry={!showConfirmPassword}
+              />
+              <Pressable
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={localStyles.toggleButton}
+              >
+                <Text style={localStyles.toggleText}>{showConfirmPassword ? 'HIDE' : 'SHOW'}</Text>
+              </Pressable>
+            </View>
+            {validation.confirmpassword.touched && !validation.confirmpassword.valid && (
+              <Text style={localStyles.errorText}>{validation.confirmpassword.error}</Text>
+            )}
+          </View>
+
+          {/* Terms Checkbox */}
+          <View style={localStyles.checkboxContainer}>
+            <Checkbox
+              value={isChecked}
+              onValueChange={setChecked}
+              color={isChecked ? "#1D3557" : undefined}
+              style={localStyles.checkbox}
+            />
+            <Text style={localStyles.checkboxText}>
+              By checking this box, you agree to our{" "}
+              <Text style={localStyles.termsLink}>Terms & Conditions</Text>
+              {"\n"}and confirm you are over 18 years old.
+            </Text>
+          </View>
+
+          {/* Captcha */}
+          <View style={localStyles.captchaSection}>
+            <Text style={localStyles.label}>Security Verification</Text>
+            <View style={localStyles.captchaRow}>
+              <View style={localStyles.captchaDisplay}>
+                <CaptchaObfuscated word={captchaWord} />
+              </View>
+              <Pressable
+                onPress={() => {
+                  const newWord = generateCaptchaWord(6);
+                  setCaptchaWord(newWord);
+                  setCaptchaAnswer('');
+                  setCaptchaValid(false);
+                }}
+                style={localStyles.refreshButton}
+              >
+                <Text style={localStyles.refreshIcon}>↻</Text>
+              </Pressable>
+            </View>
+            <TextInput
+              style={[
+                localStyles.input,
+                captchaAnswer && (captchaValid ? localStyles.inputValid : localStyles.inputError)
+              ]}
+              placeholder="Enter the code above"
+              placeholderTextColor="#9ca3af"
+              value={captchaAnswer}
+              onChangeText={text => {
+                const limited = text.replace(/[^A-Z0-9]/gi, '').slice(0, 6);
+                setCaptchaAnswer(limited);
+                setCaptchaValid(limited.toUpperCase() === captchaWord.toUpperCase());
               }}
-              style={{ marginTop: 16, alignItems: 'center' }}
-            >
-              <Text style={{ color: '#E63946', fontSize: 14 }}>Cancel</Text>
+              autoCapitalize="characters"
+              maxLength={6}
+            />
+            {captchaAnswer && (
+              <Text style={[localStyles.captchaStatus, { color: captchaValid ? '#22c55e' : '#ef4444' }]}>
+                {captchaValid ? '✓ Correct' : '✗ Incorrect code'}
+              </Text>
+            )}
+          </View>
+
+          {/* Register Button */}
+          <TouchableOpacity
+            style={[
+              localStyles.registerButton,
+              !isFormComplete && localStyles.registerButtonDisabled
+            ]}
+            onPress={handleRegister}
+            disabled={!isFormComplete}
+          >
+            <Text style={localStyles.registerButtonText}>Create Account</Text>
+          </TouchableOpacity>
+
+          {/* Login Link */}
+          <View style={localStyles.loginLinkContainer}>
+            <Text style={localStyles.loginLinkText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/login')}>
+              <Text style={localStyles.loginLink}>Login here</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </Modal>
 
-      <Button
-        title="Register"
-        onPress={() => {
-          console.log('🔘 Register button clicked. isChecked:', isChecked, 'captchaValid:', captchaValid);
-          handleRegister();
-        }}
-        disabled={!isChecked || !captchaValid}
-        color="#1D3557"
-      />
-
-      {/* Link for users who already have an account */}
-      <View style={styles.loginLinkContainer}>
-        <Text style={styles.loginLinkText}>I already have an account? </Text>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/login')}>
-          <Text style={styles.loginLink}>
-            Login here
-          </Text>
-        </TouchableOpacity>
-      </View>
-      </View>
-    </ScrollView>
+        {/* OTP Modal */}
+        <Modal visible={showOtpModal} animationType="slide" transparent={true}>
+          <View style={localStyles.modalOverlay}>
+            <View style={localStyles.modalContent}>
+              <Text style={localStyles.modalTitle}>Verify Your Phone</Text>
+              <Text style={localStyles.modalSubtitle}>Enter the 6-digit code sent to</Text>
+              <Text style={localStyles.modalPhone}>{contact}</Text>
+              
+              <TextInput
+                style={localStyles.otpInput}
+                placeholder="000000"
+                placeholderTextColor="#ccc"
+                value={otpCode}
+                onChangeText={async (code) => {
+                  setOtpCode(code);
+                  if (code.length === 6) {
+                    await submitOtpAndRegister(code);
+                  }
+                }}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus={true}
+              />
+              
+              <View style={localStyles.resendSection}>
+                {canResend ? (
+                  <TouchableOpacity onPress={handleResendOtp}>
+                    <Text style={localStyles.resendButton}>Resend OTP</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={localStyles.resendCountdown}>
+                    Resend OTP in {resendCountdown}s
+                  </Text>
+                )}
+              </View>
+              
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowOtpModal(false);
+                  setOtpCode('');
+                }}
+                style={localStyles.cancelButton}
+              >
+                <Text style={localStyles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
+
+// Responsive styles for universal phone screen compatibility
+const localStyles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 50,
+    paddingHorizontal: isSmallScreen ? 16 : 20,
+    alignItems: 'center',
+  },
+  formContainer: {
+    width: '100%',
+    maxWidth: 420,
+  },
+  title: {
+    fontSize: Math.min(32, SCREEN_WIDTH * 0.08),
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  alertText: {
+    color: '#1D3557',
+  },
+  davaoText: {
+    color: '#000',
+  },
+  subtitle: {
+    fontSize: Math.min(18, SCREEN_WIDTH * 0.045),
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  description: {
+    fontSize: isSmallScreen ? 13 : 14,
+    textAlign: 'center',
+    color: '#6b7280',
+    marginBottom: 24,
+  },
+  nameRow: {
+    flexDirection: isSmallScreen ? 'column' : 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  nameField: {
+    flex: isSmallScreen ? undefined : 1,
+    marginBottom: isSmallScreen ? 8 : 0,
+  },
+  fieldContainer: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  required: {
+    color: '#ef4444',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  input: {
+    flex: 1,
+    height: 44,
+    borderWidth: 1.5,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    backgroundColor: '#fff',
+    color: '#1f2937',
+  },
+  passwordInput: {
+    paddingRight: 60,
+  },
+  inputValid: {
+    borderColor: '#22c55e',
+  },
+  inputError: {
+    borderColor: '#ef4444',
+  },
+  statusIcon: {
+    position: 'absolute',
+    right: 12,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  toggleButton: {
+    position: 'absolute',
+    right: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  toggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1D3557',
+  },
+  hint: {
+    fontSize: 11,
+    color: '#6b7280',
+    marginTop: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 4,
+  },
+  strengthContainer: {
+    marginTop: 8,
+  },
+  strengthBars: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  strengthBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    paddingRight: 8,
+  },
+  checkbox: {
+    marginTop: 2,
+    marginRight: 10,
+  },
+  checkboxText: {
+    flex: 1,
+    fontSize: isSmallScreen ? 11 : 12,
+    color: '#6b7280',
+    lineHeight: 18,
+  },
+  termsLink: {
+    color: '#1D3557',
+    fontWeight: '600',
+  },
+  captchaSection: {
+    marginBottom: 20,
+  },
+  captchaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  captchaDisplay: {
+    flex: 1,
+  },
+  refreshButton: {
+    backgroundColor: '#3b82f6',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  refreshIcon: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  captchaStatus: {
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  registerButton: {
+    backgroundColor: '#1D3557',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  registerButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  registerButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loginLinkContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  loginLinkText: {
+    color: '#6b7280',
+    fontSize: 14,
+  },
+  loginLink: {
+    color: '#1D3557',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 340,
+    padding: 24,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  modalPhone: {
+    fontSize: 15,
+    color: '#1D3557',
+    fontWeight: '600',
+    marginBottom: 20,
+  },
+  otpInput: {
+    width: '100%',
+    height: 56,
+    borderWidth: 1.5,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    textAlign: 'center',
+    fontSize: 28,
+    letterSpacing: 10,
+    fontWeight: '700',
+    backgroundColor: '#f9fafb',
+    marginBottom: 16,
+  },
+  resendSection: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  resendButton: {
+    color: '#1D3557',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  resendCountdown: {
+    color: '#6b7280',
+    fontSize: 13,
+  },
+  cancelButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  cancelButtonText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});
 
 export default Register;

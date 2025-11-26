@@ -53,14 +53,28 @@ Route::middleware(['auth'])->group(function () {
         return view('users', compact('users'));
     })->name('users');
     
+    Route::get('/flagged-users', function () {
+        $users = \App\Models\User::with('roles')
+            ->where(function($query) {
+                $query->where('total_flags', '>', 0)
+                      ->orWhere('restriction_level', '!=', 'none');
+            })
+            ->orderBy('total_flags', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+        return view('flagged-users', compact('users'));
+    })->name('flagged-users');
+    
     // Personnel management routes
     Route::get('/personnel', [PersonnelController::class, 'index'])->name('personnel');
     
     // User management routes
     Route::post('/users/{id}/flag', [UserController::class, 'flagUser'])->name('users.flag');
+    Route::post('/users/{id}/unflag', [UserController::class, 'unflagUser'])->name('users.unflag');
     Route::post('/users/{id}/promote', [UserController::class, 'promoteToOfficer'])->name('users.promote');
     Route::post('/users/{id}/change-role', [UserController::class, 'changeRole'])->name('users.changeRole');
     Route::post('/users/{id}/assign-station', [UserController::class, 'assignStation'])->name('users.assignStation');
+    Route::get('/api/users/{id}/flags', [UserController::class, 'getFlagHistory'])->name('users.flags');
 
     Route::get('/messages', [MessageController::class, 'index'])->name('messages');
     Route::get('/messages/conversation/{userId}', [MessageController::class, 'getConversation'])->name('messages.conversation');
