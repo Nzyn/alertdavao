@@ -377,26 +377,56 @@
             </form>
 
             <!-- OTP Modal -->
-            <div id="otpModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
-                <div style="background: white; padding: 2rem; border-radius: 12px; width: 320px; max-width: 100%;">
-                    <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; font-weight: 600;">Enter OTP sent to your phone</h3>
-                    <p style="margin: 0 0 1rem 0; font-size: 0.75rem; color: #666;">Auto-proceeds when complete</p>
+            <div id="otpModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;">
+                <div style="background: white; padding: 2rem; border-radius: 12px; width: 340px; max-width: 100%;">
+                    <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; font-weight: 600; text-align: center;">Verify Your Phone Number</h3>
+                    <p style="margin: 0 0 0.25rem 0; font-size: 0.75rem; color: #666; text-align: center;">Enter the 6-digit code sent to</p>
+                    <p id="otpPhoneDisplay" style="margin: 0 0 1rem 0; font-size: 0.875rem; color: #1D3557; font-weight: 600; text-align: center;"></p>
                     <input 
                         type="text" 
                         id="otpInput" 
                         placeholder="000000"
                         maxlength="6"
                         inputmode="numeric"
-                        style="width: 100%; padding: 1rem; border: 1.5px solid #d1d5db; border-radius: 6px; text-align: center; font-size: 24px; letter-spacing: 8px; font-weight: 600; margin-bottom: 1rem; background-color: white;"
+                        style="width: 100%; padding: 1rem; border: 1.5px solid #d1d5db; border-radius: 6px; text-align: center; font-size: 24px; letter-spacing: 8px; font-weight: 600; margin-bottom: 1rem; background-color: white; box-sizing: border-box;"
                     >
                     <p id="otpVerifyingText" style="text-align: center; color: #1D3557; font-weight: 600; display: none; margin: 1rem 0;">Verifying...</p>
-                    <span class="error-message" id="otpErrorMsg" style="display:none; margin-bottom: 1rem; display: block;"></span>
+                    <span class="error-message" id="otpErrorMsg" style="display:none; margin-bottom: 1rem;"></span>
+                    
+                    <!-- Resend OTP Section -->
+                    <div id="resendSection" style="text-align: center; margin-top: 0.5rem;">
+                        <span id="resendCountdown" style="color: #666; font-size: 0.75rem;"></span>
+                        <button type="button" id="resendBtn" style="display: none; background: none; border: none; color: #1D3557; font-weight: 600; cursor: pointer; font-size: 0.875rem;">Resend OTP</button>
+                    </div>
+                    
+                    <!-- Cancel Button -->
+                    <button type="button" id="cancelOtpBtn" style="width: 100%; margin-top: 1rem; padding: 0.75rem; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; color: #374151; cursor: pointer; font-size: 0.875rem;">Cancel</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
+        // Initialize Supabase client - these values should be set in your environment config
+        const SUPABASE_URL = '{{ env("SUPABASE_URL", "") }}';
+        const SUPABASE_ANON_KEY = '{{ env("SUPABASE_ANON_KEY", "") }}';
+        
+        let supabaseClient = null;
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+                auth: {
+                    autoRefreshToken: true,
+                    persistSession: false,
+                    detectSessionInUrl: false,
+                }
+            });
+            console.log('✅ Supabase client initialized for OTP');
+        } else {
+            console.warn('⚠️ Supabase credentials not configured. OTP will use fallback method.');
+        }
+
         const registerBtn = document.getElementById('registerBtn');
         const registerForm = document.getElementById('registerForm');
         const termsCheckbox = document.getElementById('terms');
@@ -405,11 +435,162 @@
         const otpInput = document.getElementById('otpInput');
         const otpVerifyingText = document.getElementById('otpVerifyingText');
         const otpErrorMsg = document.getElementById('otpErrorMsg');
+        const otpPhoneDisplay = document.getElementById('otpPhoneDisplay');
+        const resendCountdown = document.getElementById('resendCountdown');
+        const resendBtn = document.getElementById('resendBtn');
+        const cancelOtpBtn = document.getElementById('cancelOtpBtn');
+        
         let captchaValid = false;
         let pendingRegistrationData = null;
         let userPhone = '';
+        let normalizedPhone = '';
+        let countdownTimer = null;
+        let canResend = false;
 
         console.log('🔐 Register page loaded');
+
+        // Normalize phone number to international format
+        function normalizePhoneNumber(phone) {
+            let normalized = phone.trim().replace(/\s+/g, '');
+            if (normalized.startsWith('0')) {
+                normalized = '+63' + normalized.slice(1);
+            }
+            if (!normalized.startsWith('+')) {
+                normalized = '+63' + normalized;
+            }
+            return normalized;
+        }
+
+        // Start resend countdown timer
+        function startResendCountdown() {
+            canResend = false;
+            let seconds = 60;
+            resendBtn.style.display = 'none';
+            resendCountdown.style.display = 'inline';
+            resendCountdown.textContent = `Resend OTP in ${seconds}s`;
+            
+            if (countdownTimer) clearInterval(countdownTimer);
+            
+            countdownTimer = setInterval(() => {
+                seconds--;
+                if (seconds <= 0) {
+                    clearInterval(countdownTimer);
+                    canResend = true;
+                    resendCountdown.style.display = 'none';
+                    resendBtn.style.display = 'inline';
+                } else {
+                    resendCountdown.textContent = `Resend OTP in ${seconds}s`;
+                }
+            }, 1000);
+        }
+
+        // Send OTP via Supabase
+        async function sendOtpToPhone(phone) {
+            normalizedPhone = normalizePhoneNumber(phone);
+            console.log('📱 Sending OTP to:', normalizedPhone);
+            
+            if (supabaseClient) {
+                // Use Supabase OTP
+                try {
+                    const { data, error } = await supabaseClient.auth.signInWithOtp({
+                        phone: normalizedPhone,
+                        options: {
+                            channel: 'sms',
+                        },
+                    });
+
+                    if (error) {
+                        console.error('❌ Supabase OTP send error:', error);
+                        return { success: false, message: error.message || 'Failed to send OTP' };
+                    }
+
+                    console.log('✅ Supabase OTP sent successfully');
+                    return { success: true, message: 'OTP sent successfully' };
+                } catch (err) {
+                    console.error('❌ Exception sending Supabase OTP:', err);
+                    return { success: false, message: err.message || 'Failed to send OTP' };
+                }
+            } else {
+                // Fallback to backend OTP
+                try {
+                    const response = await fetch('/api/otp/send', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                        },
+                        body: JSON.stringify({
+                            phone: normalizedPhone,
+                            purpose: 'register'
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.debugOtp) {
+                        console.log('🔐🔐🔐 ADMINSIDE REGISTER OTP CODE:', data.debugOtp);
+                    }
+                    
+                    return data;
+                } catch (err) {
+                    console.error('❌ Error sending fallback OTP:', err);
+                    return { success: false, message: 'Failed to send OTP' };
+                }
+            }
+        }
+
+        // Verify OTP via Supabase
+        async function verifyOtpCode(phone, code) {
+            const normalPhone = normalizePhoneNumber(phone);
+            console.log('🔐 Verifying OTP for:', normalPhone, 'code:', code);
+            
+            if (supabaseClient) {
+                // Use Supabase verification
+                try {
+                    const { data, error } = await supabaseClient.auth.verifyOtp({
+                        phone: normalPhone,
+                        token: code,
+                        type: 'sms',
+                    });
+
+                    if (error) {
+                        console.error('❌ Supabase OTP verify error:', error);
+                        return { success: false, message: error.message || 'Invalid OTP code' };
+                    }
+
+                    console.log('✅ Supabase OTP verified successfully');
+                    
+                    // Sign out immediately since we're only using this for verification
+                    await supabaseClient.auth.signOut();
+                    
+                    return { success: true, message: 'Phone number verified successfully' };
+                } catch (err) {
+                    console.error('❌ Exception verifying Supabase OTP:', err);
+                    return { success: false, message: err.message || 'Failed to verify OTP' };
+                }
+            } else {
+                // Fallback to backend verification
+                try {
+                    const response = await fetch('/api/otp/verify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                        },
+                        body: JSON.stringify({
+                            phone: normalPhone,
+                            code: code,
+                            purpose: 'register'
+                        })
+                    });
+
+                    return await response.json();
+                } catch (err) {
+                    console.error('❌ Error verifying fallback OTP:', err);
+                    return { success: false, message: 'Failed to verify OTP' };
+                }
+            }
+        }
 
         // Update button state based on terms and captcha
         function updateRegisterButton() {
@@ -432,6 +613,37 @@
         termsCheckbox.addEventListener('change', function() {
             console.log('🔘 Terms checkbox changed:', this.checked);
             updateRegisterButton();
+        });
+
+        // Handle resend OTP button
+        resendBtn.addEventListener('click', async function() {
+            if (!canResend) return;
+            
+            resendBtn.disabled = true;
+            resendBtn.textContent = 'Sending...';
+            
+            const result = await sendOtpToPhone(userPhone);
+            
+            if (result.success) {
+                alert('A new verification code has been sent to your phone.');
+                startResendCountdown();
+            } else {
+                alert(result.message || 'Failed to resend OTP');
+            }
+            
+            resendBtn.disabled = false;
+            resendBtn.textContent = 'Resend OTP';
+        });
+
+        // Handle cancel OTP button
+        cancelOtpBtn.addEventListener('click', function() {
+            otpModal.style.display = 'none';
+            otpInput.value = '';
+            otpErrorMsg.style.display = 'none';
+            otpVerifyingText.style.display = 'none';
+            registerBtn.disabled = false;
+            registerBtn.innerHTML = 'Send OTP';
+            if (countdownTimer) clearInterval(countdownTimer);
         });
 
         // Handle register form submission - send OTP first
@@ -497,43 +709,22 @@
             registerBtn.disabled = true;
             registerBtn.innerHTML = '<span class="spinner" style="margin-right:8px;width:18px;height:18px;display:inline-block;border:2px solid #fff;border-top:2px solid #1D3557;border-radius:50%;animation:spin 1s linear infinite;"></span>Sending OTP...';
 
-            try {
-                const response = await fetch('/api/otp/send', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                    },
-                    body: JSON.stringify({
-                        phone: userPhone,
-                        purpose: 'register'
-                    })
-                });
+            const result = await sendOtpToPhone(userPhone);
 
-                const data = await response.json();
-
-                if (!data.success) {
-                    alert(data.message || 'Failed to send OTP');
-                    registerBtn.disabled = false;
-                    registerBtn.innerHTML = 'Send OTP';
-                    return;
-                }
-
-                // Show OTP modal
-                otpModal.style.display = 'flex';
-                otpInput.focus();
-
-                // Log OTP to console instead of alert popup
-                if (data.debugOtp) {
-                    console.log('🔐🔐🔐 ADMINSIDE REGISTER OTP CODE:', data.debugOtp);
-                    console.log('📱 Check the backend terminal/logs for the OTP code');
-                }
-            } catch (err) {
-                console.error('Error:', err);
-                alert('An error occurred. Please try again.');
+            if (!result.success) {
+                alert(result.message || 'Failed to send OTP');
                 registerBtn.disabled = false;
                 registerBtn.innerHTML = 'Send OTP';
+                return;
             }
+
+            // Show OTP modal
+            otpPhoneDisplay.textContent = normalizedPhone;
+            otpModal.style.display = 'flex';
+            otpInput.focus();
+            startResendCountdown();
+            
+            alert('Your verification code has been sent to ' + normalizedPhone + '. It is valid for 5 minutes.');
         });
 
         // Auto-submit OTP when 6 digits are entered
@@ -543,38 +734,18 @@
                 otpVerifyingText.style.display = 'block';
                 otpErrorMsg.style.display = 'none';
 
-                try {
-                    const response = await fetch('/api/otp/verify', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                        },
-                        body: JSON.stringify({
-                            phone: userPhone,
-                            code: code,
-                            purpose: 'register'
-                        })
-                    });
+                const result = await verifyOtpCode(userPhone, code);
 
-                    const data = await response.json();
-
-                    if (!data.success) {
-                        otpErrorMsg.style.display = 'block';
-                        otpErrorMsg.textContent = data.message || 'Invalid OTP';
-                        otpInput.value = '';
-                        otpVerifyingText.style.display = 'none';
-                        return;
-                    }
-
-                    // OTP verified, submit registration
-                    await submitRegistration();
-                } catch (err) {
-                    console.error('Error verifying OTP:', err);
+                if (!result.success) {
                     otpErrorMsg.style.display = 'block';
-                    otpErrorMsg.textContent = 'Failed to verify OTP. Please try again.';
+                    otpErrorMsg.textContent = result.message || 'Invalid OTP';
+                    otpInput.value = '';
                     otpVerifyingText.style.display = 'none';
+                    return;
                 }
+
+                // OTP verified, submit registration
+                await submitRegistration();
             }
         });
 

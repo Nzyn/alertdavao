@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOptimalBackendUrl } from '../config/backend';
 import { useLoading } from '../contexts/LoadingContext';
 import { PhoneInput, validatePhoneNumber } from '../components/PhoneInput';
+import { sendSupabaseOtp, verifySupabaseOtp, normalizePhoneNumber } from '../services/supabaseOtp';
 
 const Register = () => {
   const [email, setEmail] = useState("");
@@ -26,6 +27,8 @@ const Register = () => {
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [isChecked, setChecked] = useState(false);
+  const [canResend, setCanResend] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(60);
   const { showLoading, hideLoading } = useLoading();
   const router = useRouter();
 
@@ -99,34 +102,45 @@ const Register = () => {
 
     showLoading('Sending OTP...');
     try {
-      const backendUrl = await getOptimalBackendUrl();
-      const apiBase = backendUrl.replace(/\/register$/, '');
-      const sendResp = await fetch(`${apiBase}/api/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: contact, purpose: 'register' })
-      });
-      const sendData = await sendResp.json();
-      if (!sendResp.ok) {
-        Alert.alert('OTP Error', sendData.message || 'Failed to send OTP');
-        hideLoading();
+      // Normalize phone number to international format
+      const normalizedPhone = normalizePhoneNumber(contact);
+      console.log('📱 Sending OTP to:', normalizedPhone);
+      
+      // Send OTP via Supabase
+      const result = await sendSupabaseOtp(normalizedPhone);
+      
+      hideLoading();
+      
+      if (!result.success) {
+        Alert.alert('OTP Error', result.message);
         return;
       }
 
-      // Show OTP in alert for development (when SMS provider not configured)
-      if (sendData.debugOtp) {
-        Alert.alert(
-          '🔐 Development OTP',
-          `Your OTP code is: ${sendData.debugOtp}\n\n(This will be sent via SMS in production)`,
-          [{ text: 'OK' }]
-        );
-      }
-
+      // Show OTP modal and start resend countdown
       setShowOtpModal(true);
+      setCanResend(false);
+      setResendCountdown(60);
+      
+      // Start countdown timer
+      const timer = setInterval(() => {
+        setResendCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      Alert.alert(
+        'OTP Sent',
+        `Your verification code has been sent to ${normalizedPhone}. It is valid for 5 minutes.`,
+        [{ text: 'OK' }]
+      );
     } catch (err) {
       console.error('Register OTP error:', err);
-      Alert.alert('Error', 'Failed to start registration');
-    } finally {
+      Alert.alert('Error', 'Failed to send OTP');
       hideLoading();
     }
   };
@@ -137,21 +151,18 @@ const Register = () => {
     }
 
     showLoading('Verifying OTP...');
-    console.log('🔐 Verifying register OTP for phone:', contact);
+    console.log('🔐 Verifying OTP for phone:', contact);
     try {
-      const backendUrl = await getOptimalBackendUrl();
-      const apiBase = backendUrl.replace(/\/register$/, '');
-      const verifyResp = await fetch(`${apiBase}/api/verify-otp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: contact, purpose: 'register', code })
-      });
-      const verifyData = await verifyResp.json();
-      console.log('📥 OTP verification response:', verifyData);
+      // Normalize phone number
+      const normalizedPhone = normalizePhoneNumber(contact);
       
-      if (!verifyResp.ok) {
-        Alert.alert('OTP Error', verifyData.message || 'Incorrect OTP');
-        setOtpCode('');
+      // Verify OTP via Supabase
+      const result = await verifySupabaseOtp(normalizedPhone, code);
+      
+      if (!result.success) {
         hideLoading();
+        Alert.alert('Invalid OTP', result.message);
+        setOtpCode('');
         return;
       }
 
@@ -159,10 +170,18 @@ const Register = () => {
       hideLoading();
       showLoading('Creating account...');
       
-      // Now call original register handler which requires phone verification
+      // Now call backend to create account (phone already verified)
       const response = await fetch(`${await getOptimalBackendUrl()}/register`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstname, lastname, email, contact, password })
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          firstname, 
+          lastname, 
+          email, 
+          contact: normalizedPhone, 
+          password,
+          phone_verified: true // Flag that phone is verified
+        })
       });
       const data = await response.json();
       console.log('📥 Registration response:', data);
@@ -175,8 +194,8 @@ const Register = () => {
         setOtpCode('');
         
         Alert.alert(
-          'Verification Email Sent',
-          'Please check your email and click the link to complete registration.',
+          'Account Created',
+          'Your account has been created successfully. You can now log in.',
           [{ 
             text: 'OK', 
             onPress: () => {
@@ -193,6 +212,47 @@ const Register = () => {
       console.error('❌ submitOtpAndRegister error:', err);
       Alert.alert('Error', 'Failed to verify OTP or register. Please try again.');
       setOtpCode('');
+      hideLoading();
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!canResend) {
+      Alert.alert('Please Wait', `You can resend OTP in ${resendCountdown} seconds`);
+      return;
+    }
+
+    showLoading('Resending OTP...');
+    try {
+      const normalizedPhone = normalizePhoneNumber(contact);
+      const result = await sendSupabaseOtp(normalizedPhone);
+      
+      hideLoading();
+      
+      if (!result.success) {
+        Alert.alert('Error', result.message);
+        return;
+      }
+
+      // Reset countdown
+      setCanResend(false);
+      setResendCountdown(60);
+      
+      const timer = setInterval(() => {
+        setResendCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      Alert.alert('OTP Resent', 'A new verification code has been sent to your phone.');
+    } catch (err) {
+      console.error('Resend OTP error:', err);
+      Alert.alert('Error', 'Failed to resend OTP');
       hideLoading();
     }
   };
@@ -337,8 +397,9 @@ const Register = () => {
       <Modal visible={showOtpModal} animationType="slide" transparent={true}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <View style={{ width: 320, padding: 20, backgroundColor: '#fff', borderRadius: 8 }}>
-            <Text style={{ fontSize: 16, marginBottom: 4, fontWeight: '600' }}>Enter OTP sent to your phone</Text>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>Auto-proceeds when complete</Text>
+            <Text style={{ fontSize: 16, marginBottom: 4, fontWeight: '600', textAlign: 'center' }}>Verify Your Phone Number</Text>
+            <Text style={{ fontSize: 12, color: '#666', marginBottom: 4, textAlign: 'center' }}>Enter the 6-digit code sent to your phone</Text>
+            <Text style={{ fontSize: 12, color: '#1D3557', marginBottom: 12, textAlign: 'center', fontWeight: '600' }}>{contact}</Text>
             <TextInput
               style={[styles.input, { marginBottom: 12, backgroundColor: '#fff', textAlign: 'center', fontSize: 24, letterSpacing: 8, fontWeight: '600' }]}
               placeholder="000000"
@@ -358,6 +419,30 @@ const Register = () => {
               editable={true}
               selectTextOnFocus={true}
             />
+            
+            {/* Resend OTP Section */}
+            <View style={{ alignItems: 'center', marginTop: 8 }}>
+              {canResend ? (
+                <TouchableOpacity onPress={handleResendOtp}>
+                  <Text style={{ color: '#1D3557', fontWeight: '600', fontSize: 14 }}>Resend OTP</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={{ color: '#666', fontSize: 12 }}>
+                  Resend OTP in {resendCountdown}s
+                </Text>
+              )}
+            </View>
+            
+            {/* Cancel Button */}
+            <TouchableOpacity 
+              onPress={() => {
+                setShowOtpModal(false);
+                setOtpCode('');
+              }}
+              style={{ marginTop: 16, alignItems: 'center' }}
+            >
+              <Text style={{ color: '#E63946', fontSize: 14 }}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
