@@ -75,6 +75,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/users/{id}/change-role', [UserController::class, 'changeRole'])->name('users.changeRole');
     Route::post('/users/{id}/assign-station', [UserController::class, 'assignStation'])->name('users.assignStation');
     Route::get('/api/users/{id}/flags', [UserController::class, 'getFlagHistory'])->name('users.flags');
+    Route::get('/api/users/{id}/flag-status', [UserController::class, 'getFlagStatus'])->name('users.flagStatus');
 
     Route::get('/messages', [MessageController::class, 'index'])->name('messages');
     Route::get('/messages/conversation/{userId}', [MessageController::class, 'getConversation'])->name('messages.conversation');

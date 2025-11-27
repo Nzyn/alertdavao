@@ -334,6 +334,8 @@ document.getElementById('searchInput')?.addEventListener('input', function(e) {
 
 // Unflag user function
 async function unflagUser(userId) {
+    console.log('Attempting to unflag user:', userId);
+    
     if (typeof customConfirm === 'function') {
         const confirmed = await customConfirm(
             'Are you sure you want to remove all flags and lift restrictions for this user?',
@@ -355,7 +357,9 @@ async function unflagUser(userId) {
             }
         });
 
+        console.log('Unflag response status:', response.status);
         const data = await response.json();
+        console.log('Unflag response data:', data);
 
         if (data.success) {
             if (typeof customAlert === 'function') {
@@ -363,7 +367,7 @@ async function unflagUser(userId) {
             } else {
                 alert('User has been unflagged successfully');
             }
-            location.reload();
+            setTimeout(() => location.reload(), 500);
         } else {
             if (typeof customAlert === 'function') {
                 await customAlert(data.message || 'Failed to unflag user', 'Error');
@@ -374,9 +378,9 @@ async function unflagUser(userId) {
     } catch (error) {
         console.error('Error unflagging user:', error);
         if (typeof customAlert === 'function') {
-            await customAlert('An error occurred while unflagging the user', 'Error');
+            await customAlert('An error occurred while unflagging the user: ' + error.message, 'Error');
         } else {
-            alert('An error occurred while unflagging the user');
+            alert('An error occurred while unflagging the user: ' + error.message);
         }
     }
 }

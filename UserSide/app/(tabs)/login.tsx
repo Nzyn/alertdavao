@@ -80,7 +80,14 @@ const Login = () => {
       const data = await response.json();
       if (response.ok) {
         const user = data.user || data;
+        
+        console.log('✅ Google login successful for:', user.email);
+        console.log('📦 Full user data received:', user);
+        
+        // Store complete user data in AsyncStorage
         await AsyncStorage.setItem('userData', JSON.stringify(user));
+        
+        // Set user in context with all available fields
         setUser({
           id: user.id?.toString() || '0',
           firstName: user.firstname || user.firstName || '',
@@ -89,8 +96,11 @@ const Login = () => {
           phone: user.contact || user.phone || '',
           address: user.address || '',
           isVerified: Boolean(user.is_verified || user.isVerified),
-          profileImage: user.profile_image || user.profileImage,
+          profileImage: user.profile_image || user.profileImage || '',
+          createdAt: user.createdAt || user.created_at || '',
+          updatedAt: user.updatedAt || user.updated_at || '',
         });
+        
         router.replace('/(tabs)');
       } else {
         Alert.alert('Login Failed', data.message || 'Google login failed');
@@ -146,26 +156,36 @@ const Login = () => {
       const data = await response.json();
       console.log('📥 Login response:', data);
       if (response.ok) {
-        // Direct login - no OTP required for sign-in
-        // OTP is only used during registration for phone verification
+        // Login successful - get full user data
         const user = data.user || data;
+        
+        // Check user role restrictions
         if (user.role === 'police' || user.role === 'admin') {
           Alert.alert('Error', 'Police and Admin users must log in through the AdminSide dashboard.');
           setIsLoading(false);
           return;
         }
+        
         console.log('✅ Login successful for:', user.email);
+        console.log('📦 Full user data received:', user);
+        
+        // Store complete user data in AsyncStorage
         await AsyncStorage.setItem('userData', JSON.stringify(user));
+        
+        // Set user in context with all available fields
         setUser({
-          id: user.id?.toString() || '0',
+          id: user.id?.toString() || user.userId?.toString() || '0',
           firstName: user.firstname || user.firstName || '',
-          lastName: user.lastname || user.lastName || '',
+          lastName: user.lastName || user.lastname || user.lastName || '',
           email: user.email || '',
           phone: user.contact || user.phone || '',
           address: user.address || '',
           isVerified: Boolean(user.is_verified || user.isVerified),
-          profileImage: user.profile_image || user.profileImage,
+          profileImage: user.profile_image || user.profileImage || '',
+          createdAt: user.createdAt || user.created_at || '',
+          updatedAt: user.updatedAt || user.updated_at || '',
         });
+        
         router.replace('/(tabs)');
       } else {
         // Display error messages under relevant input fields
@@ -421,6 +441,7 @@ const localStyles = StyleSheet.create({
     borderColor: '#d1d5db',
     borderRadius: 8,
     paddingHorizontal: 12,
+    paddingVertical: 12,
     fontSize: 15,
     backgroundColor: '#fff',
     color: '#1f2937',
@@ -478,6 +499,7 @@ const localStyles = StyleSheet.create({
   },
   captchaInput: {
     height: 40,
+    paddingVertical: 8,
   },
   captchaStatus: {
     fontSize: 12,
