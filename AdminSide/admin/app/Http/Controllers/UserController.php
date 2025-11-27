@@ -177,17 +177,18 @@ class UserController extends Controller
             // Insert flag record
             DB::table('user_flags')->insert([
                 'user_id' => $id,
-                'flagged_by' => auth()->id() ?? 1, // Default to admin if not authenticated
+                'reported_by' => auth()->id() ?? 1, // Use reported_by instead of flagged_by
                 'violation_type' => $validated['violation_type'],
-                'reason' => $validated['reason'] ?? null,
+                'description' => $validated['reason'] ?? null,
+                'status' => 'confirmed',
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
             
-            // Get total flags for this user
+            // Get total flags for this user (count only confirmed/non-dismissed flags)
             $totalFlags = DB::table('user_flags')
                 ->where('user_id', $id)
-                ->where('status', 'active')
+                ->whereIn('status', ['confirmed', 'appealed'])
                 ->count();
             
             // Update user's total_flags count
@@ -269,19 +270,24 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
             
-            // Deactivate all flags (mark as dismissed)
+            // Mark all flags as dismissed
             DB::table('user_flags')
                 ->where('user_id', $id)
+                ->whereIn('status', ['confirmed', 'appealed'])
                 ->update([
                     'status' => 'dismissed',
+                    'reviewed_by' => auth()->id() ?? 1,
+                    'reviewed_at' => now(),
                     'updated_at' => now()
                 ]);
             
             // Deactivate all restrictions
             DB::table('user_restrictions')
                 ->where('user_id', $id)
+                ->where('is_active', true)
                 ->update([
                     'is_active' => false,
+                    'lifted_by' => auth()->id() ?? 1,
                     'lifted_at' => now(),
                     'updated_at' => now()
                 ]);
@@ -552,6 +558,62 @@ class UserController extends Controller
     }
 
     /**
+     * Get flag status for a user (used by UserSide to show flagging info)
+     */
+    public function getFlagStatus(string $id): JsonResponse
+    {
+        try {
+            $user = User::findOrFail($id);
+            
+            // Get the most recent confirmed flag
+            $latestFlag = DB::table('user_flags')
+                ->where('user_id', $id)
+                ->where('status', 'confirmed')
+                ->orderBy('created_at', 'desc')
+                ->first();
+            
+            // Get active restrictions
+            $restriction = DB::table('user_restrictions')
+                ->where('user_id', $id)
+                ->where('is_active', true)
+                ->first();
+            
+            $isFlagged = !is_null($latestFlag);
+            
+            return response()->json([
+                'success' => true,
+                'is_flagged' => $isFlagged,
+                'flag_info' => $isFlagged ? [
+                    'id' => $latestFlag->id,
+                    'violation_type' => $latestFlag->violation_type,
+                    'reason' => $latestFlag->description,
+                    'severity' => $latestFlag->severity,
+                    'created_at' => $latestFlag->created_at
+                ] : null,
+                'restriction_info' => $restriction ? [
+                    'type' => $restriction->restriction_type,
+                    'reason' => $restriction->reason,
+                    'expires_at' => $restriction->expires_at,
+                    'can_report' => (bool)$restriction->can_report,
+                    'can_message' => (bool)$restriction->can_message
+                ] : null,
+                'can_report' => $isFlagged ? false : true
+            ]);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        } catch (\Exception $e) {
+            \Log::error('Exception in getFlagStatus', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while fetching flag status'
+            ], 500);
+        }
+    }
+    
+    /**
      * Get flag history for a user.
      */
     public function getFlagHistory(string $id): JsonResponse
@@ -559,13 +621,18 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
             
-            // Get all flags for this user with flagged_by user information
+            // Get all flags for this user with reported_by user information
             $flags = DB::table('user_flags')
-                ->leftJoin('users as flaggers', 'user_flags.flagged_by', '=', 'flaggers.id')
+                ->leftJoin('users as flaggers', 'user_flags.reported_by', '=', 'flaggers.id')
                 ->where('user_flags.user_id', $id)
                 ->select(
-                    'user_flags.*',
-                    'flaggers.name as flagged_by_name',
+                    'user_flags.id',
+                    'user_flags.violation_type',
+                    'user_flags.description as reason',
+                    'user_flags.status',
+                    'user_flags.created_at',
+                    'user_flags.severity',
+                    DB::raw("CONCAT(flaggers.firstname, ' ', flaggers.lastname) as flagged_by_name"),
                     'flaggers.email as flagged_by_email'
                 )
                 ->orderBy('user_flags.created_at', 'desc')
@@ -576,7 +643,7 @@ class UserController extends Controller
                 'flags' => $flags,
                 'user' => [
                     'id' => $user->id,
-                    'name' => $user->name,
+                    'name' => $user->firstname . ' ' . $user->lastname,
                     'email' => $user->email,
                     'total_flags' => $user->total_flags,
                     'restriction_level' => $user->restriction_level

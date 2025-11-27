@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -76,6 +76,20 @@ function CheckRow({ label, checked, onToggle }: CheckRowProps) {
     );
 }
 
+interface FlagInfo {
+    violation_type: string;
+    reason: string;
+    severity: string;
+    created_at: string;
+}
+
+interface RestrictionInfo {
+    type: string;
+    reason: string;
+    expires_at: string | null;
+    can_report: boolean;
+}
+
 export default function ReportCrime() {
     const { user } = useUser();
     const [title, setTitle] = useState('');
@@ -100,6 +114,42 @@ export default function ReportCrime() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccessDialog, setShowSuccessDialog] = useState(false);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [isFlagged, setIsFlagged] = useState(false);
+    const [flagInfo, setFlagInfo] = useState<FlagInfo | null>(null);
+    const [restrictionInfo, setRestrictionInfo] = useState<RestrictionInfo | null>(null);
+    const [showFlaggedDialog, setShowFlaggedDialog] = useState(false);
+
+    // Check if user is flagged when component mounts
+    useEffect(() => {
+        const checkFlagStatus = async () => {
+            if (!user?.id) return;
+
+            try {
+                const response = await fetch(
+                    `${process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/users/${user.id}/flag-status`
+                );
+                const data = await response.json();
+
+                if (data.success) {
+                    setIsFlagged(data.is_flagged);
+                    if (data.flag_info) {
+                        setFlagInfo(data.flag_info);
+                    }
+                    if (data.restriction_info) {
+                        setRestrictionInfo(data.restriction_info);
+                    }
+
+                    if (data.is_flagged) {
+                        setShowFlaggedDialog(true);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking flag status:', error);
+            }
+        };
+
+        checkFlagStatus();
+    }, [user?.id]);
 
     // ✅ Toggle function with correct typing
     const toggleCrimeType = (crime: string) => {
@@ -192,6 +242,17 @@ export default function ReportCrime() {
 
     const handleSubmit = async () => {
         console.log('🔍 Validating report submission...');
+
+        // Check if user is flagged
+        if (isFlagged) {
+            Alert.alert(
+                'Account Flagged',
+                'Your account has been flagged. You are unable to submit new reports until the flag is lifted by an administrator.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
+
         console.log('Current state:', {
             title: title.trim(),
             selectedCrimes,
@@ -895,6 +956,19 @@ export default function ReportCrime() {
                     <ActivityIndicator size="large" color="#1D3557" />
                     <Text style={{ marginTop: 8, color: '#666' }}>Submitting your report...</Text>
                 </View>
+            )}
+
+            {/* Flagged User Dialog */}
+            {showFlaggedDialog && flagInfo && (
+                <UpdateSuccessDialog
+                    visible={showFlaggedDialog}
+                    title="⚠️ Account Flagged"
+                    message={`Your account has been flagged for: ${flagInfo.violation_type.replace(/_/g, ' ')}\n\nReason: ${flagInfo.reason}\n\nYou are unable to submit new reports until this flag is lifted by an administrator.${restrictionInfo?.expires_at ? `\n\nExpires: ${new Date(restrictionInfo.expires_at).toLocaleDateString()}` : ''}`}
+                    okText="Understood"
+                    onOk={() => {
+                        setShowFlaggedDialog(false);
+                    }}
+                />
             )}
 
             {/* Success Dialog */}

@@ -21,9 +21,9 @@ const handleLogin = async (req, res) => {
     return res.status(400).json({ message: "Invalid email format" });
   }
 
-  // Validate password presence
-  if (!password || password.length < 6) {
-    return res.status(400).json({ message: "Password must be at least 6 characters" });
+  // Validate password presence (allow existing accounts with older passwords)
+  if (!password) {
+    return res.status(400).json({ message: "Password is required" });
   }
 
   try {
@@ -81,16 +81,26 @@ const handleLogin = async (req, res) => {
       // Ignore if tables don't exist
     }
 
-    // 5. Instead of immediately returning full success, require OTP verification.
-    console.log("🔐 Password verified for:", user.email, "— requiring OTP to complete login");
+    // 5. Password verified - return full user data for login
+    console.log("✅ Login successful for:", user.email);
     
-    // Return minimal info so client can trigger OTP flow
+    // Return complete user data
     res.json({
-      need_otp: true,
-      message: 'OTP required to complete login',
+      success: true,
+      message: 'Login successful',
       user: {
         id: user.id,
-        contact: user.contact
+        firstname: user.firstname,
+        lastName: user.lastname,
+        email: user.email,
+        contact: user.contact,
+        phone: user.contact,
+        address: user.address || '',
+        is_verified: user.is_verified,
+        profile_image: user.profile_image,
+        role: user.role,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at
       },
       restrictions: userRestrictions
     });

@@ -838,6 +838,8 @@ function submitFlag() {
         return;
     }
     
+    console.log('Flagging user ' + userToFlag + ' with type: ' + violationType);
+    
     fetch('/users/' + userToFlag + '/flag', {
         method: 'POST',
         headers: {
@@ -849,19 +851,23 @@ function submitFlag() {
             reason: reason
         })
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Flag response status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('Flag response data:', data);
         if (data.success) {
-            alert(data.message + (data.data.restriction_applied ? '\\nRestriction: ' + data.data.restriction_applied : ''));
+            alert(data.message + (data.data && data.data.restriction_applied ? '\\nRestriction: ' + data.data.restriction_applied : ''));
             closeFlagModal();
-            location.reload();
+            setTimeout(() => location.reload(), 500);
         } else {
             alert('Error: ' + (data.message || 'Unknown error'));
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while flagging the user');
+        console.error('Error flagging user:', error);
+        alert('An error occurred while flagging the user: ' + error.message);
     });
 }
 
@@ -870,6 +876,8 @@ function unflagUser(userId) {
         return;
     }
     
+    console.log('Unflagging user ' + userId);
+    
     fetch('/users/' + userId + '/unflag', {
         method: 'POST',
         headers: {
@@ -877,18 +885,22 @@ function unflagUser(userId) {
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Unflag response status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('Unflag response data:', data);
         if (data.success) {
             alert(data.message);
-            location.reload();
+            setTimeout(() => location.reload(), 500);
         } else {
             alert('Error: ' + (data.message || 'Unknown error'));
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while unflagging the user');
+        console.error('Error unflagging user:', error);
+        alert('An error occurred while unflagging the user: ' + error.message);
     });
 }
 
