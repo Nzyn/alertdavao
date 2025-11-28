@@ -107,6 +107,9 @@ const {
 // Add this new function for handling notifications
 const { getUserNotifications, markNotificationAsRead } = require("./handleNotifications");
 
+// Add flag status checking for debugging
+const { checkUserFlagStatus } = require("./handleCheckFlagStatus");
+
 // Add location service handler
 const { searchLocation, reverseGeocode, getDistance } = require("./handleLocation");
 
@@ -260,6 +263,7 @@ app.get("/api/barangay/by-coordinates", getBarangayByCoordinates);
 app.get("/api/users/:userId/restrictions", handleCheckRestrictions);
 app.get("/api/users/:userId/flags", handleGetFlagHistory);
 app.post("/api/users/flag", handleFlagUser);
+app.get("/api/debug/user/:userId/flag-status", checkUserFlagStatus);
 
 // Geocoding API Route (legacy, kept for backward compatibility)
 app.post("/api/geocode", async (req, res) => {

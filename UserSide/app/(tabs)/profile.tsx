@@ -4,9 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import styles from './styles';
+import FlagStatusBadge from '../../components/FlagStatusBadge';
 import { useUser } from '../../contexts/UserContext';
 import { dbTest } from '../../utils/dbTest';
 import { verificationService, VerificationStatus } from '../../services/verificationService';
+import { notificationService } from '../../services/notificationService';
 
 export default function ProfileScreen() {
   const { user, refreshProfile } = useUser();
@@ -16,6 +18,7 @@ export default function ProfileScreen() {
   const [idSelfie, setIdSelfie] = useState<string | null>(null);
   const [billingDocument, setBillingDocument] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [flagStatus, setFlagStatus] = useState<{ totalFlags: number; restrictionLevel: string | null } | null>(null);
   
   const handleDatabaseTest = async () => {
     console.log('\n\n=== MANUAL DATABASE TEST STARTED ===');
@@ -29,14 +32,15 @@ export default function ProfileScreen() {
     console.log('=== MANUAL DATABASE TEST COMPLETED ===\n\n');
   };
   
-  // Load verification status
+  // Load verification status and flag status
   useEffect(() => {
-    const loadVerificationStatus = async () => {
+    const loadData = async () => {
       console.log('🔄 useEffect triggered, user:', user);
       if (user?.id) {
         console.log(`🚀 Loading verification status for user ID: ${user.id}`);
         setLoadingVerification(true);
         try {
+          // Load verification status
           const result = await verificationService.getVerificationStatus(user.id);
           console.log('📥 Verification status result:', JSON.stringify(result, null, 2));
           if (result.success && result.data) {
@@ -49,6 +53,20 @@ export default function ProfileScreen() {
           } else {
             console.log('⚠️ No verification data found or API returned failure');
           }
+
+          // Load flag status
+          try {
+            const notifications = await notificationService.getUserNotifications(user.id.toString());
+            const flagNotif = notifications.find(n => n.type === 'user_flagged');
+            if (flagNotif && flagNotif.data) {
+              setFlagStatus({
+                totalFlags: flagNotif.data.total_flags || 1,
+                restrictionLevel: flagNotif.data.restriction_applied || null,
+              });
+            }
+          } catch (error) {
+            console.error('Error loading flag status:', error);
+          }
         } catch (error) {
           console.error('💥 Error loading verification status:', error);
         } finally {
@@ -60,7 +78,7 @@ export default function ProfileScreen() {
       }
     };
     
-    loadVerificationStatus();
+    loadData();
   }, [user?.id]);
   
   // Request permissions for image picker
@@ -266,6 +284,15 @@ export default function ProfileScreen() {
         <View style={styles.verifiedBadge}>
           <Text style={styles.verifiedText}>{isUserVerified ? 'Verified' : 'Not Verified'}</Text>
         </View>
+        {flagStatus && (
+          <View style={styles.flagBadgeContainer}>
+            <FlagStatusBadge 
+              flagStatus={flagStatus}
+              size="medium"
+              showLabel={false}
+            />
+          </View>
+        )}
       </View>
 
       {/* User Info */}

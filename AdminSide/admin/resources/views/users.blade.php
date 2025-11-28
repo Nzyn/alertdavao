@@ -664,16 +664,6 @@
                 <td>
                     <div class="action-buttons-group">
                         <?php $hasFlags = ($user->total_flags ?? 0) > 0 || ($user->restriction_level ?? 'none') !== 'none'; ?>
-                        <button
-                            class="action-btn success {{ $hasFlags ? '' : 'disabled' }}"
-                            onclick="if({{ $hasFlags ? 'true' : 'false' }}) unflagUser({{ $user->id }});"
-                            title="{{ $hasFlags ? 'Remove Restrictions (' . ($user->total_flags ?? 0) . ' flags)' : 'No flags' }}"
-                            {{ $hasFlags ? '' : 'disabled' }}
-                        >
-                            <svg class="action-icon" viewBox="0 0 24 24">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                        </button>
                         <button class="action-btn danger flag-user-btn" data-user-id="{{ $user->id }}" data-total-flags="{{ $user->total_flags ?? 0 }}" data-restriction-level="{{ $user->restriction_level ?? 'none' }}" title="Flag User">
                             <svg class="action-icon" viewBox="0 0 24 24">
                                 <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>

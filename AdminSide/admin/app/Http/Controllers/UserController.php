@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\PoliceStation;
 use App\Models\PoliceOfficer;
+use App\Models\Notification;
+use App\Events\UserFlagged;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -175,9 +177,9 @@ class UserController extends Controller
             }
             
             // Insert flag record
-            DB::table('user_flags')->insert([
+            $flagRecord = DB::table('user_flags')->insertGetId([
                 'user_id' => $id,
-                'reported_by' => auth()->id() ?? 1, // Use reported_by instead of flagged_by
+                'reported_by' => auth()->id() ?? 1,
                 'violation_type' => $validated['violation_type'],
                 'description' => $validated['reason'] ?? null,
                 'status' => 'confirmed',
@@ -235,12 +237,39 @@ class UserController extends Controller
                 }
             }
             
+            // Create notification in database
+            $notificationMessage = $this->generateNotificationMessage($validated['violation_type'], $restrictionType);
+            Notification::create([
+                'user_id' => $id,
+                'type' => 'user_flagged',
+                'message' => $notificationMessage,
+                'data' => [
+                    'flag_id' => $flagRecord,
+                    'violation_type' => $validated['violation_type'],
+                    'reason' => $validated['reason'] ?? null,
+                    'total_flags' => $totalFlags,
+                    'restriction_applied' => $restrictionType,
+                ]
+            ]);
+            
+            // Broadcast real-time notification
+            UserFlagged::dispatch(
+                (int) $id,
+                (int) $flagRecord,
+                $validated['violation_type'],
+                $validated['reason'] ?? null,
+                $totalFlags,
+                $restrictionType,
+                now()->toIso8601String()
+            );
+            
             return response()->json([
                 'success' => true,
                 'message' => 'User has been flagged successfully',
                 'data' => [
                     'total_flags' => $totalFlags,
-                    'restriction_applied' => $restrictionType
+                    'restriction_applied' => $restrictionType,
+                    'notification_sent' => true
                 ]
             ]);
         } catch (ValidationException $e) {
@@ -268,10 +297,12 @@ class UserController extends Controller
     public function unflagUser(Request $request, string $id): JsonResponse
     {
         try {
+            \Log::info('unflagUser called', ['user_id' => $id, 'authenticated_user' => auth()->id()]);
+            
             $user = User::findOrFail($id);
             
             // Mark all flags as dismissed
-            DB::table('user_flags')
+            $flagsUpdated = DB::table('user_flags')
                 ->where('user_id', $id)
                 ->whereIn('status', ['confirmed', 'appealed'])
                 ->update([
@@ -281,8 +312,10 @@ class UserController extends Controller
                     'updated_at' => now()
                 ]);
             
+            \Log::info('Flags marked as dismissed', ['user_id' => $id, 'rows_updated' => $flagsUpdated]);
+            
             // Deactivate all restrictions
-            DB::table('user_restrictions')
+            $restrictionsUpdated = DB::table('user_restrictions')
                 ->where('user_id', $id)
                 ->where('is_active', true)
                 ->update([
@@ -292,14 +325,18 @@ class UserController extends Controller
                     'updated_at' => now()
                 ]);
             
+            \Log::info('Restrictions deactivated', ['user_id' => $id, 'rows_updated' => $restrictionsUpdated]);
+            
             // Update user record
-            DB::table('users')
+            $userUpdated = DB::table('users')
                 ->where('id', $id)
                 ->update([
                     'total_flags' => 0,
                     'restriction_level' => 'none',
                     'updated_at' => now()
                 ]);
+            
+            \Log::info('User record updated', ['user_id' => $id, 'rows_updated' => $userUpdated]);
             
             return response()->json([
                 'success' => true,
@@ -613,6 +650,39 @@ class UserController extends Controller
         }
     }
     
+    /**
+     * Generate notification message based on violation type and restriction.
+     *
+     * @param string $violationType
+     * @param string|null $restrictionType
+     * @return string
+     */
+    private function generateNotificationMessage(string $violationType, ?string $restrictionType): string
+    {
+        $violationLabels = [
+            'false_report' => 'False Report',
+            'prank_spam' => 'Prank/Spam',
+            'harassment' => 'Harassment',
+            'offensive_content' => 'Offensive Content',
+            'impersonation' => 'Impersonation',
+            'multiple_accounts' => 'Multiple Accounts',
+            'system_abuse' => 'System Abuse',
+            'inappropriate_media' => 'Inappropriate Media',
+            'misleading_info' => 'Misleading Information',
+            'other' => 'Other Violation',
+        ];
+
+        $label = $violationLabels[$violationType] ?? 'Violation';
+        
+        $message = "Your account has been flagged for: {$label}";
+        
+        if ($restrictionType) {
+            $message .= ". A {$restrictionType} restriction has been applied to your account.";
+        }
+
+        return $message;
+    }
+
     /**
      * Get flag history for a user.
      */

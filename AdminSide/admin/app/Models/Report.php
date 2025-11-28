@@ -16,7 +16,6 @@ class Report extends Model
         'title',
         'description',
         'report_type',
-        'crime_type',
         'location_id',
         'assigned_station_id',
         'status',
@@ -26,6 +25,7 @@ class Report extends Model
 
     protected $casts = [
         'is_anonymous' => 'boolean',
+        'date_reported' => 'datetime',
     ];
 
     /**
@@ -41,7 +41,7 @@ class Report extends Model
      */
     public function location()
     {
-        return $this->belongsTo(Location::class);
+        return $this->belongsTo(Location::class, 'location_id', 'location_id');
     }
 
     /**

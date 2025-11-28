@@ -7,6 +7,8 @@ import styles from "./styles";
 import { Link } from 'expo-router';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import NotificationPopup from '../../components/NotificationPopup';
+import FlagNotificationToast from '../../components/FlagNotificationToast';
+import FlagStatusBadge from '../../components/FlagStatusBadge';
 import { notificationService } from '../../services/notificationService';
 import type { Notification } from '../../services/notificationService';
 import { useFocusEffect } from '@react-navigation/native';
@@ -25,6 +27,9 @@ const App = () => {
   const [lastUnreadCount, setLastUnreadCount] = useState(0); // Track last known unread count
   const [badgeHidden, setBadgeHidden] = useState(false); // Track if badge should be hidden permanently
   const [unreadChatCount, setUnreadChatCount] = useState(0); // Track unread chat messages
+  const [flagNotification, setFlagNotification] = useState<Notification | null>(null); // Track current flag notification
+  const [flagStatus, setFlagStatus] = useState<{ totalFlags: number; restrictionLevel: string | null } | null>(null);
+  const [flagToastShownThisSession, setFlagToastShownThisSession] = useState(false); // Only show flag toast once per login
   
   // State for press effects
   const [pressStates, setPressStates] = useState({
@@ -72,13 +77,74 @@ const App = () => {
     checkAuthStatus();
   }, []);
 
+  // Reference to stop polling when component unmounts
+  const pollingStopRef = useRef<(() => void) | null>(null);
+
   // Load notifications when screen comes into focus or when userId changes
   useFocusEffect(
     React.useCallback(() => {
       if (userId) {
         loadNotifications(userId);
         loadUnreadChatCount(userId);
+        
+        // Start notification polling (checks every 3 seconds for new flagging notifications)
+        // Uses "ready" pattern to only show new notifications once
+        pollingStopRef.current = notificationService.startNotificationPolling(
+          userId,
+          (newNotification) => {
+            console.log('New notification received (polling):', newNotification);
+            
+            // Add the new notification to the list
+            setNotifications(prev => {
+              const exists = prev.some(n => n.id === newNotification.id);
+              if (!exists) {
+                return [newNotification, ...prev];
+              }
+              return prev;
+            });
+            
+            // Auto-show toast for flag notifications (only once per session)
+            // The "ready" pattern in polling ensures this only triggers for truly new notifications
+            if (newNotification.type === 'user_flagged' && !flagToastShownThisSession) {
+              setShowNotifications(true);
+              setFlagNotification(newNotification);
+              setFlagToastShownThisSession(true); // Mark as shown so it doesn't appear again this session
+              // Update flag status
+              if (newNotification.data) {
+                setFlagStatus({
+                  totalFlags: newNotification.data.total_flags || 1,
+                  restrictionLevel: newNotification.data.restriction_applied || null,
+                });
+              }
+            }
+          },
+          (hasFlagNotifications) => {
+            // Handle flag status changes detected by polling
+            console.log('🔄 [POLL] Flag status changed - has flag notifications:', hasFlagNotifications);
+            console.log('🔄 [POLL] Previous flagStatus:', flagStatus);
+            
+            if (!hasFlagNotifications && flagStatus) {
+              console.log('🎉 [POLL] User has been unflagged by admin - clearing flag status and refreshing data');
+              // User has been unflagged - clear the flag status
+              setFlagStatus(null);
+              setFlagNotification(null);
+              setFlagToastShownThisSession(false); // Reset so flag toast can show again if needed
+              // Refresh notifications to remove the flag notification from the list
+              console.log('🔄 [POLL] Reloading notifications for user:', userId);
+              loadNotifications(userId);
+            }
+          },
+          3000  // Poll every 3 seconds
+        );
       }
+      
+      // Cleanup polling when component loses focus
+      return () => {
+        if (pollingStopRef.current) {
+          pollingStopRef.current();
+          pollingStopRef.current = null;
+        }
+      };
     }, [userId])
   );
 
@@ -87,18 +153,44 @@ const App = () => {
     try {
       if (!userId) return;
       
-      console.log('Loading notifications for user:', userId);
+      console.log('📬 Loading notifications for user:', userId);
       const userNotifications = await notificationService.getUserNotifications(userId);
-      console.log('Received notifications:', userNotifications);
+      console.log('📬 Received notifications:', userNotifications);
       setNotifications(userNotifications);
+      
+      // Check if there's an unread flag notification (show once per session)
+      const flagNotif = userNotifications.find(n => n.type === 'user_flagged' && !n.read);
+      if (flagNotif && !flagToastShownThisSession) {
+        console.log('📬 Found unread flag notification:', flagNotif);
+        setFlagNotification(flagNotif);
+        setFlagToastShownThisSession(true);
+        if (flagNotif.data) {
+          console.log('📬 Setting flag status:', flagNotif.data);
+          setFlagStatus({
+            totalFlags: flagNotif.data.total_flags || 1,
+            restrictionLevel: flagNotif.data.restriction_applied || null,
+          });
+        }
+      } else if (!flagNotif) {
+        // No flag notification found - user might have been unflagged
+        console.log('📬 No flag notification found - clearing flag status');
+        setFlagStatus(null);
+        setFlagNotification(null);
+      }
       
       // Check if there are new unread notifications
       const currentUnreadCount = userNotifications.filter(n => !n.read).length;
       
-      // Only show badge if there are new unread notifications and badge isn't permanently hidden
+      // Only show badge if there are truly NEW unread notifications (count increased)
+      // Don't show badge again if user marked notifications as read (count decreased or stayed same)
       if (currentUnreadCount > lastUnreadCount && !badgeHidden) {
         // New notifications arrived, so we should show the badge
         setBadgeHidden(false);
+        console.log('📬 Badge shown - new unread notifications detected');
+      } else if (currentUnreadCount <= lastUnreadCount && badgeHidden === false) {
+        // User marked notifications as read, don't reshow the badge
+        console.log('📬 Notifications were marked as read, keeping badge hidden');
+        setBadgeHidden(true);
       }
       
       // Update the last unread count
@@ -124,44 +216,49 @@ const App = () => {
     }
   };
 
+  // Mark notification as read
+   const markNotificationAsRead = async (notificationId: number | string) => {
+     try {
+       await notificationService.markAsRead(notificationId, userId);
+       
+       // Update the local state to mark the notification as read
+       setNotifications(prevNotifications => 
+         prevNotifications.map(n => 
+           n.id === notificationId ? { ...n, read: true } : n
+         )
+       );
+     } catch (error) {
+       console.error('Failed to mark notification as read:', error);
+     }
+   };
+
   // Handle notification press - redirect to appropriate page
-  const handleNotificationPress = async (notification: Notification) => {
-    // Mark notification as read
-    try {
-      await notificationService.markAsRead(notification.id, userId);
-      
-      // Update the local state to mark the notification as read
-      setNotifications(prevNotifications => 
-        prevNotifications.map(n => 
-          n.id === notification.id ? { ...n, read: true } : n
-        )
-      );
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error);
-    }
-    
-    // Close the popup
-    setShowNotifications(false);
-    
-    // Redirect based on notification type
-    switch (notification.type) {
-      case 'report':
-        // Redirect to history page
-        router.push('/history');
-        break;
-      case 'verification':
-        // Redirect to profile page
-        router.push('/profile');
-        break;
-      case 'message':
-        // Redirect to chat page
-        router.push('/chatlist');
-        break;
-      default:
-        // Do nothing for unknown types
-        break;
-    }
-  };
+   const handleNotificationPress = async (notification: Notification) => {
+     // Mark notification as read
+     await markNotificationAsRead(notification.id);
+     
+     // Close the popup
+     setShowNotifications(false);
+     
+     // Redirect based on notification type
+     switch (notification.type) {
+       case 'report':
+         // Redirect to history page
+         router.push('/history');
+         break;
+       case 'verification':
+         // Redirect to profile page
+         router.push('/profile');
+         break;
+       case 'message':
+         // Redirect to chat page
+         router.push('/chatlist');
+         break;
+       default:
+         // Do nothing for unknown types
+         break;
+     }
+   };
 
   // If still loading, show nothing
   if (isLoading) {
@@ -216,6 +313,13 @@ const App = () => {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Flag Toast Notification */}
+      <FlagNotificationToast 
+        notification={flagNotification}
+        onDismiss={() => setFlagNotification(null)}
+        onMarkAsRead={markNotificationAsRead}
+      />
+      
       <ScrollView style={styles.container}>
         {/* Title */}
         <Text style={styles.textTitle}>
@@ -223,9 +327,19 @@ const App = () => {
           <Text style={styles.davao}>Davao</Text>
         </Text>
 
-        {/* Subheading with Notification Icon */}
+        {/* Subheading with Notification Icon and Flag Status */}
         <View style={styles.welcomeContainer}>
-          <Text style={styles.subheading}>Welcome, {userFirstname}!</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.subheading}>Welcome, {userFirstname}!</Text>
+            {flagStatus && (
+              <View style={styles.flagStatusRow}>
+                <Ionicons name="warning" size={16} color="#dc2626" />
+                <Text style={styles.flagStatusText}>
+                  {flagStatus.totalFlags} Flag{flagStatus.totalFlags !== 1 ? 's' : ''} Active
+                </Text>
+              </View>
+            )}
+          </View>
           <Pressable 
             style={styles.notificationIconContainer}
             onPress={handleNotificationIconPress}
@@ -245,18 +359,29 @@ const App = () => {
           </Pressable>
         </View>
 
-        {/* Report Now Button */}
-        <Link href="/report" asChild>
+        {/* Report Now Button - Disabled if flagged */}
+        {flagStatus ? (
           <Pressable 
-            style={pressStates.report ? styles.reportButtonPressed : styles.reportButton}
-            onPressIn={() => handlePressIn('report')}
-            onPressOut={() => handlePressOut('report')}
+            style={[styles.reportButton, { backgroundColor: '#ccc', opacity: 0.6 }]}
+            disabled={true}
           >
             <Text style={styles.reportButtonText}>
-              Report Now
+              Account Flagged - Cannot Report
             </Text>
           </Pressable>
-        </Link>
+        ) : (
+          <Link href="/report" asChild>
+            <Pressable 
+              style={pressStates.report ? styles.reportButtonPressed : styles.reportButton}
+              onPressIn={() => handlePressIn('report')}
+              onPressOut={() => handlePressOut('report')}
+            >
+              <Text style={styles.reportButtonText}>
+                Report Now
+              </Text>
+            </Pressable>
+          </Link>
+        )}
 
         {/* Grid Container */}
         <View style={styles.grid}>
@@ -399,6 +524,7 @@ const App = () => {
           }
         }}
         onNotificationPress={handleNotificationPress}
+        onMarkAsRead={markNotificationAsRead}
       />
     </View>
   );
