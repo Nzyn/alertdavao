@@ -31,9 +31,27 @@ const styles = StyleSheet.create({
   },
   welcomeContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 15,
+    gap: 12,
+  },
+  flagStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#fee2e2',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#dc2626',
+  },
+  flagStatusText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#991b1b',
   },
   notificationIconContainer: {
     position: 'relative',
@@ -349,6 +367,7 @@ const styles = StyleSheet.create({
   profileHeader: {
     alignItems: 'center',
     marginTop: 20,
+    position: 'relative' as any,
   },
   profileImage: {
     width: 90,
@@ -366,6 +385,12 @@ const styles = StyleSheet.create({
   verifiedText: {
     color: 'gray',
     fontSize: 12,
+  },
+  flagBadgeContainer: {
+    position: 'absolute' as any,
+    top: 10,
+    right: 10,
+    zIndex: 10,
   },
   infoContainer: {
     alignItems: 'center',

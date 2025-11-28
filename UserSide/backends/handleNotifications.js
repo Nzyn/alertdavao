@@ -157,6 +157,54 @@ const getUserNotifications = async (req, res) => {
       console.warn('Failed to fetch verification notifications:', error);
     }
     
+    // 5. Check for user flags (account flagged notifications)
+    try {
+      console.log("Checking for user flags...");
+      const [userFlags] = await db.query(
+        `SELECT 
+          uf.id as flag_id,
+          uf.user_id,
+          uf.violation_type,
+          uf.description as reason,
+          uf.created_at as flagged_at,
+          uf.status
+        FROM user_flags uf
+        WHERE uf.user_id = ? 
+        AND uf.status IN ('confirmed')
+        ORDER BY uf.created_at DESC 
+        LIMIT 10`,
+        [userId]
+      );
+      
+      console.log("User flags result:", userFlags);
+      
+      // Create separate notifications for each active user flag
+      userFlags.forEach((flag) => {
+        // Format violation type (convert underscore to space and capitalize)
+        const formattedViolationType = flag.violation_type
+          ? flag.violation_type.replace(/_/g, ' ').toUpperCase()
+          : 'Account Flagged';
+        
+        notifications.push({
+          id: `flag_${flag.flag_id}`,
+          title: "Account Flagged",
+          message: `Your account has been flagged for: ${formattedViolationType}${flag.reason ? ' - ' + flag.reason : ''}`,
+          timestamp: flag.flagged_at,
+          read: false,
+          type: 'user_flagged',
+          data: {
+            flag_id: flag.flag_id,
+            violation_type: formattedViolationType,
+            reason: flag.reason,
+            total_flags: 1,
+            restriction_applied: 'flagged'
+          }
+        });
+      });
+    } catch (error) {
+      console.warn('Failed to fetch user flag notifications:', error);
+    }
+    
     // Sort notifications by timestamp (newest first)
     notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     

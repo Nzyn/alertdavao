@@ -301,7 +301,7 @@
 
 @section('content')
 <div class="content-header">
-    <h1 class="content-title">View Map</h1>
+    <h1 class="content-title">View Map - All Crimes</h1>
 </div>
 
 <!-- Date Filters -->
@@ -359,26 +359,10 @@
     <button onclick="resetFilters()" class="reset-button">Reset</button>
 </div>
 
-<!-- Map Statistics -->
-<div class="map-stats">
-    <div class="map-stat-card high">
-        <div class="map-stat-label">High Risk Incidents</div>
-        <div class="map-stat-value" id="high-risk-count">0</div>
-    </div>
-    <div class="map-stat-card medium">
-        <div class="map-stat-label">Medium Risk Incidents</div>
-        <div class="map-stat-value" id="medium-risk-count">0</div>
-    </div>
-    <div class="map-stat-card low">
-        <div class="map-stat-label">Low Risk Incidents</div>
-        <div class="map-stat-value" id="low-risk-count">0</div>
-    </div>
-</div>
-
 <!-- Map Container -->
 <div class="map-container">
     <div class="map-header">
-        <h2 class="map-title">Davao City - Incident Locations</h2>
+        <h2 class="map-title">Davao City - All Crime Locations</h2>
         <div>
             <div class="layer-control">
                 <button class="layer-btn active" id="map-view-btn" onclick="switchToMapView()">
@@ -394,42 +378,45 @@
                     Satellite
                 </button>
             </div>
-            <div class="map-controls">
-            <button class="control-btn active" onclick="showAllMarkers()">
-                <svg style="width: 16px; height: 16px; fill: currentColor;" viewBox="0 0 24 24">
-                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-                </svg>
-                All
-            </button>
-            <button class="control-btn" onclick="filterMarkers('high')">
-                High Risk
-            </button>
-            <button class="control-btn" onclick="filterMarkers('medium')">
-                Medium Risk
-            </button>
-            <button class="control-btn" onclick="filterMarkers('low')">
-                Low Risk
-            </button>
-            </div>
         </div>
     </div>
     
     <div id="map"></div>
     
     <div class="map-legend">
-        <div class="legend-title">Incident Risk Levels</div>
+        <div class="legend-title">Crime Type Legends</div>
         <div class="legend-items">
             <div class="legend-item">
-                <div class="legend-marker high"></div>
-                <span>High Risk - Immediate attention required</span>
+                <img src="/legends/001-close.png" style="width: 20px; height: 20px;" alt="Carnapping">
+                <span>Carnapping</span>
             </div>
             <div class="legend-item">
-                <div class="legend-marker medium"></div>
-                <span>Medium Risk - Monitoring needed</span>
+                <img src="/legends/001-pointed-star.png" style="width: 20px; height: 20px;" alt="Physical Injury">
+                <span>Physical Injury</span>
             </div>
             <div class="legend-item">
-                <div class="legend-marker low"></div>
-                <span>Low Risk - Resolved or minor</span>
+                <img src="/legends/002-plus.png" style="width: 20px; height: 20px;" alt="Motornapping">
+                <span>Motornapping</span>
+            </div>
+            <div class="legend-item">
+                <img src="/legends/002-rectangle.png" style="width: 20px; height: 20px;" alt="Robbery">
+                <span>Robbery</span>
+            </div>
+            <div class="legend-item">
+                <img src="/legends/003-ellipse.png" style="width: 20px; height: 20px;" alt="Theft">
+                <span>Theft</span>
+            </div>
+            <div class="legend-item">
+                <img src="/legends/diamondHOMICIDE.png" style="width: 20px; height: 20px;" alt="Homicide">
+                <span>Homicide</span>
+            </div>
+            <div class="legend-item">
+                <img src="/legends/moonRAPE.png" style="width: 20px; height: 20px;" alt="Rape">
+                <span>Rape</span>
+            </div>
+            <div class="legend-item">
+                <img src="/legends/squareMURDER.png" style="width: 20px; height: 20px;" alt="Murder">
+                <span>Murder</span>
             </div>
         </div>
     </div>
@@ -445,74 +432,127 @@
     let map;
     let markers = [];
     let allReports = [];
-    let highRiskIcon, mediumRiskIcon, lowRiskIcon;
     let streetLayer, satelliteLayer;
+    
+    // Crime type to icon mapping
+    const crimeIcons = {
+        'carnapping': '/legends/001-close.png',
+        'physical injury': '/legends/001-pointed-star.png',
+        'assault': '/legends/001-pointed-star.png', // Using physical injury icon
+        'motornapping': '/legends/002-plus.png',
+        'robbery': '/legends/002-rectangle.png',
+        'burglary': '/legends/002-rectangle.png', // Using robbery icon
+        'theft': '/legends/003-ellipse.png',
+        'homicide': '/legends/diamondHOMICIDE.png',
+        'rape': '/legends/moonRAPE.png',
+        'murder': '/legends/squareMURDER.png'
+    };
+    
+    // Davao City bounds (approximate)
+    const davaoCityBounds = [
+        [6.9, 125.2],  // Southwest corner
+        [7.5, 125.7]   // Northeast corner
+    ];
     
     // Wait for DOM to be fully loaded
     document.addEventListener('DOMContentLoaded', function() {
         // Add small delay to ensure map container is ready
         setTimeout(function() {
-            // Initialize the map centered on Davao City
-            map = L.map('map').setView([7.1907, 125.4553], 13);
+            // Initialize the map centered on Davao City with bounds restriction
+            map = L.map('map', {
+                maxBounds: davaoCityBounds,
+                maxBoundsViscosity: 1.0,
+                minZoom: 11,
+                maxZoom: 18
+            }).setView([7.1907, 125.4553], 13);
     
-    // Add Street Map layer (OpenStreetMap)
-    streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 18,
-    }).addTo(map);
-    
-    // Add Satellite layer (Esri World Imagery)
-    satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-        maxZoom: 18,
-    });
-    
-    // Define custom icons for different risk levels
-    highRiskIcon = L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background-color: #dc2626; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
-    });
-    
-    mediumRiskIcon = L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background-color: #f59e0b; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
-    });
-    
-    lowRiskIcon = L.divIcon({
-        className: 'custom-marker',
-        html: '<div style="background-color: #10b981; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
-    });
-    
-    // Load initial data
-    loadReports();
+            // Add Street Map layer (OpenStreetMap)
+            streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 18,
+            }).addTo(map);
+            
+            // Add Satellite layer (Esri World Imagery)
+            satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                maxZoom: 18,
+            });
+            
+            // Load initial data
+            loadReports();
         }, 100); // End setTimeout
     }); // End DOMContentLoaded
+    
+    // Function to get icon for crime type
+    function getCrimeIcon(crimeType) {
+        if (!crimeType) return null;
+        
+        const normalizedType = crimeType.toLowerCase().trim();
+        return crimeIcons[normalizedType] || null;
+    }
+    
+    // Function to create custom marker icon
+    function createCrimeMarker(crimeType, count = 1) {
+        const iconUrl = getCrimeIcon(crimeType);
+        
+        if (iconUrl && count === 1) {
+            // Single crime with custom icon
+            return L.icon({
+                iconUrl: iconUrl,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+                popupAnchor: [0, -14]
+            });
+        } else if (count > 1) {
+            // Multiple crimes - show count badge
+            return L.divIcon({
+                className: 'custom-cluster-marker',
+                html: `<div style="background-color: #3b82f6; color: white; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px;">${count}</div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18],
+                popupAnchor: [0, -18]
+            });
+        } else {
+            // Default marker for unknown crime type
+            return L.divIcon({
+                className: 'custom-marker',
+                html: '<div style="background-color: #6b7280; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12],
+                popupAnchor: [0, -12]
+            });
+        }
+    }
     
     // Function to load reports from API
     function loadReports(filters = {}) {
         const params = new URLSearchParams(filters).toString();
         const url = '{{ route("api.reports") }}' + (params ? '?' + params : '');
         
+        console.log('Loading reports from:', url);
+        
         fetch(url)
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
             .then(data => {
+                console.log('Received data:', data);
+                console.log('Reports count:', data.reports ? data.reports.length : 0);
+                
                 allReports = data.reports;
                 updateMapMarkers(data.reports);
-                updateStatistics(data.stats);
             })
             .catch(error => {
                 console.error('Error loading reports:', error);
+                alert('Error loading map data. Check console for details.');
             });
     }
     
     // Function to update map markers
     function updateMapMarkers(reports) {
+        console.log('Updating map markers with', reports.length, 'reports');
+        
         // Clear existing markers
         markers.forEach(marker => {
             map.removeLayer(marker);
@@ -520,37 +560,113 @@
         markers = [];
         
         // Add new markers
-        reports.forEach(report => {
-            let icon;
-            if (report.risk_level === 'high') icon = highRiskIcon;
-            else if (report.risk_level === 'medium') icon = mediumRiskIcon;
-            else icon = lowRiskIcon;
+        reports.forEach((report, index) => {
+            console.log('Processing report', index, ':', report);
             
-            const marker = L.marker([report.latitude, report.longitude], { icon: icon })
-                .addTo(map)
-                .bindPopup(`
-                    <div class="popup-title">${report.title}</div>
+            if (report.is_cluster) {
+                // Check if all crimes in cluster are the same type
+                const crimeTypes = report.crimes.map(c => c.crime_type);
+                const uniqueTypes = [...new Set(crimeTypes)];
+                
+                let icon;
+                if (uniqueTypes.length === 1) {
+                    // All same crime type - show the crime icon with badge count
+                    const crimeType = uniqueTypes[0];
+                    const iconUrl = getCrimeIcon(crimeType);
+                    
+                    if (iconUrl) {
+                        icon = L.icon({
+                            iconUrl: iconUrl,
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16],
+                            popupAnchor: [0, -16],
+                            className: 'crime-icon-with-count'
+                        });
+                    } else {
+                        icon = createCrimeMarker(null, report.count);
+                    }
+                } else {
+                    // Multiple different crime types - show count badge
+                    icon = createCrimeMarker(null, report.count);
+                }
+                
+                // Build popup content showing all crimes
+                let popupContent = `<div style="max-height: 300px; overflow-y: auto;">
+                    <div class="popup-title">${report.count} Crimes at this location</div>
                     <div class="popup-details">
-                        <strong>Risk Level:</strong> ${report.risk_level.toUpperCase()}<br>
-                        <strong>Location:</strong> ${report.location_name}<br>
-                        <strong>Status:</strong> ${report.status}<br>
-                        <strong>Date:</strong> ${new Date(report.date_reported).toLocaleDateString()}<br>
-                        <strong>Reporter:</strong> ${report.reporter}<br>
-                        <strong>Description:</strong> ${report.description}
-                    </div>
-                `);
-            
-            marker.riskLevel = report.risk_level;
-            marker.reportData = report;
-            markers.push(marker);
+                        <strong>Location:</strong> ${report.location_name}<br><hr style="margin: 0.5rem 0;">`;
+                
+                report.crimes.forEach((crime, index) => {
+                    const iconUrl = getCrimeIcon(crime.crime_type);
+                    const iconHtml = iconUrl ? `<img src="${iconUrl}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${crime.crime_type}">` : '';
+                    
+                    popupContent += `
+                        <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; ${index < report.crimes.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
+                            ${iconHtml}<strong>${crime.crime_type || crime.title}</strong><br>
+                            <span style="font-size: 0.875rem; color: #6b7280;">
+                                Status: ${crime.status}<br>
+                                Date: ${new Date(crime.date_reported).toLocaleDateString()}
+                            </span>
+                        </div>`;
+                });
+                
+                popupContent += '</div></div>';
+                
+                const marker = L.marker([report.latitude, report.longitude], { icon: icon })
+                    .addTo(map)
+                    .bindPopup(popupContent);
+                
+                // Add tooltip on hover
+                if (uniqueTypes.length === 1) {
+                    marker.bindTooltip(`${report.count}x ${uniqueTypes[0]}`, {
+                        permanent: false,
+                        direction: 'top',
+                        offset: [0, -16]
+                    });
+                } else {
+                    marker.bindTooltip(`${report.count} crimes here`, {
+                        permanent: false,
+                        direction: 'top',
+                        offset: [0, -18]
+                    });
+                }
+                
+                markers.push(marker);
+            } else {
+                // Single crime
+                const icon = createCrimeMarker(report.crime_type, 1);
+                
+                const marker = L.marker([report.latitude, report.longitude], { icon: icon })
+                    .addTo(map)
+                    .bindPopup(`
+                        <div class="popup-title">${report.crime_type || report.title}</div>
+                        <div class="popup-details">
+                            <strong>Location:</strong> ${report.location_name}<br>
+                            <strong>Status:</strong> ${report.status}<br>
+                            <strong>Date:</strong> ${new Date(report.date_reported).toLocaleDateString()}<br>
+                            <strong>Reporter:</strong> ${report.reporter}<br>
+                            <strong>Description:</strong> ${report.description}
+                        </div>
+                    `);
+                
+                // Add tooltip on hover showing crime type
+                marker.bindTooltip(report.crime_type || report.title, {
+                    permanent: false,
+                    direction: 'top',
+                    offset: [0, -14]
+                });
+                
+                markers.push(marker);
+            }
         });
-    }
-    
-    // Function to update statistics
-    function updateStatistics(stats) {
-        document.getElementById('high-risk-count').textContent = stats.high || 0;
-        document.getElementById('medium-risk-count').textContent = stats.medium || 0;
-        document.getElementById('low-risk-count').textContent = stats.low || 0;
+        
+        // Fit bounds if there are markers
+        if (markers.length > 0) {
+            const group = L.featureGroup(markers);
+            map.fitBounds(group.getBounds().pad(0.1), {
+                maxZoom: 15
+            });
+        }
     }
     
     // Date filter functions
@@ -581,42 +697,6 @@
         document.getElementById('filter-status').value = '';
         
         loadReports();
-    }
-    
-    // Risk level filter functions
-    function showAllMarkers() {
-        markers.forEach(marker => {
-            marker.addTo(map);
-        });
-        updateActiveButton('all');
-    }
-    
-    function filterMarkers(riskLevel) {
-        markers.forEach(marker => {
-            if (marker.riskLevel === riskLevel) {
-                marker.addTo(map);
-            } else {
-                map.removeLayer(marker);
-            }
-        });
-        updateActiveButton(riskLevel);
-    }
-    
-    function updateActiveButton(active) {
-        document.querySelectorAll('.control-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        if (active === 'all') {
-            document.querySelector('.control-btn').classList.add('active');
-        } else {
-            const buttons = document.querySelectorAll('.control-btn');
-            buttons.forEach(btn => {
-                if (btn.textContent.toLowerCase().includes(active)) {
-                    btn.classList.add('active');
-                }
-            });
-        }
     }
     
     // Layer switching functions

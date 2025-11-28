@@ -13,6 +13,7 @@ use App\Http\Controllers\VerificationController;
 // use App\Http\Controllers\BarangayController;
 use App\Http\Controllers\PersonnelController;
 use App\Http\Controllers\StatisticsController;
+use App\Http\Controllers\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -68,9 +69,11 @@ Route::middleware(['auth'])->group(function () {
     // Personnel management routes
     Route::get('/personnel', [PersonnelController::class, 'index'])->name('personnel');
     
-    // User management routes
-    Route::post('/users/{id}/flag', [UserController::class, 'flagUser'])->name('users.flag');
-    Route::post('/users/{id}/unflag', [UserController::class, 'unflagUser'])->name('users.unflag');
+    // User management routes (flag/unflag requires admin or police role)
+    Route::middleware('role:admin,police')->group(function () {
+        Route::post('/users/{id}/flag', [UserController::class, 'flagUser'])->name('users.flag');
+        Route::post('/users/{id}/unflag', [UserController::class, 'unflagUser'])->name('users.unflag');
+    });
     Route::post('/users/{id}/promote', [UserController::class, 'promoteToOfficer'])->name('users.promote');
     Route::post('/users/{id}/change-role', [UserController::class, 'changeRole'])->name('users.changeRole');
     Route::post('/users/{id}/assign-station', [UserController::class, 'assignStation'])->name('users.assignStation');
@@ -106,4 +109,12 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/view-map', [MapController::class, 'index'])->name('view-map');
     Route::get('/api/reports', [MapController::class, 'getReports'])->name('api.reports');
+
+    // Notification routes
+    Route::get('/api/notifications/unread', [NotificationController::class, 'getUnread'])->name('notifications.unread');
+    Route::get('/api/notifications', [NotificationController::class, 'getAll'])->name('notifications.all');
+    Route::get('/api/notifications/unread-count', [NotificationController::class, 'getUnreadCount'])->name('notifications.unreadCount');
+    Route::post('/api/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.markRead');
+    Route::post('/api/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
+    Route::delete('/api/notifications/{id}', [NotificationController::class, 'delete'])->name('notifications.delete');
 });

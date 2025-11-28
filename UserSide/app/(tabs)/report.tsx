@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -14,19 +14,22 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform as RNPlatform } from 'react-native';
 // eslint-disable-next-line import/no-unresolved
 import { Calendar, CalendarList, Agenda } from 'react-native-calendars';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // reference to avoid unused import warnings for CalendarList and Agenda
 (() => { void CalendarList; void Agenda; })();
 import EnhancedLocationPicker from '../../components/EnhancedLocationPicker';
 import UpdateSuccessDialog from '../../components/UpdateSuccessDialog';
+import FlagNotificationToast from '../../components/FlagNotificationToast';
 import { reportService } from '../../services/reportService';
+import { notificationService, type Notification } from '../../services/notificationService';
 import { useUser } from '../../contexts/UserContext';
 import { Link } from 'expo-router';
 import styles from './styles';
@@ -76,20 +79,6 @@ function CheckRow({ label, checked, onToggle }: CheckRowProps) {
     );
 }
 
-interface FlagInfo {
-    violation_type: string;
-    reason: string;
-    severity: string;
-    created_at: string;
-}
-
-interface RestrictionInfo {
-    type: string;
-    reason: string;
-    expires_at: string | null;
-    can_report: boolean;
-}
-
 export default function ReportCrime() {
     const { user } = useUser();
     const [title, setTitle] = useState('');
@@ -114,42 +103,44 @@ export default function ReportCrime() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccessDialog, setShowSuccessDialog] = useState(false);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [flagNotification, setFlagNotification] = useState<Notification | null>(null);
     const [isFlagged, setIsFlagged] = useState(false);
-    const [flagInfo, setFlagInfo] = useState<FlagInfo | null>(null);
-    const [restrictionInfo, setRestrictionInfo] = useState<RestrictionInfo | null>(null);
-    const [showFlaggedDialog, setShowFlaggedDialog] = useState(false);
+    const [userId, setUserId] = useState<string>('');
 
-    // Check if user is flagged when component mounts
-    useEffect(() => {
-        const checkFlagStatus = async () => {
-            if (!user?.id) return;
-
-            try {
-                const response = await fetch(
-                    `${process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/users/${user.id}/flag-status`
-                );
-                const data = await response.json();
-
-                if (data.success) {
-                    setIsFlagged(data.is_flagged);
-                    if (data.flag_info) {
-                        setFlagInfo(data.flag_info);
+    // Load user ID and check flag status when component mounts or comes into focus
+    useFocusEffect(
+        React.useCallback(() => {
+            const loadUserAndCheckFlags = async () => {
+                try {
+                    const userData = await AsyncStorage.getItem('userData');
+                    if (userData) {
+                        const parsedUser = JSON.parse(userData);
+                        const currentUserId = parsedUser.id || parsedUser.user_id || '';
+                        setUserId(currentUserId);
+                        
+                        // Load notifications to check if user is flagged
+                        const notifications = await notificationService.getUserNotifications(currentUserId);
+                        
+                        // Find the latest user_flagged notification
+                        const flaggedNotification = notifications.find(n => n.type === 'user_flagged');
+                        
+                        if (flaggedNotification) {
+                            setFlagNotification(flaggedNotification);
+                            setIsFlagged(true);
+                            console.log('User is flagged:', flaggedNotification);
+                        } else {
+                            setIsFlagged(false);
+                            setFlagNotification(null);
+                        }
                     }
-                    if (data.restriction_info) {
-                        setRestrictionInfo(data.restriction_info);
-                    }
-
-                    if (data.is_flagged) {
-                        setShowFlaggedDialog(true);
-                    }
+                } catch (error) {
+                    console.error('Error loading user flag status:', error);
                 }
-            } catch (error) {
-                console.error('Error checking flag status:', error);
-            }
-        };
-
-        checkFlagStatus();
-    }, [user?.id]);
+            };
+            
+            loadUserAndCheckFlags();
+        }, [])
+    );
 
     // ✅ Toggle function with correct typing
     const toggleCrimeType = (crime: string) => {
@@ -427,6 +418,12 @@ export default function ReportCrime() {
 
     return (
         <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 48 }}>
+            {/* Flag Notification Toast */}
+            <FlagNotificationToast
+                notification={flagNotification}
+                onDismiss={() => setFlagNotification(null)}
+            />
+            
             {/* Header with Back Button and Title */}
             <View style={styles.headerHistory}>
                 <TouchableOpacity onPress={() => router.push('/')}>
@@ -944,31 +941,42 @@ export default function ReportCrime() {
 
             <View style={styles.submitButton}>
                 <Button
-                    title={isSubmitting ? "Submitting..." : "Submit Report"}
+                    title={isFlagged ? "Account Flagged - Cannot Submit" : (isSubmitting ? "Submitting..." : "Submit Report")}
                     onPress={handleSubmit}
-                    color="#1D3557"
-                    disabled={isSubmitting}
+                    color={isFlagged ? "#999" : "#1D3557"}
+                    disabled={isSubmitting || isFlagged}
                 />
             </View>
+            
+            {isFlagged && (
+                <View style={{
+                    backgroundColor: '#fee2e2',
+                    borderLeftWidth: 4,
+                    borderLeftColor: '#dc2626',
+                    padding: 12,
+                    marginTop: 12,
+                    marginHorizontal: 12,
+                    borderRadius: 6,
+                }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                        <Ionicons name="warning" size={18} color="#dc2626" style={{ marginTop: 2 }} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: '#991b1b', marginBottom: 4 }}>
+                                Account Flagged
+                            </Text>
+                            <Text style={{ fontSize: 13, color: '#7f1d1d', lineHeight: 18 }}>
+                                Your account has been flagged. You are unable to submit new reports until the flag is lifted by an administrator.
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+            )}
 
             {isSubmitting && (
                 <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 16 }}>
                     <ActivityIndicator size="large" color="#1D3557" />
                     <Text style={{ marginTop: 8, color: '#666' }}>Submitting your report...</Text>
                 </View>
-            )}
-
-            {/* Flagged User Dialog */}
-            {showFlaggedDialog && flagInfo && (
-                <UpdateSuccessDialog
-                    visible={showFlaggedDialog}
-                    title="⚠️ Account Flagged"
-                    message={`Your account has been flagged for: ${flagInfo.violation_type.replace(/_/g, ' ')}\n\nReason: ${flagInfo.reason}\n\nYou are unable to submit new reports until this flag is lifted by an administrator.${restrictionInfo?.expires_at ? `\n\nExpires: ${new Date(restrictionInfo.expires_at).toLocaleDateString()}` : ''}`}
-                    okText="Understood"
-                    onOk={() => {
-                        setShowFlaggedDialog(false);
-                    }}
-                />
             )}
 
             {/* Success Dialog */}

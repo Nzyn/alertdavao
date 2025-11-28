@@ -190,9 +190,9 @@
             
             .priority-content {
                 display: grid;
-                grid-template-columns: 300px 1fr 300px;
+                grid-template-columns: 350px 1fr;
                 gap: 2rem;
-                align-items: center;
+                align-items: start;
             }
             
             .priority-cases {
@@ -239,8 +239,8 @@
             .map-placeholder {
                 background: #f3f4f6;
                 border-radius: 8px;
-                height: 250px;
-                min-height: 250px;
+                height: 500px;
+                min-height: 500px;
                 width: 100%;
                 position: relative;
                 overflow: hidden;
@@ -252,6 +252,29 @@
                 width: 100%;
                 border-radius: 8px;
                 z-index: 1;
+            }
+            
+            .crime-icon-with-count {
+                position: relative;
+            }
+            
+            .crime-icon-with-count::after {
+                content: attr(data-count);
+                position: absolute;
+                top: -8px;
+                right: -8px;
+                background: #ef4444;
+                color: white;
+                border-radius: 50%;
+                width: 20px;
+                height: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: bold;
+                border: 2px solid white;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             }
             
             .mini-map-controls {
@@ -444,63 +467,29 @@
                 <!-- Priority Cases and Map -->
                 <div class="dashboard-grid">
                     <div class="priority-section">
-                        <h2 class="section-title">Priority Cases</h2>
+                        <h2 class="section-title">Crime Map by Barangay</h2>
                         <div class="priority-content">
                             <div class="priority-cases">
-                                <div class="priority-item">
-                                    <div class="priority-dot high"></div>
-                                    <span class="priority-text">High Risk:</span>
-                                    <span class="priority-count">15</span>
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 600; margin-bottom: 0.5rem;">FILTER BY BARANGAY</label>
+                                    <select id="barangay-filter" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                        <option value="">All Barangays</option>
+                                    </select>
                                 </div>
-                                <div class="priority-item">
-                                    <div class="priority-dot medium"></div>
-                                    <span class="priority-text">Medium Risk:</span>
-                                    <span class="priority-count">45</span>
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="display: block; font-size: 0.75rem; color: #64748b; font-weight: 600; margin-bottom: 0.5rem;">FILTER BY CRIME TYPE</label>
+                                    <select id="crime-type-filter" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                        <option value="">All Crime Types</option>
+                                    </select>
                                 </div>
-                                <div class="priority-item">
-                                    <div class="priority-dot low"></div>
-                                    <span class="priority-text">Low Risk:</span>
-                                    <span class="priority-count">60</span>
-                                </div>
+                                <button onclick="applyDashboardFilters()" style="width: 100%; padding: 0.5rem; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 0.875rem; cursor: pointer; margin-bottom: 0.5rem;">Apply Filters</button>
+                                <button onclick="resetDashboardFilters()" style="width: 100%; padding: 0.5rem; background: #6b7280; color: white; border: none; border-radius: 6px; font-size: 0.875rem; cursor: pointer;">Reset</button>
                             </div>
                             
                             <div class="map-placeholder">
-                                <div class="mini-map-controls">
-                                    <button class="mini-map-btn active" id="mini-all-btn" onclick="miniShowAll()">All</button>
-                                    <button class="mini-map-btn" id="mini-high-btn" onclick="miniFilterHigh()">High</button>
-                                    <button class="mini-map-btn" id="mini-medium-btn" onclick="miniFilterMedium()">Med</button>
-                                    <button class="mini-map-btn" id="mini-low-btn" onclick="miniFilterLow()">Low</button>
-                                </div>
                                 <div id="dashboard-mini-map"></div>
                             </div>
-                            
-                            <div class="gender-chart">
-                                <h3 class="section-title">Victims by Gender</h3>
-                                <div class="pie-chart"></div>
-                                <div class="chart-legend">
-                                    <div class="legend-item">
-                                        <div class="legend-dot male"></div>
-                                        <span>Male</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-dot female"></div>
-                                        <span>Female</span>
-                                    </div>
-                                    <div class="legend-item">
-                                        <div class="legend-dot others"></div>
-                                        <span>Others</span>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
-                    </div>
-                </div>
-                
-                <!-- Monthly Trends -->
-                <div class="bottom-chart">
-                    <h2 class="section-title">Monthly Trends</h2>
-                    <div class="line-chart">
-                        <span>Monthly Report Trends Chart</span>
                     </div>
                 </div>
 @endsection
@@ -514,15 +503,40 @@
     let miniMap;
     let miniMarkers = [];
     let miniReports = [];
-    let miniHighRiskIcon, miniMediumRiskIcon, miniLowRiskIcon;
+    let miniBarangays = [];
+    let miniCrimeTypes = [];
+    
+    // Crime type to icon mapping
+    const crimeIcons = {
+        'carnapping': '/legends/001-close.png',
+        'physical injury': '/legends/001-pointed-star.png',
+        'assault': '/legends/001-pointed-star.png', // Using physical injury icon
+        'motornapping': '/legends/002-plus.png',
+        'robbery': '/legends/002-rectangle.png',
+        'burglary': '/legends/002-rectangle.png', // Using robbery icon
+        'theft': '/legends/003-ellipse.png',
+        'homicide': '/legends/diamondHOMICIDE.png',
+        'rape': '/legends/moonRAPE.png',
+        'murder': '/legends/squareMURDER.png'
+    };
+    
+    // Davao City bounds (approximate)
+    const davaoCityBounds = [
+        [6.9, 125.2],  // Southwest corner
+        [7.5, 125.7]   // Northeast corner
+    ];
     
     // Wait for DOM to be fully loaded
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(function() {
-            // Initialize the mini map centered on Davao City
+            // Initialize the mini map centered on Davao City with bounds restriction
             miniMap = L.map('dashboard-mini-map', {
                 zoomControl: false,
-                attributionControl: false
+                attributionControl: false,
+                maxBounds: davaoCityBounds,
+                maxBoundsViscosity: 1.0,
+                minZoom: 11,
+                maxZoom: 18
             }).setView([7.1907, 125.4553], 12);
     
             // Add OpenStreetMap tiles
@@ -531,49 +545,123 @@
                 maxZoom: 18,
             }).addTo(miniMap);
             
-            // Define custom icons for different risk levels (smaller for mini map)
-            miniHighRiskIcon = L.divIcon({
-                className: 'custom-marker',
-                html: '<div style="background-color: #dc2626; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>',
-                iconSize: [16, 16],
-                iconAnchor: [8, 8]
-            });
-            
-            miniMediumRiskIcon = L.divIcon({
-                className: 'custom-marker',
-                html: '<div style="background-color: #f59e0b; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>',
-                iconSize: [16, 16],
-                iconAnchor: [8, 8]
-            });
-            
-            miniLowRiskIcon = L.divIcon({
-                className: 'custom-marker',
-                html: '<div style="background-color: #10b981; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>',
-                iconSize: [16, 16],
-                iconAnchor: [8, 8]
-            });
-            
             // Load initial data
             loadMiniMapReports();
         }, 100);
     });
     
     // Function to load reports from API
-    function loadMiniMapReports() {
-        fetch('{{ route("api.reports") }}')
-            .then(response => response.json())
+    function loadMiniMapReports(filters = {}) {
+        const params = new URLSearchParams(filters).toString();
+        const url = '{{ route("api.reports") }}' + (params ? '?' + params : '');
+        
+        console.log('Loading mini map reports from:', url);
+        
+        fetch(url)
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
             .then(data => {
+                console.log('Received data:', data);
+                console.log('Reports count:', data.reports ? data.reports.length : 0);
+                console.log('Barangays:', data.barangays);
+                console.log('Crime types:', data.crime_types);
+                
                 miniReports = data.reports;
+                miniBarangays = data.barangays || [];
+                miniCrimeTypes = data.crime_types || [];
+                
+                // Populate filter dropdowns
+                populateBarangayFilter();
+                populateCrimeTypeFilter();
+                
                 updateMiniMapMarkers(data.reports);
-                updateMiniStats(data.stats);
             })
             .catch(error => {
                 console.error('Error loading mini map reports:', error);
+                alert('Error loading map data. Check console for details.');
             });
+    }
+    
+    function populateBarangayFilter() {
+        const select = document.getElementById('barangay-filter');
+        const currentValue = select.value;
+        
+        // Keep "All Barangays" option
+        select.innerHTML = '<option value="">All Barangays</option>';
+        
+        miniBarangays.forEach(barangay => {
+            const option = document.createElement('option');
+            option.value = barangay;
+            option.textContent = barangay;
+            select.appendChild(option);
+        });
+        
+        select.value = currentValue;
+    }
+    
+    function populateCrimeTypeFilter() {
+        const select = document.getElementById('crime-type-filter');
+        const currentValue = select.value;
+        
+        // Keep "All Crime Types" option
+        select.innerHTML = '<option value="">All Crime Types</option>';
+        
+        miniCrimeTypes.forEach(crimeType => {
+            const option = document.createElement('option');
+            option.value = crimeType;
+            option.textContent = crimeType.charAt(0).toUpperCase() + crimeType.slice(1);
+            select.appendChild(option);
+        });
+        
+        select.value = currentValue;
+    }
+    
+    // Function to get icon for crime type
+    function getCrimeIcon(crimeType) {
+        if (!crimeType) return null;
+        
+        const normalizedType = crimeType.toLowerCase().trim();
+        return crimeIcons[normalizedType] || null;
+    }
+    
+    // Function to create custom marker icon
+    function createCrimeMarker(crimeType, count = 1) {
+        const iconUrl = getCrimeIcon(crimeType);
+        
+        if (iconUrl && count === 1) {
+            // Single crime with custom icon
+            return L.icon({
+                iconUrl: iconUrl,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12],
+                popupAnchor: [0, -12]
+            });
+        } else if (count > 1) {
+            // Multiple crimes - show count badge
+            return L.divIcon({
+                className: 'custom-cluster-marker',
+                html: `<div style="background-color: #3b82f6; color: white; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">${count}</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -16]
+            });
+        } else {
+            // Default marker for unknown crime type
+            return L.divIcon({
+                className: 'custom-marker',
+                html: '<div style="background-color: #6b7280; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+        }
     }
     
     // Function to update map markers
     function updateMiniMapMarkers(reports) {
+        console.log('Updating mini map markers with', reports.length, 'reports');
+        
         // Clear existing markers
         miniMarkers.forEach(marker => {
             miniMap.removeLayer(marker);
@@ -581,92 +669,119 @@
         miniMarkers = [];
         
         // Add new markers
-        reports.forEach(report => {
-            let icon;
-            if (report.risk_level === 'high') icon = miniHighRiskIcon;
-            else if (report.risk_level === 'medium') icon = miniMediumRiskIcon;
-            else icon = miniLowRiskIcon;
+        reports.forEach((report, index) => {
+            console.log('Processing report', index, ':', report);
             
-            const marker = L.marker([report.latitude, report.longitude], { icon: icon })
-                .addTo(miniMap)
-                .bindPopup(`
-                    <div style="font-size: 0.75rem;">
-                        <strong style="font-size: 0.875rem;">${report.title}</strong><br>
-                        <strong>Risk:</strong> ${report.risk_level.toUpperCase()}<br>
-                        <strong>Location:</strong> ${report.location_name}<br>
-                        <strong>Status:</strong> ${report.status}
-                    </div>
-                `);
-            
-            marker.riskLevel = report.risk_level;
-            marker.reportData = report;
-            miniMarkers.push(marker);
-        });
-    }
-    
-    // Function to update statistics in the priority cases section
-    function updateMiniStats(stats) {
-        const priorityCounts = document.querySelectorAll('.priority-count');
-        if (priorityCounts.length >= 3) {
-            priorityCounts[0].textContent = stats.high || 0;
-            priorityCounts[1].textContent = stats.medium || 0;
-            priorityCounts[2].textContent = stats.low || 0;
-        }
-    }
-    
-    // Filter functions for mini map
-    function miniShowAll() {
-        miniMarkers.forEach(marker => marker.addTo(miniMap));
-        updateMiniMapButtons('all');
-    }
-    
-    function miniFilterHigh() {
-        miniMarkers.forEach(marker => {
-            if (marker.riskLevel === 'high') {
-                marker.addTo(miniMap);
+            if (report.is_cluster) {
+                // Check if all crimes in cluster are the same type
+                const crimeTypes = report.crimes.map(c => c.crime_type);
+                const uniqueTypes = [...new Set(crimeTypes)];
+                
+                let icon;
+                if (uniqueTypes.length === 1) {
+                    // All same crime type - show the crime icon with badge count
+                    const crimeType = uniqueTypes[0];
+                    const iconUrl = getCrimeIcon(crimeType);
+                    
+                    if (iconUrl) {
+                        icon = L.icon({
+                            iconUrl: iconUrl,
+                            iconSize: [28, 28],
+                            iconAnchor: [14, 14],
+                            popupAnchor: [0, -14],
+                            className: 'crime-icon-with-count'
+                        });
+                    } else {
+                        icon = createCrimeMarker(null, report.count);
+                    }
+                } else {
+                    // Multiple different crime types - show count badge
+                    icon = createCrimeMarker(null, report.count);
+                }
+                
+                // Build popup content showing all crimes
+                let popupContent = `<div style="max-height: 200px; overflow-y: auto;">
+                    <strong style="font-size: 0.875rem;">${report.count} Crimes at this location</strong><br>
+                    <strong>Location:</strong> ${report.location_name}<br><hr style="margin: 0.5rem 0;">`;
+                
+                report.crimes.forEach((crime, index) => {
+                    popupContent += `
+                        <div style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; ${index < report.crimes.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
+                            <strong>${crime.crime_type || crime.title}</strong><br>
+                            <span style="font-size: 0.75rem; color: #6b7280;">Status: ${crime.status}</span>
+                        </div>`;
+                });
+                
+                popupContent += '</div>';
+                
+                const marker = L.marker([report.latitude, report.longitude], { icon: icon })
+                    .addTo(miniMap)
+                    .bindPopup(popupContent);
+                
+                // Add tooltip on hover
+                if (uniqueTypes.length === 1) {
+                    marker.bindTooltip(`${report.count}x ${uniqueTypes[0]}`, {
+                        permanent: false,
+                        direction: 'top',
+                        offset: [0, -14]
+                    });
+                } else {
+                    marker.bindTooltip(`${report.count} different crimes here`, {
+                        permanent: false,
+                        direction: 'top',
+                        offset: [0, -16]
+                    });
+                }
+                
+                miniMarkers.push(marker);
             } else {
-                miniMap.removeLayer(marker);
+                // Single crime
+                const icon = createCrimeMarker(report.crime_type, 1);
+                
+                const marker = L.marker([report.latitude, report.longitude], { icon: icon })
+                    .addTo(miniMap)
+                    .bindPopup(`
+                        <div style="font-size: 0.75rem;">
+                            <strong style="font-size: 0.875rem;">${report.crime_type || report.title}</strong><br>
+                            <strong>Location:</strong> ${report.location_name}<br>
+                            <strong>Status:</strong> ${report.status}<br>
+                            <strong>Date:</strong> ${new Date(report.date_reported).toLocaleDateString()}
+                        </div>
+                    `);
+                
+                miniMarkers.push(marker);
             }
-        });
-        updateMiniMapButtons('high');
-    }
-    
-    function miniFilterMedium() {
-        miniMarkers.forEach(marker => {
-            if (marker.riskLevel === 'medium') {
-                marker.addTo(miniMap);
-            } else {
-                miniMap.removeLayer(marker);
-            }
-        });
-        updateMiniMapButtons('medium');
-    }
-    
-    function miniFilterLow() {
-        miniMarkers.forEach(marker => {
-            if (marker.riskLevel === 'low') {
-                marker.addTo(miniMap);
-            } else {
-                miniMap.removeLayer(marker);
-            }
-        });
-        updateMiniMapButtons('low');
-    }
-    
-    function updateMiniMapButtons(active) {
-        document.querySelectorAll('.mini-map-btn').forEach(btn => {
-            btn.classList.remove('active');
         });
         
-        if (active === 'all') {
-            document.getElementById('mini-all-btn').classList.add('active');
-        } else if (active === 'high') {
-            document.getElementById('mini-high-btn').classList.add('active');
-        } else if (active === 'medium') {
-            document.getElementById('mini-medium-btn').classList.add('active');
-        } else if (active === 'low') {
-            document.getElementById('mini-low-btn').classList.add('active');
+        // Fit bounds if there are markers
+        if (miniMarkers.length > 0) {
+            const group = L.featureGroup(miniMarkers);
+            miniMap.fitBounds(group.getBounds().pad(0.1), {
+                maxZoom: 14
+            });
         }
+    }
+    
+    function applyDashboardFilters() {
+        const filters = {
+            barangay: document.getElementById('barangay-filter').value,
+            crime_type: document.getElementById('crime-type-filter').value
+        };
+        
+        // Remove empty filters
+        Object.keys(filters).forEach(key => {
+            if (filters[key] === '') {
+                delete filters[key];
+            }
+        });
+        
+        loadMiniMapReports(filters);
+    }
+    
+    function resetDashboardFilters() {
+        document.getElementById('barangay-filter').value = '';
+        document.getElementById('crime-type-filter').value = '';
+        loadMiniMapReports();
     }
 </script>
 @endsection
