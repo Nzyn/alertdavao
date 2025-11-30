@@ -221,6 +221,11 @@
                 max-width: none;
             }
         }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -324,6 +329,19 @@
         const emailError = document.getElementById('emailError');
         const passwordError = document.getElementById('passwordError');
         const googleBtn = document.getElementById('googleSignInBtn');
+        const proceedBtn = document.getElementById('proceedBtn');
+
+        // Reset button state on page load to fix stuck "Logging in" state
+        function resetLoginForm() {
+            proceedBtn.disabled = false;
+            proceedBtn.innerHTML = 'Login';
+            proceedBtn.style.opacity = '1';
+            proceedBtn.style.cursor = 'pointer';
+        }
+        
+        // Reset on page load
+        window.addEventListener('pageshow', resetLoginForm);
+        document.addEventListener('DOMContentLoaded', resetLoginForm);
 
         // Handle Google Sign-In button click
         if (googleBtn) {
@@ -396,6 +414,11 @@
 
             let hasError = false;
 
+            // Disable button and show loading state
+            proceedBtn.disabled = true;
+            proceedBtn.innerHTML = '<span class="spinner" style="margin-right:8px;width:18px;height:18px;display:inline-block;border:2px solid #fff;border-top:2px solid #1D3557;border-radius:50%;animation:spin 1s linear infinite;"></span>Logging in...';
+            proceedBtn.style.opacity = '0.6';
+
             // Validate email
             if (!email) {
                 e.preventDefault();
@@ -436,6 +459,10 @@
             }
 
             if (hasError) {
+                // Re-enable button if validation failed
+                proceedBtn.disabled = false;
+                proceedBtn.innerHTML = 'Login';
+                proceedBtn.style.opacity = '1';
                 return false;
             }
 

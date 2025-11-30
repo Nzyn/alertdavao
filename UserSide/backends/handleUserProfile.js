@@ -127,6 +127,46 @@ const upsertUser = async (req, res) => {
   }
 };
 
+// Update user station assignment
+const updateUserStation = async (req, res) => {
+  const { id } = req.params;
+  const { station_id } = req.body;
+  
+  try {
+    console.log(`🚔 Assigning user ${id} to station ${station_id}`);
+    
+    const query = `
+      UPDATE users 
+      SET station_id = ?,
+          updated_at = NOW()
+      WHERE id = ?
+    `;
+    
+    const [result] = await db.query(query, [station_id, id]);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+    
+    console.log(`✅ User ${id} assigned to station ${station_id}`);
+    
+    res.json({
+      success: true,
+      message: "User station assignment updated successfully"
+    });
+  } catch (error) {
+    console.error("❌ Error updating user station:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update user station",
+      error: error.message
+    });
+  }
+};
+
 // Update user address only
 const updateUserAddress = async (req, res) => {
   const { id } = req.params;
@@ -164,6 +204,65 @@ const updateUserAddress = async (req, res) => {
   }
 };
 
+// Get user's assigned police station (for police officers)
+const getUserStation = async (req, res) => {
+  const { userId } = req.params;
+  
+  try {
+    console.log(`🚔 Fetching station for police officer ID: ${userId}`);
+    
+    const [userRows] = await db.query(
+      `SELECT u.id, u.firstname, u.lastname, u.email, u.station_id,
+              ps.station_id, ps.station_name, ps.address, ps.contact_number
+       FROM users u
+       LEFT JOIN police_stations ps ON u.station_id = ps.station_id
+       WHERE u.id = ?`,
+      [userId]
+    );
+    
+    if (userRows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
+    }
+    
+    const userData = userRows[0];
+    
+    if (!userData.station_id) {
+      return res.status(400).json({
+        success: false,
+        message: "User is not assigned to a police station"
+      });
+    }
+    
+    console.log(`✅ Station found for officer ${userId}:`, userData.station_name);
+    
+    res.json({
+      success: true,
+      data: {
+        user_id: userData.id,
+        firstname: userData.firstname,
+        lastname: userData.lastname,
+        email: userData.email,
+        station: {
+          station_id: userData.station_id,
+          station_name: userData.station_name,
+          address: userData.address,
+          contact_number: userData.contact_number
+        }
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error fetching user station:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch user station",
+      error: error.message
+    });
+  }
+};
+
 // Execute raw SQL query (for debugging/testing)
 const executeQuery = async (req, res) => {
   const { query, params } = req.body;
@@ -192,5 +291,7 @@ module.exports = {
   getUserById,
   upsertUser,
   updateUserAddress,
+  updateUserStation,
+  getUserStation,
   executeQuery
 };

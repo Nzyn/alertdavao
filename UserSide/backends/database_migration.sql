@@ -97,6 +97,12 @@ BEGIN
     WHERE TABLE_SCHEMA='alertdavao' AND TABLE_NAME='reports' AND COLUMN_NAME='assigned_station_id') THEN
     ALTER TABLE reports ADD COLUMN assigned_station_id INT NULL COMMENT 'Station assigned to handle the report' AFTER title;
   END IF;
+  
+  -- Add is_valid column if not exists
+  IF NOT EXISTS (SELECT * FROM information_schema.COLUMNS 
+    WHERE TABLE_SCHEMA='alertdavao' AND TABLE_NAME='reports' AND COLUMN_NAME='is_valid') THEN
+    ALTER TABLE reports ADD COLUMN is_valid VARCHAR(50) DEFAULT 'checking_for_report_validity' COMMENT 'Report validity status: valid, invalid, or checking_for_report_validity' AFTER status;
+  END IF;
 END$$
 DELIMITER ;
 

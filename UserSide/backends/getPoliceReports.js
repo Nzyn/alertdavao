@@ -4,6 +4,7 @@
  */
 
 const db = require("./db");
+const { decrypt } = require("./encryptionService");
 
 /**
  * Get reports for a specific police station
@@ -62,47 +63,47 @@ async function getReportsByStation(req, res) {
       [stationId]
     );
 
-    // Parse media data
-    const formattedReports = reports.map((report) => {
-      let mediaArray = [];
-      if (report.media) {
-        mediaArray = report.media.split("|").map((m) => {
-          const [media_id, media_url, media_type] = m.split(":");
-          return { media_id: parseInt(media_id), media_url, media_type };
-        });
-      }
+    // Parse media data and decrypt encrypted fields
+     const formattedReports = reports.map((report) => {
+       let mediaArray = [];
+       if (report.media) {
+         mediaArray = report.media.split("|").map((m) => {
+           const [media_id, media_url, media_type] = m.split(":");
+           return { media_id: parseInt(media_id), media_url, media_type };
+         });
+       }
 
-      return {
-        report_id: report.report_id,
-        title: report.title,
-        report_type: report.report_type,
-        description: report.description,
-        status: report.status,
-        is_anonymous: Boolean(report.is_anonymous),
-        date_reported: report.date_reported,
-        created_at: report.created_at,
-        station_id: report.station_id,
-        user: {
-          user_id: report.user_id,
-          firstname: report.firstname,
-          lastname: report.lastname,
-          email: report.email,
-        },
-        location: {
-          latitude: report.latitude,
-          longitude: report.longitude,
-          barangay: report.barangay,
-          reporters_address: report.reporters_address,
-        },
-        station: report.station_id ? {
-          station_id: report.station_id,
-          station_name: report.station_name,
-          address: report.station_address,
-          contact_number: report.contact_number,
-        } : null,
-        media: mediaArray,
-      };
-    });
+       return {
+         report_id: report.report_id,
+         title: report.title,
+         report_type: report.report_type,
+         description: decrypt(report.description),
+         status: report.status,
+         is_anonymous: Boolean(report.is_anonymous),
+         date_reported: report.date_reported,
+         created_at: report.created_at,
+         station_id: report.station_id,
+         user: {
+           user_id: report.user_id,
+           firstname: report.firstname,
+           lastname: report.lastname,
+           email: report.email,
+         },
+         location: {
+           latitude: report.latitude,
+           longitude: report.longitude,
+           barangay: report.barangay ? decrypt(report.barangay) : null,
+           reporters_address: report.reporters_address ? decrypt(report.reporters_address) : null,
+         },
+         station: report.station_id ? {
+           station_id: report.station_id,
+           station_name: report.station_name,
+           address: report.station_address,
+           contact_number: report.contact_number,
+         } : null,
+         media: mediaArray,
+       };
+     });
 
     console.log(`✅ Found ${formattedReports.length} reports for station ${stationId}`);
 
@@ -186,49 +187,49 @@ async function getReportsByStationAndStatus(req, res) {
       [stationId, status]
     );
 
-    // Parse media data
-    const formattedReports = reports.map((report) => {
-      let mediaArray = [];
-      if (report.media) {
-        mediaArray = report.media.split("|").map((m) => {
-          const [media_id, media_url, media_type] = m.split(":");
-          return { media_id: parseInt(media_id), media_url, media_type };
-        });
-      }
+    // Parse media data and decrypt encrypted fields
+     const formattedReports = reports.map((report) => {
+       let mediaArray = [];
+       if (report.media) {
+         mediaArray = report.media.split("|").map((m) => {
+           const [media_id, media_url, media_type] = m.split(":");
+           return { media_id: parseInt(media_id), media_url, media_type };
+         });
+       }
 
-      return {
-        report_id: report.report_id,
-        title: report.title,
-        report_type: report.report_type,
-        description: report.description,
-        status: report.status,
-        is_anonymous: Boolean(report.is_anonymous),
-        date_reported: report.date_reported,
-        created_at: report.created_at,
-        station_id: report.station_id,
-        user: {
-          user_id: report.user_id,
-          firstname: report.firstname,
-          lastname: report.lastname,
-          email: report.email,
-        },
-        location: {
-          latitude: report.latitude,
-          longitude: report.longitude,
-          barangay: report.barangay,
-          reporters_address: report.reporters_address,
-        },
-        station: report.station_id ? {
-          station_id: report.station_id,
-          station_name: report.station_name,
-          address: report.station_address,
-          contact_number: report.contact_number,
-        } : null,
-        media: mediaArray,
-      };
-    });
+       return {
+         report_id: report.report_id,
+         title: report.title,
+         report_type: report.report_type,
+         description: decrypt(report.description),
+         status: report.status,
+         is_anonymous: Boolean(report.is_anonymous),
+         date_reported: report.date_reported,
+         created_at: report.created_at,
+         station_id: report.station_id,
+         user: {
+           user_id: report.user_id,
+           firstname: report.firstname,
+           lastname: report.lastname,
+           email: report.email,
+         },
+         location: {
+           latitude: report.latitude,
+           longitude: report.longitude,
+           barangay: report.barangay ? decrypt(report.barangay) : null,
+           reporters_address: report.reporters_address ? decrypt(report.reporters_address) : null,
+         },
+         station: report.station_id ? {
+           station_id: report.station_id,
+           station_name: report.station_name,
+           address: report.station_address,
+           contact_number: report.contact_number,
+         } : null,
+         media: mediaArray,
+       };
+     });
 
-    console.log(`✅ Found ${formattedReports.length} ${status} reports for station ${stationId}`);
+     console.log(`✅ Found ${formattedReports.length} ${status} reports for station ${stationId}`);
 
     res.json({
       success: true,

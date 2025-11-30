@@ -44,6 +44,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/reports', [ReportController::class, 'index'])->name('reports');
     Route::put('/reports/{id}/status', [ReportController::class, 'updateStatus'])->name('reports.updateStatus');
+    Route::put('/reports/{id}/validity', [ReportController::class, 'updateValidity'])->name('reports.updateValidity');
     Route::get('/reports/{id}/details', [ReportController::class, 'getDetails'])->name('reports.details');
 
     // Barangay management routes (commented out - controller missing)

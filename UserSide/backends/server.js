@@ -64,6 +64,8 @@ const {
   getUserById,
   upsertUser,
   updateUserAddress,
+  updateUserStation,
+  getUserStation,
   executeQuery
 } = require("./handleUserProfile");
 const {
@@ -133,13 +135,33 @@ const {
   handleGetFlagHistory 
 } = require("./handleUserRestrictions");
 
+// Add diagnostics handler
+const {
+  checkPoliceOfficerSetup,
+  listAllReportsWithStations,
+  debugUserStation
+} = require("./handleDiagnostics");
+
+// Add report assignment fixer
+const {
+  checkReportAssignment,
+  autoAssignStationToReports
+} = require("./fixReportAssignment");
+
+// Add debug assignment
+const {
+  debugReportStructure,
+  forceAssignReportsToStation,
+  forceUpdateUserStation
+} = require("./debugAssignment");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middlewares
 app.use(cors({ origin: "*" }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve uploaded files statically from evidence folder
 app.use('/evidence', express.static(path.join(__dirname, '../evidence')));
@@ -180,8 +202,10 @@ app.post("/api/auth/google", handleGoogleLoginWithToken); // ID token verificati
 // User Profile API Routes
 app.get("/api/test-connection", testConnection);
 app.get("/api/users/:id", getUserById);
+app.get("/api/users/:userId/station", getUserStation);
 app.post("/api/users/upsert", upsertUser);
 app.patch("/api/users/:id/address", updateUserAddress);
+app.patch("/api/users/:id/station", updateUserStation);
 app.post("/api/query", executeQuery);
 
 // Report API Routes - with detailed logging
@@ -258,6 +282,16 @@ app.get("/api/location/distance", getDistance);
 // Barangay API Routes
 app.get("/api/barangays", getAllBarangays);
 app.get("/api/barangay/by-coordinates", getBarangayByCoordinates);
+
+// Diagnostics Routes (for debugging)
+app.get("/api/diagnostics/user/:userId", checkPoliceOfficerSetup);
+app.get("/api/diagnostics/user/:userId/station", debugUserStation);
+app.get("/api/diagnostics/reports-all", listAllReportsWithStations);
+app.get("/api/diagnostics/report-assignment", checkReportAssignment);
+app.post("/api/fix/assign-stations-to-reports", autoAssignStationToReports);
+app.get("/api/debug/report-structure", debugReportStructure);
+app.post("/api/fix/force-assign-to-station", forceAssignReportsToStation);
+app.post("/api/fix/force-update-user-station", forceUpdateUserStation);
 
 // User Restrictions/Flagging API Routes
 app.get("/api/users/:userId/restrictions", handleCheckRestrictions);

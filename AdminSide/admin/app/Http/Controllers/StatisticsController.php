@@ -76,13 +76,14 @@ class StatisticsController extends Controller
 
     /**
      * Get crime forecast from SARIMA API and store in database
+     * Only includes VALID reports (as set by police/admin)
      */
     public function getForecast(Request $request)
     {
         $horizon = $request->input('horizon', 12);
         
         try {
-            // First, get live data from database and train the model
+            // First, get live data from database (ONLY VALID reports) and train the model
             $liveData = DB::table('reports')
                 ->select(
                     DB::raw('YEAR(created_at) as year'),
@@ -90,6 +91,7 @@ class StatisticsController extends Controller
                     DB::raw('COUNT(*) as count')
                 )
                 ->where('created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 36 MONTH)'))
+                ->where('is_valid', 'valid')  // Only include reports marked as VALID by police/admin
                 ->groupBy('year', 'month')
                 ->orderBy('year', 'asc')
                 ->orderBy('month', 'asc')
@@ -211,11 +213,12 @@ class StatisticsController extends Controller
 
     /**
      * Get crime statistics from database
+     * Note: Stats show all reports, but forecasting only uses VALID reports
      */
     public function getCrimeStats()
     {
         try {
-            // Get monthly crime counts from reports table
+            // Get monthly crime counts from reports table (all reports for context)
             $monthlyStats = DB::table('reports')
                 ->select(
                     DB::raw('YEAR(created_at) as year'),
@@ -310,11 +313,13 @@ class StatisticsController extends Controller
 
     /**
      * Export crime data as CSV for SARIMA model
+     * Only exports VALID reports
      */
     public function exportCrimeData()
     {
         try {
             $data = DB::table('reports')
+                ->where('is_valid', 'valid')
                 ->select(
                     DB::raw('YEAR(created_at) as Year'),
                     DB::raw('MONTH(created_at) as Month'),

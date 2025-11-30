@@ -28,15 +28,10 @@ export { supabase };
 /**
  * Supabase SMS OTP Configuration Notes:
  * 
- * To customize the SMS message sent by Supabase:
+ * NOTE: OTP is currently disabled - SMS configuration below is not in use
+ * 
+ * To re-enable SMS message sent by Supabase:
  * 1. Go to your Supabase Dashboard
  * 2. Navigate to Authentication > Providers > Phone
  * 3. Configure SMS Settings with your SMS provider (Twilio, MessageBird, etc.)
- * 4. Customize the SMS template with:
- *    
- *    Sender ID: AlertDavao
- *    SMS Message Template:
- *    "Your verification code is {{.Token}}. It is valid for 5 minutes. Do not share this code with anyone for your security."
- * 
- * The {{.Token}} placeholder will be replaced with the actual OTP code.
  */

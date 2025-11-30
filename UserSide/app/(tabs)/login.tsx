@@ -45,6 +45,8 @@ const Login = () => {
 
   useEffect(() => {
     setCaptchaWord(generateCaptchaWord(6));
+    // Reset loading state when login screen is focused
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {

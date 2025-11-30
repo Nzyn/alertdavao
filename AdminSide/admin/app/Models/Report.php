@@ -19,6 +19,7 @@ class Report extends Model
         'location_id',
         'assigned_station_id',
         'status',
+        'is_valid',
         'is_anonymous',
         'date_reported',
     ];

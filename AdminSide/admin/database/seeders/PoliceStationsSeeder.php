@@ -184,6 +184,15 @@ class PoliceStationsSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
+            [
+                'station_name' => 'Cybercrime Division',
+                'address' => 'Davao City Police Office - Cybercrime Division',
+                'latitude' => 0,
+                'longitude' => 0,
+                'contact_number' => 'TBD',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ];
 
         DB::table('police_stations')->insert($stations);

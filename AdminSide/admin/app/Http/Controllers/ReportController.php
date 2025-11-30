@@ -16,39 +16,81 @@ class ReportController extends Controller
     private function assignReportToStation(Report $report)
     {
         try {
-            if (!$report->location_id || !$report->location) {
-                \Log::warning('Cannot assign report: no location', ['report_id' => $report->report_id]);
-                return;
+            // Robustly handle report_type as array, JSON string, or comma-separated string
+            $types = [];
+            $rawType = $report->report_type;
+            if (is_array($rawType)) {
+                $types = $rawType;
+            } elseif (is_string($rawType)) {
+                $decoded = json_decode($rawType, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $types = $decoded;
+                } else if (!empty($rawType)) {
+                    // Fallback: treat as comma-separated string
+                    $types = array_map('trim', explode(',', $rawType));
+                }
             }
 
-            $location = $report->location;
-            
-            // Validate location has coordinates
-            if (!$location->latitude || !$location->longitude) {
-                \Log::warning('Cannot assign report: no coordinates', ['location_id' => $location->location_id]);
-                return;
-            }
-
-            // Find barangay by coordinates (using proximity search)
-            // ±0.01 degrees ≈ 1.1 km at equator
-            $barangay = Barangay::whereBetween('latitude', [$location->latitude - 0.01, $location->latitude + 0.01])
-                ->whereBetween('longitude', [$location->longitude - 0.01, $location->longitude + 0.01])
-                ->first();
-
-            if ($barangay && $barangay->station_id) {
-                $report->assigned_station_id = $barangay->station_id;
-                $report->save();
-                \Log::info('Report assigned to station', [
+            if (empty($types)) {
+                \Log::warning('Report assignment failed: report_type is empty or invalid', [
                     'report_id' => $report->report_id,
-                    'station_id' => $barangay->station_id,
-                    'barangay' => $barangay->name ?? 'Unknown'
+                    'rawType' => $rawType
                 ]);
+            }
+
+            // Normalize to lowercase for comparison
+            $types = array_map('strtolower', $types);
+            if (in_array('cybercrime', $types)) {
+                $cybercrimeStation = \App\Models\PoliceStation::where('station_name', 'Cybercrime Division')->first();
+                if ($cybercrimeStation) {
+                    $report->assigned_station_id = $cybercrimeStation->station_id;
+                    $report->save();
+                    \Log::info('Report assigned to Cybercrime Division', [
+                        'report_id' => $report->report_id,
+                        'station_id' => $cybercrimeStation->station_id,
+                        'types' => $types,
+                        'rawType' => $rawType
+                    ]);
+                    // Do NOT overwrite cybercrime assignment with barangay assignment
+                    return;
+                } else {
+                    \Log::error('Cybercrime Division station not found for assignment', [
+                        'report_id' => $report->report_id
+                    ]);
+                }
             } else {
-                \Log::warning('No barangay found for coordinates', [
-                    'report_id' => $report->report_id,
-                    'latitude' => $location->latitude,
-                    'longitude' => $location->longitude
-                ]);
+                if (!$report->location_id || !$report->location) {
+                    \Log::warning('Cannot assign report: no location', ['report_id' => $report->report_id]);
+                    return;
+                }
+
+                $location = $report->location;
+                // Validate location has coordinates
+                if (!$location->latitude || !$location->longitude) {
+                    \Log::warning('Cannot assign report: no coordinates', ['location_id' => $location->location_id]);
+                    return;
+                }
+
+                // Find barangay by coordinates (using proximity search)
+                $barangay = Barangay::whereBetween('latitude', [$location->latitude - 0.01, $location->latitude + 0.01])
+                    ->whereBetween('longitude', [$location->longitude - 0.01, $location->longitude + 0.01])
+                    ->first();
+
+                if ($barangay && $barangay->station_id) {
+                    $report->assigned_station_id = $barangay->station_id;
+                    $report->save();
+                    \Log::info('Report assigned to station', [
+                        'report_id' => $report->report_id,
+                        'station_id' => $barangay->station_id,
+                        'barangay' => $barangay->name ?? 'Unknown'
+                    ]);
+                } else {
+                    \Log::warning('No barangay found for coordinates', [
+                        'report_id' => $report->report_id,
+                        'latitude' => $location->latitude,
+                        'longitude' => $location->longitude
+                    ]);
+                }
             }
         } catch (\Exception $e) {
             \Log::error('Error assigning report to station: ' . $e->getMessage(), [
@@ -123,6 +165,26 @@ class ReportController extends Controller
     }
 
     /**
+     * Update the validity status of a report (VALID, INVALID, or CHECKING)
+     */
+    public function updateValidity(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'is_valid' => 'required|in:valid,invalid,checking_for_report_validity'
+            ]);
+
+            $report = Report::findOrFail($id);
+            $report->is_valid = $request->is_valid;
+            $report->save();
+
+            return response()->json(['success' => true, 'message' => 'Report validity status updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Failed to update validity status: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Store a new report with automatic station assignment
      */
     public function store(Request $request)
@@ -152,11 +214,11 @@ class ReportController extends Controller
                 'barangay_id' => $request->barangay_id,
             ]);
 
-            // Create report with crime_types stored as JSON
+            // Encrypt sensitive fields before saving
             $reportData = [
                 'user_id' => $request->user_id,
-                'title' => $request->title,
-                'description' => $request->description,
+                'title' => \App\Services\EncryptionService::encrypt($request->title),
+                'description' => \App\Services\EncryptionService::encrypt($request->description),
                 'report_type' => $request->crime_types,  // Store the JSON array directly
                 'location_id' => $location->location_id,
                 'is_anonymous' => $request->boolean('is_anonymous', false),
@@ -189,6 +251,38 @@ class ReportController extends Controller
 
             // Automatically assign to the correct police station based on location
             $this->assignReportToStation($report);
+
+            // Aggressive failsafe: Always force assignment for cybercrime reports
+            $types = [];
+            $rawType = $report->report_type;
+            \Log::info('Aggressive assignment check', ['report_id' => $report->report_id, 'rawType' => $rawType]);
+            if (is_array($rawType)) {
+                $types = $rawType;
+            } elseif (is_string($rawType)) {
+                $decoded = json_decode($rawType, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $types = $decoded;
+                } else if (!empty($rawType)) {
+                    $types = array_map('trim', explode(',', $rawType));
+                }
+            }
+            $types = array_map('strtolower', $types);
+            \Log::info('Aggressive assignment types', ['report_id' => $report->report_id, 'types' => $types]);
+            if (in_array('cybercrime', $types)) {
+                $cybercrimeStation = \App\Models\PoliceStation::where('station_name', 'Cybercrime Division')->first();
+                if ($cybercrimeStation) {
+                    $report->assigned_station_id = $cybercrimeStation->station_id;
+                    $report->save();
+                    \Log::info('Aggressive: Forced assignment to Cybercrime Division', [
+                        'report_id' => $report->report_id,
+                        'station_id' => $cybercrimeStation->station_id,
+                        'types' => $types,
+                        'rawType' => $rawType
+                    ]);
+                } else {
+                    \Log::error('Aggressive: Cybercrime Division station not found', ['report_id' => $report->report_id]);
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -247,12 +341,19 @@ class ReportController extends Controller
     {
         try {
             $report = Report::with(['user.verification', 'location', 'media', 'policeStation'])->findOrFail($id);
-            
+
+            // Only police and admin can decrypt sensitive fields
+            $userRole = auth()->check() ? auth()->user()->role : null;
+            if (\App\Services\EncryptionService::canDecrypt($userRole)) {
+                // Decrypt sensitive fields
+                $fieldsToDecrypt = ['title', 'description'];
+                $report = \App\Services\EncryptionService::decryptModelFields($report, $fieldsToDecrypt);
+            }
+
             // Transform media URLs to ensure they're properly accessible
             if ($report->media && count($report->media) > 0) {
                 foreach ($report->media as $media) {
                     $media->display_url = $this->getMediaUrl($media->media_url);
-                    
                     // Log media information for debugging
                     \Log::debug('Media file info', [
                         'media_id' => $media->media_id,
@@ -262,7 +363,7 @@ class ReportController extends Controller
                     ]);
                 }
             }
-            
+
             return response()->json(['success' => true, 'data' => $report]);
         } catch (\Exception $e) {
             \Log::error('Error loading report details', [

@@ -10,12 +10,9 @@ export interface OtpResult {
 
 /**
  * Send OTP to phone number via Supabase SMS
+ * NOTE: OTP is currently disabled - this function is not in use
  * OTP is only sent during signup for phone number verification
  * Uses Supabase's native signInWithOtp which sends SMS directly to user's phone
- * 
- * SMS Message Format (configured in Supabase Dashboard):
- * Sender: AlertDavao
- * Message: "Your verification code is {{.Token}}. It is valid for 5 minutes. Do not share this code with anyone for your security."
  * 
  * @param phone - Phone number in international format (e.g., +639123456789)
  * @returns Promise with result

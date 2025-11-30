@@ -132,9 +132,7 @@ async function submitReport(req, res) {
     } catch (e) {
       crimeTypesArray = [crime_types];
     }
-    const reportType = Array.isArray(crimeTypesArray)
-      ? crimeTypesArray.join(", ")
-      : crime_types;
+    const reportType = JSON.stringify(crimeTypesArray);
 
     // Create location record
     const lat = latitude ? parseFloat(latitude) : 0;
@@ -162,45 +160,74 @@ async function submitReport(req, res) {
     // Get the station_id from provided barangay_id or calculate from coordinates
     let stationId = null;
     
-    if (barangay_id) {
-      // Use provided barangay_id to get station_id
-      try {
-        const [barangayResult] = await connection.query(
-          `SELECT station_id FROM barangays WHERE barangay_id = ?`,
-          [barangay_id]
-        );
-        if (barangayResult && barangayResult.length > 0) {
-          stationId = barangayResult[0].station_id;
-          console.log("✅ Station ID assigned from barangay_id:", stationId);
-        }
-      } catch (err) {
-        console.log("⚠️  Could not get station from barangay_id:", err.message);
-      }
-    }
+    // Check if this is a cybercrime report - route to Cybercrime Division globally
+    const isCybercrime = crimeTypesArray.some(crime => 
+      crime.toLowerCase().includes('cybercrime') || 
+      crime.toLowerCase().includes('cyber crime') ||
+      crime.toLowerCase().includes('online fraud') ||
+      crime.toLowerCase().includes('hacking') ||
+      crime.toLowerCase().includes('phishing') ||
+      crime.toLowerCase().includes('identity theft') ||
+      crime.toLowerCase().includes('ransomware')
+    );
     
-    // Fallback: Use Haversine formula to find nearest barangay
-    if (!stationId && lat !== 0 && lng !== 0) {
+    if (isCybercrime) {
+      // Route cybercrime reports to Cybercrime Division (global assignment, no location-based assignment)
       try {
-        const [stationResult] = await connection.query(
-          `SELECT b.station_id FROM barangays b 
-           WHERE b.latitude IS NOT NULL AND b.longitude IS NOT NULL
-           ORDER BY (
-             6371 * acos(
-               cos(radians(90 - b.latitude)) * cos(radians(90 - ?)) +
-               sin(radians(90 - b.latitude)) * sin(radians(90 - ?)) * cos(radians(b.longitude - ?))
-             )
-           ) ASC
-           LIMIT 1`,
-          [lat, lat, lng]
+        const [cybercrimeStation] = await connection.query(
+          `SELECT station_id FROM police_stations WHERE station_name = 'Cybercrime Division' LIMIT 1`
         );
-        if (stationResult && stationResult.length > 0) {
-          stationId = stationResult[0].station_id;
-          console.log("✅ Station ID assigned via nearest barangay (Haversine):", stationId);
+        if (cybercrimeStation && cybercrimeStation.length > 0) {
+          stationId = cybercrimeStation[0].station_id;
+          console.log("🚨 Cybercrime report detected! Routing to Cybercrime Division (Station ID:", stationId, ")");
         } else {
-          console.log("⚠️  No nearby barangay found");
+          console.log("⚠️  Cybercrime Division station not found in database");
         }
       } catch (err) {
-        console.log("⚠️  Could not determine station from location:", err.message);
+        console.log("⚠️  Error routing cybercrime report:", err.message);
+      }
+    } else {
+      // Location-based routing for non-cybercrime reports
+      if (barangay_id) {
+        // Use provided barangay_id to get station_id
+        try {
+          const [barangayResult] = await connection.query(
+            `SELECT station_id FROM barangays WHERE barangay_id = ?`,
+            [barangay_id]
+          );
+          if (barangayResult && barangayResult.length > 0) {
+            stationId = barangayResult[0].station_id;
+            console.log("✅ Station ID assigned from barangay_id:", stationId);
+          }
+        } catch (err) {
+          console.log("⚠️  Could not get station from barangay_id:", err.message);
+        }
+      }
+      
+      // Fallback: Use Haversine formula to find nearest barangay
+      if (!stationId && lat !== 0 && lng !== 0) {
+        try {
+          const [stationResult] = await connection.query(
+            `SELECT b.station_id FROM barangays b 
+             WHERE b.latitude IS NOT NULL AND b.longitude IS NOT NULL
+             ORDER BY (
+               6371 * acos(
+                 cos(radians(90 - b.latitude)) * cos(radians(90 - ?)) +
+                 sin(radians(90 - b.latitude)) * sin(radians(90 - ?)) * cos(radians(b.longitude - ?))
+               )
+             ) ASC
+             LIMIT 1`,
+            [lat, lat, lng]
+          );
+          if (stationResult && stationResult.length > 0) {
+            stationId = stationResult[0].station_id;
+            console.log("✅ Station ID assigned via nearest barangay (Haversine):", stationId);
+          } else {
+            console.log("⚠️  No nearby barangay found");
+          }
+        } catch (err) {
+          console.log("⚠️  Could not determine station from location:", err.message);
+        }
       }
     }
 

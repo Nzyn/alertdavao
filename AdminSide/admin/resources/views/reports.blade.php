@@ -244,6 +244,41 @@
             color: #065f46;
         }
 
+        .validity-badge {
+            display: inline-block;
+            padding: 0.375rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .validity-badge.valid {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+
+        .validity-badge.invalid {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .validity-badge.checking_for_report_validity {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .validity-select {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            border: 1px solid #d1d5db;
+            font-size: 0.75rem;
+            background-color: white;
+            cursor: pointer;
+            width: 100%;
+            max-width: 140px;
+        }
+
         .status-select {
             padding: 0.25rem 0.5rem;
             border-radius: 4px;
@@ -672,11 +707,12 @@
                     <th class="sortable" data-column="1" style="width: 120px;" onclick="sortTable(1)">User</th>
                     <th class="sortable" data-column="2" style="width: 100px;" onclick="sortTable(2)">Type</th>
                     <th class="sortable" data-column="3" style="width: 150px;" onclick="sortTable(3)">Title</th>
-                    <th class="sortable" data-column="4" style="width: 90px;" onclick="sortTable(4)">Verified</th>
-                    <th class="sortable" data-column="5" style="width: 120px;" onclick="sortTable(5)">Date Reported</th>
-                    <th class="sortable" data-column="6" style="width: 120px;" onclick="sortTable(6)">Updated At</th>
-                    <th class="sortable" data-column="7" style="width: 130px;" onclick="sortTable(7)">Status</th>
-                    <th style="width: 120px;">Action</th>
+                    <th class="sortable" data-column="4" style="width: 90px;" onclick="sortTable(4)">User Status</th>
+                     <th class="sortable" data-column="5" style="width: 120px;" onclick="sortTable(5)">Date Reported</th>
+                     <th class="sortable" data-column="6" style="width: 120px;" onclick="sortTable(6)">Updated At</th>
+                     <th class="sortable" data-column="7" style="width: 130px;" onclick="sortTable(7)">Report Status</th>
+                     <th style="width: 140px;">Validity</th>
+                     <th style="width: 120px;">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -718,13 +754,23 @@
                                 <td>{{ $report->updated_at->timezone('Asia/Manila')->format('m/d/Y H:i') }}</td>
                                 <td>
                                     <?php    $reportId = $report->report_id;
-                    $status = $report->status; ?>
+                                $status = $report->status; ?>
                                     <select class="status-select" onchange="updateStatus(<?php    echo $reportId; ?>, this.value)"
                                         data-original-status="<?php    echo $status; ?>">
                                         <option value="pending" <?php    echo $status === 'pending' ? 'selected' : ''; ?>>Pending</option>
                                         <option value="investigating" <?php    echo $status === 'investigating' ? 'selected' : ''; ?>>
                                             Investigating</option>
                                         <option value="resolved" <?php    echo $status === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <?php    $reportId = $report->report_id;
+                                $isValid = $report->is_valid ?? 'checking_for_report_validity'; ?>
+                                    <select class="validity-select" onchange="updateValidity(<?php    echo $reportId; ?>, this.value)"
+                                        data-original-validity="<?php    echo $isValid; ?>">
+                                        <option value="checking_for_report_validity" <?php    echo $isValid === 'checking_for_report_validity' ? 'selected' : ''; ?>>Checking...</option>
+                                        <option value="valid" <?php    echo $isValid === 'valid' ? 'selected' : ''; ?>>Valid</option>
+                                        <option value="invalid" <?php    echo $isValid === 'invalid' ? 'selected' : ''; ?>>Invalid</option>
                                     </select>
                                 </td>
                                 <td>
@@ -934,41 +980,78 @@
         }
 
         function updateStatus(reportId, status) {
-            // Store reference to the select element before the fetch call
-            const selectElement = event.target;
+             // Store reference to the select element before the fetch call
+             const selectElement = event.target;
 
-            fetch(`/reports/${reportId}/status`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify({
-                    status: status
-                })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Update successful - no need to update UI since we're using a select dropdown
-                        // The select already shows the current status
-                        // Update the original status attribute
-                        selectElement.setAttribute('data-original-status', status);
+             fetch(`/reports/${reportId}/status`, {
+                 method: 'PUT',
+                 headers: {
+                     'Content-Type': 'application/json',
+                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                 },
+                 body: JSON.stringify({
+                     status: status
+                 })
+             })
+                 .then(response => response.json())
+                 .then(data => {
+                     if (data.success) {
+                         // Update successful - no need to update UI since we're using a select dropdown
+                         // The select already shows the current status
+                         // Update the original status attribute
+                         selectElement.setAttribute('data-original-status', status);
 
-                        alert('Status updated successfully');
-                    } else {
-                        alert('Failed to update status: ' + (data.message || 'Unknown error'));
-                        // Revert to original status
-                        selectElement.value = selectElement.getAttribute('data-original-status');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while updating status: ' + (error.message || 'Unknown error'));
-                    // Revert to original status
-                    selectElement.value = selectElement.getAttribute('data-original-status');
-                });
-        }
+                         alert('Status updated successfully');
+                     } else {
+                         alert('Failed to update status: ' + (data.message || 'Unknown error'));
+                         // Revert to original status
+                         selectElement.value = selectElement.getAttribute('data-original-status');
+                     }
+                 })
+                 .catch(error => {
+                     console.error('Error:', error);
+                     alert('An error occurred while updating status: ' + (error.message || 'Unknown error'));
+                     // Revert to original status
+                     selectElement.value = selectElement.getAttribute('data-original-status');
+                 });
+         }
+
+         function updateValidity(reportId, isValid) {
+             // Store reference to the select element before the fetch call
+             const selectElement = event.target;
+
+             fetch(`/reports/${reportId}/validity`, {
+                 method: 'PUT',
+                 headers: {
+                     'Content-Type': 'application/json',
+                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                 },
+                 body: JSON.stringify({
+                     is_valid: isValid
+                 })
+             })
+                 .then(response => response.json())
+                 .then(data => {
+                     if (data.success) {
+                         // Update successful - no need to update UI since we're using a select dropdown
+                         // The select already shows the current validity status
+                         // Update the original validity attribute
+                         selectElement.setAttribute('data-original-validity', isValid);
+
+                         alert('Report validity status updated successfully');
+                     } else {
+                         alert('Failed to update validity status: ' + (data.message || 'Unknown error'));
+                         // Revert to original validity status
+                         selectElement.value = selectElement.getAttribute('data-original-validity');
+                     }
+                 })
+                 .catch(error => {
+                     console.error('Error:', error);
+                     alert('An error occurred while updating validity status: ' + (error.message || 'Unknown error'));
+                     // Revert to original validity status
+                     selectElement.value = selectElement.getAttribute('data-original-validity');
+                 });
+         }
 
         function showReportDetails(reportId) {
             fetch(`/reports/${reportId}/details`)

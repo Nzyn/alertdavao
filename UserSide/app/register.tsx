@@ -180,43 +180,51 @@ const Register = () => {
         return;
       }
 
-      console.log('✅ All validations passed, proceeding with OTP...');
-      showLoading('Sending OTP...');
+      console.log('✅ All validations passed, skipping OTP for now...');
+      showLoading('Creating account...');
 
       const normalizedPhone = normalizePhoneNumber(sanitizedContact);
-      console.log('📱 Sending OTP to:', normalizedPhone);
+      console.log('📱 Registering with phone:', normalizedPhone);
       
-      const result = await sendSupabaseOtp(normalizedPhone);
-      
-      hideLoading();
-      
-      if (!result.success) {
-        Alert.alert('❌ OTP Error', result.message || 'Failed to send OTP');
-        return;
-      }
-
-      console.log('✅ OTP sent successfully');
-
-      setShowOtpModal(true);
-      setCanResend(false);
-      setResendCountdown(60);
-      
-      const timer = setInterval(() => {
-        setResendCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
+      // Skip OTP - use direct registration endpoint (no OTP/email verification required)
+      try {
+        const response = await fetch(`${await getOptimalBackendUrl()}/register-direct`, {
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            firstname: sanitizedFirstname, 
+            lastname: sanitizedLastname, 
+            email: sanitizedEmail, 
+            contact: normalizedPhone, 
+            password
+          })
         });
-      }, 1000);
-      
-      Alert.alert(
-        '✅ OTP Sent',
-        `Your verification code has been sent to ${normalizedPhone}.\nIt is valid for 5 minutes.`,
-        [{ text: 'OK' }]
-      );
+        const data = await response.json();
+        console.log('📥 Registration response:', data);
+        
+        hideLoading();
+        
+        if (response.ok) {
+          Alert.alert(
+            '✅ Registration Successful',
+            'Your account has been created. Please log in.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  router.replace('/(tabs)/login');
+                }
+              }
+            ]
+          );
+        } else {
+          Alert.alert('❌ Registration Failed', data.message || 'Unable to create account');
+        }
+      } catch (err) {
+        console.error('❌ Registration error:', err);
+        Alert.alert('❌ Error', 'An error occurred during registration');
+        hideLoading();
+      }
     } catch (err) {
       console.error('❌ Register error:', err);
       Alert.alert('❌ Error', 'An error occurred. Please try again.');
@@ -663,8 +671,8 @@ const Register = () => {
           </View>
         </View>
 
-        {/* OTP Modal */}
-        <Modal visible={showOtpModal} animationType="slide" transparent={true}>
+        {/* OTP Modal - DISABLED FOR NOW */}
+        <Modal visible={false} animationType="slide" transparent={true}>
           <View style={localStyles.modalOverlay}>
             <View style={localStyles.modalContent}>
               <Text style={localStyles.modalTitle}>Verify Your Phone</Text>
