@@ -169,33 +169,137 @@
         height: 600px;
         width: 100%;
         z-index: 1;
+        position: relative;
+    }
+    
+    .hotspot-toggle {
+        position: absolute;
+        top: 80px;
+        right: 10px;
+        z-index: 1000;
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .hotspot-toggle label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        margin: 0;
+        font-size: 0.875rem;
+        color: #374151;
+        font-weight: 500;
+    }
+    
+    .hotspot-toggle input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+    
+    .hotspot-intensity-legend {
+        position: absolute;
+        bottom: 20px;
+        right: 10px;
+        z-index: 1000;
+        background: white;
+        padding: 1.25rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        font-size: 0.85rem;
+        display: none;
+        min-width: 220px;
+    }
+    
+    .hotspot-intensity-legend.active {
+        display: block;
+    }
+    
+    .intensity-title {
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.75rem;
+        font-size: 0.95rem;
+    }
+    
+    .intensity-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .intensity-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    .intensity-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .intensity-label {
+        color: #6b7280;
+        font-size: 0.8rem;
     }
     
     .map-legend {
-        padding: 1.5rem;
-        background: #f9fafb;
-        border-top: 1px solid #e5e7eb;
+        padding: 2rem 1.5rem;
+        background: white;
+        border-top: 2px solid #e5e7eb;
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
     }
     
     .legend-title {
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: #374151;
-        margin-bottom: 0.75rem;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 1.5rem;
+        display: block;
+        letter-spacing: 0.5px;
     }
     
     .legend-items {
-        display: flex;
-        gap: 2rem;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 2rem 2.5rem;
+        width: 100%;
+        align-items: start;
     }
     
     .legend-item {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        font-size: 0.875rem;
-        color: #6b7280;
+        gap: 1rem;
+        font-size: 0.9rem;
+        color: #374151;
+        white-space: normal;
+        word-break: break-word;
+        flex-wrap: nowrap;
+    }
+    
+    .legend-item img {
+        flex-shrink: 0;
+        min-width: 24px;
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+        display: block;
+    }
+    
+    .legend-item span {
+        flex: 0 1 auto;
+        overflow-wrap: break-word;
     }
     
     .legend-marker {
@@ -282,6 +386,153 @@
         line-height: 1.5;
     }
     
+    /* Hotspots Ranking Section */
+    .hotspots-ranking-section {
+        padding: 2rem 1.5rem;
+        background: white;
+        border-top: 2px solid #e5e7eb;
+    }
+    
+    .ranking-title {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 1.5rem;
+        margin-top: 0;
+        display: flex;
+        align-items: center;
+    }
+    
+    .hotspot-list {
+        display: grid;
+        gap: 1rem;
+    }
+    
+    .hotspot-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 8px;
+        border-left: 4px solid #e5e7eb;
+        transition: all 0.2s ease;
+    }
+    
+    .hotspot-item:hover {
+        background: #f3f4f6;
+        transform: translateX(4px);
+    }
+    
+    .hotspot-item.high {
+        border-left-color: #dc2626;
+        background: #fee2e2;
+    }
+    
+    .hotspot-item.high:hover {
+        background: #fecaca;
+    }
+    
+    .hotspot-item.medium {
+        border-left-color: #f59e0b;
+        background: #fef3c7;
+    }
+    
+    .hotspot-item.medium:hover {
+        background: #fed7aa;
+    }
+    
+    .hotspot-item.low {
+        border-left-color: #10b981;
+        background: #dcfce7;
+    }
+    
+    .hotspot-item.low:hover {
+        background: #bbf7d0;
+    }
+    
+    .hotspot-item-name {
+        font-weight: 600;
+        color: #1f2937;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .hotspot-rank {
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: #9ca3af;
+        min-width: 35px;
+    }
+    
+    .hotspot-item-details {
+        display: flex;
+        gap: 2rem;
+        align-items: center;
+    }
+    
+    .detail-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        text-align: right;
+    }
+    
+    .detail-label {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+    }
+    
+    .detail-value {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1f2937;
+    }
+    
+    .crime-rate-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 0.875rem;
+        color: white;
+        white-space: nowrap;
+    }
+    
+    .crime-rate-badge.high {
+        background-color: #dc2626;
+    }
+    
+    .crime-rate-badge.medium {
+        background-color: #f59e0b;
+    }
+    
+    .crime-rate-badge.low {
+        background-color: #10b981;
+    }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 2rem;
+        color: #6b7280;
+    }
+    
+    .loading-spinner svg {
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+    
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    
     @media (max-width: 768px) {
         #map {
             height: 400px;
@@ -294,6 +545,12 @@
         .control-btn {
             flex: 1;
             justify-content: center;
+        }
+        
+        .hotspot-item-details {
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: flex-start;
         }
     }
 </style>
@@ -381,7 +638,29 @@
         </div>
     </div>
     
-    <div id="map"></div>
+    <div id="map">
+        <div class="hotspot-toggle">
+            <label>
+                <input type="checkbox" id="hotspot-overlay-toggle" onchange="toggleHotspotOverlay()">
+                <span>Crime Hotspot Overlay</span>
+            </label>
+        </div>
+        <div class="hotspot-intensity-legend" id="hotspot-legend">
+            <div class="intensity-title">Crime Intensity</div>
+            <div class="intensity-item">
+                <div class="intensity-color" style="background-color: rgba(16, 185, 129, 0.8);"></div>
+                <div class="intensity-label">Low (&lt; 4 per 1K)</div>
+            </div>
+            <div class="intensity-item">
+                <div class="intensity-color" style="background-color: rgba(245, 158, 11, 0.8);"></div>
+                <div class="intensity-label">Medium (4-7 per 1K)</div>
+            </div>
+            <div class="intensity-item">
+                <div class="intensity-color" style="background-color: rgba(220, 38, 38, 0.8);"></div>
+                <div class="intensity-label">High (&gt; 8 per 1K)</div>
+            </div>
+        </div>
+    </div>
     
     <div class="map-legend">
         <div class="legend-title">Crime Type Legends</div>
@@ -420,6 +699,24 @@
             </div>
         </div>
     </div>
+
+    <!-- Crime Hotspots Ranking -->
+    <div class="hotspots-ranking-section">
+        <h3 class="ranking-title">
+            <svg style="width: 20px; height: 20px; fill: currentColor; display: inline-block; margin-right: 8px; vertical-align: middle;" viewBox="0 0 24 24">
+                <path d="M16 6l2.29 2.29-4.58 4.58L10 10.58 3.29 17.29 4.7 18.7l6.71-6.71 3.71 3.71 6.59-6.59L22 12v-6z"/>
+            </svg>
+            Crime Hotspots Ranking
+        </h3>
+        <div class="hotspot-list" id="hotspot-list">
+            <div class="loading-spinner">
+                <svg fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                Loading hotspot data...
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -433,6 +730,9 @@
     let markers = [];
     let allReports = [];
     let streetLayer, satelliteLayer;
+    let hotspotLayer;
+    let hotspotCircles = [];
+    let hotspotOverlayVisible = false;
     
     // Crime type to icon mapping
     const crimeIcons = {
@@ -483,12 +783,70 @@
         }, 100); // End setTimeout
     }); // End DOMContentLoaded
     
+    // Function to clean crime type text
+    function cleanCrimeType(crimeType) {
+        if (!crimeType) return '';
+        
+        // Decode HTML entities
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = crimeType;
+        let cleaned = textarea.value;
+        
+        // Remove brackets and quotes
+        cleaned = cleaned.replace(/[\[\]"']/g, '');
+        
+        // Remove extra whitespace
+        cleaned = cleaned.trim().replace(/\s+/g, ' ');
+        
+        return cleaned;
+    }
+    
     // Function to get icon for crime type
     function getCrimeIcon(crimeType) {
         if (!crimeType) return null;
         
-        const normalizedType = crimeType.toLowerCase().trim();
+        // Clean the crime type name first
+        const cleanedType = cleanCrimeType(crimeType);
+        const normalizedType = cleanedType.toLowerCase().trim();
         return crimeIcons[normalizedType] || null;
+    }
+    
+    // Function to create cluster icon with legend icons
+    function createClusterIcon(uniqueCrimeTypes) {
+        // Get up to 3 crime type icons to display
+        const iconUrls = uniqueCrimeTypes.slice(0, 3).map(crimeType => getCrimeIcon(crimeType)).filter(url => url);
+        
+        if (iconUrls.length === 0) {
+            // No icons found, show count badge
+            return L.divIcon({
+                className: 'custom-cluster-marker',
+                html: `<div style="background-color: #3b82f6; color: white; width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">?</div>`,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20],
+                popupAnchor: [0, -20]
+            });
+        } else if (iconUrls.length === 1) {
+            // Single crime type, show its icon
+            return L.icon({
+                iconUrl: iconUrls[0],
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -16]
+            });
+        } else {
+            // Multiple crime types, show icons in a grid
+            const iconHtmlItems = iconUrls.map(url => 
+                `<img src="${url}" style="width: 14px; height: 14px; object-fit: contain;">`
+            ).join('');
+            
+            return L.divIcon({
+                className: 'custom-cluster-marker',
+                html: `<div style="background-color: white; width: 40px; height: 40px; border-radius: 6px; border: 2px solid #3b82f6; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px; padding: 3px;">${iconHtmlItems}</div>`,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20],
+                popupAnchor: [0, -20]
+            });
+        }
     }
     
     // Function to create custom marker icon
@@ -568,27 +926,8 @@
                 const crimeTypes = report.crimes.map(c => c.crime_type);
                 const uniqueTypes = [...new Set(crimeTypes)];
                 
-                let icon;
-                if (uniqueTypes.length === 1) {
-                    // All same crime type - show the crime icon with badge count
-                    const crimeType = uniqueTypes[0];
-                    const iconUrl = getCrimeIcon(crimeType);
-                    
-                    if (iconUrl) {
-                        icon = L.icon({
-                            iconUrl: iconUrl,
-                            iconSize: [32, 32],
-                            iconAnchor: [16, 16],
-                            popupAnchor: [0, -16],
-                            className: 'crime-icon-with-count'
-                        });
-                    } else {
-                        icon = createCrimeMarker(null, report.count);
-                    }
-                } else {
-                    // Multiple different crime types - show count badge
-                    icon = createCrimeMarker(null, report.count);
-                }
+                // Create cluster icon showing legend icons instead of count
+                const icon = createClusterIcon(uniqueTypes);
                 
                 // Build popup content showing all crimes
                 let popupContent = `<div style="max-height: 300px; overflow-y: auto;">
@@ -597,12 +936,13 @@
                         <strong>Location:</strong> ${report.location_name}<br><hr style="margin: 0.5rem 0;">`;
                 
                 report.crimes.forEach((crime, index) => {
+                    const cleanedCrimeType = cleanCrimeType(crime.crime_type || crime.title);
                     const iconUrl = getCrimeIcon(crime.crime_type);
-                    const iconHtml = iconUrl ? `<img src="${iconUrl}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${crime.crime_type}">` : '';
+                    const iconHtml = iconUrl ? `<img src="${iconUrl}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${cleanedCrimeType}">` : '';
                     
                     popupContent += `
                         <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; ${index < report.crimes.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
-                            ${iconHtml}<strong>${crime.crime_type || crime.title}</strong><br>
+                            ${iconHtml}<strong>${cleanedCrimeType}</strong><br>
                             <span style="font-size: 0.875rem; color: #6b7280;">
                                 Status: ${crime.status}<br>
                                 Date: ${new Date(crime.date_reported).toLocaleDateString()}
@@ -618,7 +958,8 @@
                 
                 // Add tooltip on hover
                 if (uniqueTypes.length === 1) {
-                    marker.bindTooltip(`${report.count}x ${uniqueTypes[0]}`, {
+                    const cleanedType = cleanCrimeType(uniqueTypes[0]);
+                    marker.bindTooltip(`${report.count}x ${cleanedType}`, {
                         permanent: false,
                         direction: 'top',
                         offset: [0, -16]
@@ -634,12 +975,13 @@
                 markers.push(marker);
             } else {
                 // Single crime
+                const cleanedCrimeType = cleanCrimeType(report.crime_type || report.title);
                 const icon = createCrimeMarker(report.crime_type, 1);
                 
                 const marker = L.marker([report.latitude, report.longitude], { icon: icon })
                     .addTo(map)
                     .bindPopup(`
-                        <div class="popup-title">${report.crime_type || report.title}</div>
+                        <div class="popup-title">${cleanedCrimeType}</div>
                         <div class="popup-details">
                             <strong>Location:</strong> ${report.location_name}<br>
                             <strong>Status:</strong> ${report.status}<br>
@@ -650,7 +992,7 @@
                     `);
                 
                 // Add tooltip on hover showing crime type
-                marker.bindTooltip(report.crime_type || report.title, {
+                marker.bindTooltip(cleanedCrimeType, {
                     permanent: false,
                     direction: 'top',
                     offset: [0, -14]
@@ -697,9 +1039,91 @@
         document.getElementById('filter-status').value = '';
         
         loadReports();
-    }
-    
-    // Layer switching functions
+        loadHotspotRankingData();
+        }
+        
+        // Load hotspot ranking data
+         function loadHotspotRankingData() {
+             const url = '{{ route("api.hotspot-data") }}';
+             console.log('Starting to load hotspot data from:', url);
+            
+            fetch(url)
+                .then(response => {
+                    console.log('Hotspot API response status:', response.status);
+                    if (!response.ok) {
+                        console.error('Response not ok. Status:', response.status);
+                        throw new Error('Network response was not ok: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Hotspot ranking data loaded successfully:', data);
+                    const hotspots = data.barangays || [];
+                    console.log('Number of barangays:', hotspots.length);
+                    updateHotspotsList(hotspots);
+                })
+                .catch(error => {
+                    console.error('Error loading hotspot ranking data:', error);
+                    const container = document.getElementById('hotspot-list');
+                    if (container) {
+                        container.innerHTML = '<div style="color: #dc2626; padding: 1rem;">Error loading data: ' + error.message + '</div>';
+                    }
+                });
+        }
+        
+        // Get crime level based on rate
+        function getCrimeLevel(rate) {
+        if (rate > 8) return 'high';
+        if (rate >= 4) return 'medium';
+        return 'low';
+        }
+        
+        // Update hotspots ranking list
+        function updateHotspotsList(hotspots) {
+        const listContainer = document.getElementById('hotspot-list');
+        
+        if (!hotspots || hotspots.length === 0) {
+        listContainer.innerHTML = '<div style="color: #6b7280; padding: 1rem;">No data available</div>';
+        return;
+        }
+        
+        // Already sorted by crime rate in backend, but ensure it's sorted here too
+        const sorted = [...hotspots].sort((a, b) => b.crime_rate - a.crime_rate);
+        
+        const html = sorted.map((barangay, index) => {
+        // Use risk_level from API if available, otherwise calculate it
+        const level = barangay.risk_level || getCrimeLevel(barangay.crime_rate);
+        const levelLabel = level === 'high' ? 'HIGH RISK' : level === 'medium' ? 'MEDIUM RISK' : 'LOW RISK';
+        
+        return `
+        <div class="hotspot-item ${level}">
+        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+        <div class="hotspot-rank">#${index + 1}</div>
+        <div class="hotspot-item-name">${barangay.name}</div>
+        </div>
+        <div class="hotspot-item-details">
+        <div class="detail-group">
+        <span class="detail-label">Incidents</span>
+        <span class="detail-value">${barangay.incidents}</span>
+        </div>
+        <div class="detail-group">
+        <span class="detail-label">Population</span>
+        <span class="detail-value">${(barangay.population / 1000).toFixed(1)}K</span>
+        </div>
+        <div class="detail-group">
+        <span class="detail-label">Rate</span>
+        <span class="detail-value">${barangay.crime_rate.toFixed(2)}/1K</span>
+        </div>
+        <span class="crime-rate-badge ${level}">${levelLabel}</span>
+        </div>
+        </div>
+        `;
+        }).join('');
+        
+        listContainer.innerHTML = html;
+        }
+        
+        // Layer switching functions
     function switchToMapView() {
         if (map.hasLayer(satelliteLayer)) {
             map.removeLayer(satelliteLayer);
@@ -720,6 +1144,175 @@
         }
         document.getElementById('satellite-view-btn').classList.add('active');
         document.getElementById('map-view-btn').classList.remove('active');
+    }
+    
+    // Load hotspot data for overlay
+    function loadHotspotOverlayData() {
+        const url = '{{ route("api.hotspot-data") }}';
+        console.log('Loading hotspot overlay data from:', url);
+        
+        fetch(url)
+            .then(response => {
+                console.log('Hotspot API response status:', response.status);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Hotspot overlay data loaded:', data);
+                if (data.barangays && data.barangays.length > 0) {
+                    console.log('Rendering', data.barangays.length, 'barangays');
+                    renderHotspotOverlay(data.barangays);
+                } else {
+                    console.warn('No barangays in response');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading hotspot data:', error);
+                alert('Failed to load hotspot data: ' + error.message);
+            });
+    }
+    
+    // Get color based on crime rate (weather-forecast style)
+    function getHotspotColor(crimeRate) {
+        if (crimeRate > 8) {
+            return { color: '#dc2626', opacity: 0.8 }; // High - Red
+        } else if (crimeRate >= 4) {
+            return { color: '#f59e0b', opacity: 0.7 }; // Medium - Orange
+        } else {
+            return { color: '#10b981', opacity: 0.6 }; // Low - Green
+        }
+    }
+    
+    // Render hotspot circles overlay (weather-forecast style)
+    function renderHotspotOverlay(hotspots) {
+        console.log('renderHotspotOverlay called with', hotspots.length, 'hotspots');
+        
+        // Create layer if it doesn't exist
+        if (!hotspotLayer) {
+            hotspotLayer = L.layerGroup();
+            console.log('Created new hotspotLayer');
+        }
+        
+        // Clear existing circles from layer
+        hotspotCircles.forEach(circle => {
+            hotspotLayer.removeLayer(circle);
+        });
+        hotspotCircles = [];
+        console.log('Cleared existing circles');
+        
+        // Add hotspot layer to map if not already present
+        if (!map.hasLayer(hotspotLayer)) {
+            map.addLayer(hotspotLayer);
+            console.log('Added hotspotLayer to map');
+        }
+        
+        // Render each hotspot
+        hotspots.forEach((barangay, index) => {
+            try {
+                const colorData = getHotspotColor(barangay.crime_rate);
+                const riskLevel = barangay.crime_rate > 8 ? 'HIGH' : barangay.crime_rate >= 4 ? 'MEDIUM' : 'LOW';
+                const riskEmoji = riskLevel === 'HIGH' ? '🔴' : riskLevel === 'MEDIUM' ? '🟠' : '🟢';
+                
+                // Validate coordinates
+                if (!barangay.latitude || !barangay.longitude) {
+                    console.warn('Missing coordinates for', barangay.name);
+                    return;
+                }
+                
+                // Calculate radius based on crime rate (scale for visibility)
+                const baseRadius = 1500; // 1.5km base
+                const radiusScale = Math.min(barangay.crime_rate / 8, 3); // Scale up to 3x for high crime
+                const radius = baseRadius * (0.8 + radiusScale);
+                
+                const circle = L.circle([barangay.latitude, barangay.longitude], {
+                    color: colorData.color,
+                    weight: 3,
+                    opacity: 0.9,
+                    fillColor: colorData.color,
+                    fillOpacity: colorData.opacity * 0.4, // Semi-transparent fill
+                    radius: radius,
+                    className: `hotspot-circle hotspot-circle-${riskLevel.toLowerCase()}`
+                });
+                
+                // Add popup on click with enhanced styling
+                circle.bindPopup(`
+                    <div style="padding: 1rem; background: white; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <strong style="font-size: 1.05rem;">${barangay.name}</strong>
+                            <span style="font-size: 1.2rem;">${riskEmoji}</span>
+                        </div>
+                        <div style="border-top: 1px solid #e5e7eb; padding-top: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                                <span style="color: #6b7280;">Crime Rate:</span>
+                                <strong style="color: ${colorData.color}; font-size: 1.1rem;">${barangay.crime_rate.toFixed(2)}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                                <span style="color: #6b7280;">Incidents:</span>
+                                <strong>${barangay.incidents}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                                <span style="color: #6b7280;">Population:</span>
+                                <strong>${(barangay.population / 1000).toFixed(0)}K</strong>
+                            </div>
+                            <div style="margin-top: 0.75rem; padding: 0.75rem; background-color: ${colorData.color}15; border-left: 3px solid ${colorData.color}; border-radius: 4px;">
+                                <div style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">Risk Level</div>
+                                <div style="font-size: 0.95rem; color: ${colorData.color}; font-weight: 700;">${riskLevel}</div>
+                            </div>
+                        </div>
+                    </div>
+                `, { maxWidth: 300 });
+                
+                // Add tooltip with status indicator
+                circle.bindTooltip(`
+                    <div style="text-align: center; white-space: nowrap;">
+                        <span style="font-size: 1.1rem;">${riskEmoji}</span><br>
+                        <strong>${barangay.name}</strong><br>
+                        <span style="color: ${colorData.color}; font-weight: 600;">${barangay.crime_rate.toFixed(2)}/1K</span>
+                    </div>
+                `, {
+                    permanent: false,
+                    direction: 'top',
+                    offset: [0, -10],
+                    className: `leaflet-tooltip-${riskLevel.toLowerCase()}`
+                });
+                
+                // Add circle to layer and track it
+                hotspotLayer.addLayer(circle);
+                hotspotCircles.push(circle);
+            } catch (error) {
+                console.error('Error rendering hotspot', index, barangay.name, ':', error);
+            }
+        });
+        
+        console.log('Rendered', hotspotCircles.length, 'hotspot circles');
+    }
+    
+    // Toggle hotspot overlay visibility
+    function toggleHotspotOverlay() {
+        const checkbox = document.getElementById('hotspot-overlay-toggle');
+        const legend = document.getElementById('hotspot-legend');
+        
+        hotspotOverlayVisible = checkbox.checked;
+        
+        if (hotspotOverlayVisible) {
+            // Show overlay
+            legend.classList.add('active');
+            if (hotspotLayer) {
+                map.addLayer(hotspotLayer);
+            } else {
+                loadHotspotOverlayData();
+            }
+            console.log('Hotspot overlay enabled');
+        } else {
+            // Hide overlay
+            legend.classList.remove('active');
+            if (hotspotLayer) {
+                map.removeLayer(hotspotLayer);
+            }
+            console.log('Hotspot overlay disabled');
+        }
     }
 </script>
 @endsection

@@ -52,7 +52,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "googleWebClientId": "662961186057-3ski6ooemfi1j19k6b5nh6o648kk6pdp.apps.googleusercontent.com",
+      "googleWebClientId": "662961186057-603clci7p37le9pg1et7it4b9e8md6ig.apps.googleusercontent.com",
       "googleAndroidClientId": "662961186057-mtki3cdvn002ndjho7soa6bdl0effe5b.apps.googleusercontent.com",
       "recaptchaSiteKey": "6Ld87BYsAAAAAK5Fu2BfDrKfWk0EoDt23yuyF2Zr",
       "recaptchaBaseUrl": "http://192.168.1.11:3000",

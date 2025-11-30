@@ -584,46 +584,107 @@
             });
     }
     
-    function populateBarangayFilter() {
-        const select = document.getElementById('barangay-filter');
-        const currentValue = select.value;
+    function cleanText(str) {
+        if (!str) return '';
         
-        // Keep "All Barangays" option
-        select.innerHTML = '<option value="">All Barangays</option>';
+        // Decode HTML entities
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = str;
+        let cleaned = textarea.value;
         
-        miniBarangays.forEach(barangay => {
-            const option = document.createElement('option');
-            option.value = barangay;
-            option.textContent = barangay;
-            select.appendChild(option);
-        });
+        // Remove brackets and quotes that might be stored as-is
+        cleaned = cleaned.replace(/[\[\]"']/g, '');
         
-        select.value = currentValue;
+        // Remove extra whitespace
+        cleaned = cleaned.trim().replace(/\s+/g, ' ');
+        
+        return cleaned;
     }
     
-    function populateCrimeTypeFilter() {
-        const select = document.getElementById('crime-type-filter');
-        const currentValue = select.value;
-        
-        // Keep "All Crime Types" option
-        select.innerHTML = '<option value="">All Crime Types</option>';
-        
-        miniCrimeTypes.forEach(crimeType => {
-            const option = document.createElement('option');
-            option.value = crimeType;
-            option.textContent = crimeType.charAt(0).toUpperCase() + crimeType.slice(1);
-            select.appendChild(option);
-        });
-        
-        select.value = currentValue;
-    }
+    function populateBarangayFilter() {
+         const select = document.getElementById('barangay-filter');
+         const currentValue = select.value;
+         
+         // Keep "All Barangays" option
+         select.innerHTML = '<option value="">All Barangays</option>';
+         
+         miniBarangays.forEach(barangay => {
+             const option = document.createElement('option');
+             // Clean barangay name to remove HTML entities, brackets, quotes
+             const cleanedBarangay = cleanText(barangay);
+             option.value = cleanedBarangay;
+             option.textContent = cleanedBarangay;
+             select.appendChild(option);
+         });
+         
+         select.value = currentValue;
+     }
+     
+     function populateCrimeTypeFilter() {
+         const select = document.getElementById('crime-type-filter');
+         const currentValue = select.value;
+         
+         // Keep "All Crime Types" option
+         select.innerHTML = '<option value="">All Crime Types</option>';
+         
+         miniCrimeTypes.forEach(crimeType => {
+             const option = document.createElement('option');
+             // Clean crime type name to remove HTML entities, brackets, quotes
+             const cleanedCrimeType = cleanText(crimeType);
+             option.value = cleanedCrimeType;
+             option.textContent = cleanedCrimeType.charAt(0).toUpperCase() + cleanedCrimeType.slice(1);
+             select.appendChild(option);
+         });
+         
+         select.value = currentValue;
+     }
     
     // Function to get icon for crime type
     function getCrimeIcon(crimeType) {
         if (!crimeType) return null;
         
-        const normalizedType = crimeType.toLowerCase().trim();
+        // Clean the crime type first
+        const cleanedType = cleanText(crimeType);
+        const normalizedType = cleanedType.toLowerCase().trim();
         return crimeIcons[normalizedType] || null;
+    }
+    
+    // Function to create cluster icon with legend icons
+    function createMiniClusterIcon(uniqueCrimeTypes) {
+        // Get up to 3 crime type icons to display
+        const iconUrls = uniqueCrimeTypes.slice(0, 3).map(crimeType => getCrimeIcon(crimeType)).filter(url => url);
+        
+        if (iconUrls.length === 0) {
+            // No icons found, show question mark
+            return L.divIcon({
+                className: 'custom-cluster-marker',
+                html: `<div style="background-color: #3b82f6; color: white; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px;">?</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -16]
+            });
+        } else if (iconUrls.length === 1) {
+            // Single crime type, show its icon
+            return L.icon({
+                iconUrl: iconUrls[0],
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+                popupAnchor: [0, -14]
+            });
+        } else {
+            // Multiple crime types, show icons in a grid
+            const iconHtmlItems = iconUrls.map(url => 
+                `<img src="${url}" style="width: 12px; height: 12px; object-fit: contain;">`
+            ).join('');
+            
+            return L.divIcon({
+                className: 'custom-cluster-marker',
+                html: `<div style="background-color: white; width: 34px; height: 34px; border-radius: 4px; border: 2px solid #3b82f6; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 1px; padding: 2px;">${iconHtmlItems}</div>`,
+                iconSize: [34, 34],
+                iconAnchor: [17, 17],
+                popupAnchor: [0, -17]
+            });
+        }
     }
     
     // Function to create custom marker icon
@@ -677,27 +738,8 @@
                 const crimeTypes = report.crimes.map(c => c.crime_type);
                 const uniqueTypes = [...new Set(crimeTypes)];
                 
-                let icon;
-                if (uniqueTypes.length === 1) {
-                    // All same crime type - show the crime icon with badge count
-                    const crimeType = uniqueTypes[0];
-                    const iconUrl = getCrimeIcon(crimeType);
-                    
-                    if (iconUrl) {
-                        icon = L.icon({
-                            iconUrl: iconUrl,
-                            iconSize: [28, 28],
-                            iconAnchor: [14, 14],
-                            popupAnchor: [0, -14],
-                            className: 'crime-icon-with-count'
-                        });
-                    } else {
-                        icon = createCrimeMarker(null, report.count);
-                    }
-                } else {
-                    // Multiple different crime types - show count badge
-                    icon = createCrimeMarker(null, report.count);
-                }
+                // Create cluster icon showing legend icons instead of count
+                const icon = createMiniClusterIcon(uniqueTypes);
                 
                 // Build popup content showing all crimes
                 let popupContent = `<div style="max-height: 200px; overflow-y: auto;">
@@ -705,9 +747,10 @@
                     <strong>Location:</strong> ${report.location_name}<br><hr style="margin: 0.5rem 0;">`;
                 
                 report.crimes.forEach((crime, index) => {
+                    const cleanedCrimeType = cleanText(crime.crime_type || crime.title);
                     popupContent += `
                         <div style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; ${index < report.crimes.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
-                            <strong>${crime.crime_type || crime.title}</strong><br>
+                            <strong>${cleanedCrimeType}</strong><br>
                             <span style="font-size: 0.75rem; color: #6b7280;">Status: ${crime.status}</span>
                         </div>`;
                 });
@@ -720,7 +763,8 @@
                 
                 // Add tooltip on hover
                 if (uniqueTypes.length === 1) {
-                    marker.bindTooltip(`${report.count}x ${uniqueTypes[0]}`, {
+                    const cleanedType = cleanText(uniqueTypes[0]);
+                    marker.bindTooltip(`${report.count}x ${cleanedType}`, {
                         permanent: false,
                         direction: 'top',
                         offset: [0, -14]
@@ -736,13 +780,14 @@
                 miniMarkers.push(marker);
             } else {
                 // Single crime
+                const cleanedCrimeType = cleanText(report.crime_type || report.title);
                 const icon = createCrimeMarker(report.crime_type, 1);
                 
                 const marker = L.marker([report.latitude, report.longitude], { icon: icon })
                     .addTo(miniMap)
                     .bindPopup(`
                         <div style="font-size: 0.75rem;">
-                            <strong style="font-size: 0.875rem;">${report.crime_type || report.title}</strong><br>
+                            <strong style="font-size: 0.875rem;">${cleanedCrimeType}</strong><br>
                             <strong>Location:</strong> ${report.location_name}<br>
                             <strong>Status:</strong> ${report.status}<br>
                             <strong>Date:</strong> ${new Date(report.date_reported).toLocaleDateString()}

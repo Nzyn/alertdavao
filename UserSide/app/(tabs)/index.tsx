@@ -40,6 +40,7 @@ const App = () => {
     location: false,
     logout: false,
     report: false,
+    hotspots: false,
   });
 
   // Animation values for each card
@@ -50,6 +51,7 @@ const App = () => {
   const locationScale = useRef(new Animated.Value(1)).current;
   const logoutScale = useRef(new Animated.Value(1)).current;
   const reportScale = useRef(new Animated.Value(1)).current;
+  const hotspotsScale = useRef(new Animated.Value(1)).current;
 
   // Load user data on component mount
   useEffect(() => {
@@ -463,6 +465,20 @@ const App = () => {
               <View style={{ transform: [{ scale: pressStates.location ? 0.95 : 1 }] }}>
                 <Ionicons name="business-outline" size={40} color="#1D3557" />
                 <Text style={styles.cardText}>Station</Text>
+              </View>
+            </Pressable>
+          </Link>
+
+          {/* Hotspots */}
+          <Link href="/(tabs)/hotspots" asChild>
+            <Pressable 
+              style={pressStates.hotspots ? styles.cardGridPressed : styles.cardGrid}
+              onPressIn={() => handlePressIn('hotspots')}
+              onPressOut={() => handlePressOut('hotspots')}
+            >
+              <View style={{ transform: [{ scale: pressStates.hotspots ? 0.95 : 1 }] }}>
+                <Ionicons name="warning-outline" size={40} color="#dc2626" />
+                <Text style={styles.cardText}>Hotspots</Text>
               </View>
             </Pressable>
           </Link>

@@ -14,6 +14,7 @@ use App\Http\Controllers\VerificationController;
 use App\Http\Controllers\PersonnelController;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\HotspotDataController;
 
 /*
 |--------------------------------------------------------------------------
@@ -109,6 +110,10 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/view-map', [MapController::class, 'index'])->name('view-map');
     Route::get('/api/reports', [MapController::class, 'getReports'])->name('api.reports');
+    
+    // Crime hotspot mapping route
+    Route::get('/hotspot-map', [MapController::class, 'hotspotIndex'])->name('hotspot-map');
+    Route::get('/api/hotspot-data', [HotspotDataController::class, 'getHotspotData'])->name('api.hotspot-data');
 
     // Notification routes
     Route::get('/api/notifications/unread', [NotificationController::class, 'getUnread'])->name('notifications.unread');
