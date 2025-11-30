@@ -112,7 +112,7 @@ function generateCaptcha() {
 function validateCaptcha() {
     const input = document.getElementById('captchaInput').value.toUpperCase();
     const errorSpan = document.getElementById('captchaError');
-    const submitBtn = document.getElementById('proceedBtn') || document.getElementById('submitBtn');
+    const submitBtn = document.getElementById('proceedBtn') || document.getElementById('submitBtn') || document.getElementById('registerBtn');
     
     if (input.length === 6) {
         if (input === currentCaptcha) {
@@ -153,7 +153,7 @@ function validateCaptcha() {
 document.addEventListener('DOMContentLoaded', function() {
     generateCaptcha();
     // Disable submit button initially
-    const submitBtn = document.getElementById('proceedBtn') || document.getElementById('submitBtn');
+    const submitBtn = document.getElementById('proceedBtn') || document.getElementById('submitBtn') || document.getElementById('registerBtn');
     if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.style.backgroundColor = '#999';

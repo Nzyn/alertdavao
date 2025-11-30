@@ -390,84 +390,25 @@
                     </label>
                 </div>
 
-                <button type="submit" class="submit-btn" id="registerBtn" disabled>Send OTP</button>
+                <button type="submit" class="submit-btn" id="registerBtn" disabled>Sign Up</button>
 
                 <div class="login-link">
                     Already have an account? <a href="{{ route('login') }}">Login</a>
                 </div>
             </form>
 
-            <!-- OTP Modal -->
-            <div id="otpModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;">
-                <div style="background: white; padding: 2rem; border-radius: 12px; width: 340px; max-width: 100%;">
-                    <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; font-weight: 600; text-align: center;">Verify Your Phone Number</h3>
-                    <p style="margin: 0 0 0.25rem 0; font-size: 0.75rem; color: #666; text-align: center;">Enter the 6-digit code sent to</p>
-                    <p id="otpPhoneDisplay" style="margin: 0 0 1rem 0; font-size: 0.875rem; color: #1D3557; font-weight: 600; text-align: center;"></p>
-                    <input 
-                        type="text" 
-                        id="otpInput" 
-                        placeholder="000000"
-                        maxlength="6"
-                        inputmode="numeric"
-                        style="width: 100%; padding: 1rem; border: 1.5px solid #d1d5db; border-radius: 6px; text-align: center; font-size: 24px; letter-spacing: 8px; font-weight: 600; margin-bottom: 1rem; background-color: white; box-sizing: border-box;"
-                    >
-                    <p id="otpVerifyingText" style="text-align: center; color: #1D3557; font-weight: 600; display: none; margin: 1rem 0;">Verifying...</p>
-                    <span class="error-message" id="otpErrorMsg" style="display:none; margin-bottom: 1rem;"></span>
-                    
-                    <!-- Resend OTP Section -->
-                    <div id="resendSection" style="text-align: center; margin-top: 0.5rem;">
-                        <span id="resendCountdown" style="color: #666; font-size: 0.75rem;"></span>
-                        <button type="button" id="resendBtn" style="display: none; background: none; border: none; color: #1D3557; font-weight: 600; cursor: pointer; font-size: 0.875rem;">Resend OTP</button>
-                    </div>
-                    
-                    <!-- Cancel Button -->
-                    <button type="button" id="cancelOtpBtn" style="width: 100%; margin-top: 1rem; padding: 0.75rem; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; color: #374151; cursor: pointer; font-size: 0.875rem;">Cancel</button>
-                </div>
-            </div>
+
         </div>
     </div>
 
-    <!-- Supabase SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // Initialize Supabase client - these values should be set in your environment config
-        const SUPABASE_URL = '{{ env("SUPABASE_URL", "") }}';
-        const SUPABASE_ANON_KEY = '{{ env("SUPABASE_ANON_KEY", "") }}';
-        
-        let supabaseClient = null;
-        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-                auth: {
-                    autoRefreshToken: true,
-                    persistSession: false,
-                    detectSessionInUrl: false,
-                }
-            });
-            console.log('✅ Supabase client initialized for OTP SMS');
-        } else {
-            console.warn('⚠️ Supabase credentials not configured. OTP will use fallback method.');
-        }
 
         const registerBtn = document.getElementById('registerBtn');
         const registerForm = document.getElementById('registerForm');
         const termsCheckbox = document.getElementById('terms');
         const captchaInput = document.getElementById('captchaInput');
-        const otpModal = document.getElementById('otpModal');
-        const otpInput = document.getElementById('otpInput');
-        const otpVerifyingText = document.getElementById('otpVerifyingText');
-        const otpErrorMsg = document.getElementById('otpErrorMsg');
-        const otpPhoneDisplay = document.getElementById('otpPhoneDisplay');
-        const resendCountdown = document.getElementById('resendCountdown');
-        const resendBtn = document.getElementById('resendBtn');
-        const cancelOtpBtn = document.getElementById('cancelOtpBtn');
         
         let captchaValid = false;
-        let pendingRegistrationData = null;
-        let userPhone = '';
-        let normalizedPhone = '';
-        let countdownTimer = null;
-        let canResend = false;
-        let resendCooldownSeconds = 60; // 60-second cooldown for resend
 
         console.log('🔐 AdminSide Register page loaded');
 
@@ -490,18 +431,6 @@
         function sanitizePassword(password) {
             // Passwords should not be modified, only validated
             return password;
-        }
-
-        // Normalize phone number to international format
-        function normalizePhoneNumber(phone) {
-            let normalized = phone.trim().replace(/\s+/g, '');
-            if (normalized.startsWith('0')) {
-                normalized = '+63' + normalized.slice(1);
-            }
-            if (!normalized.startsWith('+')) {
-                normalized = '+63' + normalized;
-            }
-            return normalized;
         }
 
         // Real-time input sanitization event listeners
@@ -541,150 +470,9 @@
             }
         });
 
-        // Start resend countdown timer (60 seconds)
-        function startResendCountdown() {
-            canResend = false;
-            let seconds = resendCooldownSeconds;
-            resendBtn.style.display = 'none';
-            resendCountdown.style.display = 'inline';
-            resendCountdown.textContent = `Resend OTP in ${seconds}s`;
-            
-            if (countdownTimer) clearInterval(countdownTimer);
-            
-            countdownTimer = setInterval(() => {
-                seconds--;
-                if (seconds <= 0) {
-                    clearInterval(countdownTimer);
-                    canResend = true;
-                    resendCountdown.style.display = 'none';
-                    resendBtn.style.display = 'inline';
-                } else {
-                    resendCountdown.textContent = `Resend OTP in ${seconds}s`;
-                }
-            }, 1000);
-        }
 
-        /**
-         * Send OTP via Supabase SMS
-         * Uses Supabase's native signInWithOtp which sends SMS directly to user's phone
-         * SMS Message (configured in Supabase Dashboard):
-         * Sender: AlertDavao
-         * Message: "Your verification code is {{.Token}}. It is valid for 5 minutes. Do not share this code with anyone for your security."
-         */
-        async function sendOtpToPhone(phone) {
-            normalizedPhone = normalizePhoneNumber(phone);
-            console.log('📱 Sending OTP via Supabase SMS to:', normalizedPhone);
-            
-            if (supabaseClient) {
-                // Use Supabase native SMS OTP
-                try {
-                    const { data, error } = await supabaseClient.auth.signInWithOtp({
-                        phone: normalizedPhone,
-                        options: {
-                            channel: 'sms',
-                        },
-                    });
 
-                    if (error) {
-                        console.error('❌ Supabase OTP send error:', error);
-                        // Fall through to backend fallback
-                        throw error;
-                    }
 
-                    console.log('✅ Supabase OTP sent successfully via SMS');
-                    return { success: true, message: 'Verification code sent to your phone via SMS' };
-                } catch (err) {
-                    console.warn('⚠️ Supabase SMS failed, trying backend fallback:', err.message);
-                    // Fall through to backend fallback
-                }
-            }
-            
-            // Fallback to backend OTP if Supabase fails
-            try {
-                console.log('📲 Using backend fallback for OTP...');
-                const response = await fetch('/api/otp/send', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                    },
-                    body: JSON.stringify({
-                        phone: normalizedPhone,
-                        purpose: 'register'
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (data.debugOtp) {
-                    console.log('🔐🔐🔐 ADMINSIDE REGISTER OTP CODE:', data.debugOtp);
-                }
-                
-                return data;
-            } catch (err) {
-                console.error('❌ Error sending fallback OTP:', err);
-                return { success: false, message: 'Failed to send OTP' };
-            }
-        }
-
-        /**
-         * Verify OTP via Supabase
-         * Uses Supabase's native verifyOtp for SMS verification
-         * Standard command: const { data, error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms'})
-         */
-        async function verifyOtpCode(phone, code) {
-            const normalPhone = normalizePhoneNumber(phone);
-            console.log('🔐 Verifying OTP for:', normalPhone, 'code:', code);
-            
-            if (supabaseClient) {
-                // Use Supabase native verification
-                try {
-                    const { data, error } = await supabaseClient.auth.verifyOtp({
-                        phone: normalPhone,
-                        token: code,
-                        type: 'sms',
-                    });
-
-                    if (error) {
-                        console.error('❌ Supabase OTP verify error:', error);
-                        return { success: false, message: error.message || 'Invalid verification code' };
-                    }
-
-                    console.log('✅ Supabase OTP verified successfully');
-                    
-                    // Sign out immediately since we're only using this for phone verification
-                    // We don't want to create a Supabase session, just verify the phone
-                    await supabaseClient.auth.signOut();
-                    
-                    return { success: true, message: 'Phone number verified successfully' };
-                } catch (err) {
-                    console.error('❌ Exception verifying Supabase OTP:', err);
-                    return { success: false, message: err.message || 'Failed to verify OTP' };
-                }
-            } else {
-                // Fallback to backend verification
-                try {
-                    console.log('📲 Using backend fallback for OTP verification...');
-                    const response = await fetch('/api/otp/verify', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                        },
-                        body: JSON.stringify({
-                            phone: normalPhone,
-                            code: code,
-                            purpose: 'register'
-                        })
-                    });
-
-                    return await response.json();
-                } catch (err) {
-                    console.error('❌ Error verifying fallback OTP:', err);
-                    return { success: false, message: 'Failed to verify OTP' };
-                }
-            }
-        }
 
         // Update button state based on terms and captcha
         function updateRegisterButton() {
@@ -693,54 +481,15 @@
             registerBtn.disabled = !(termsChecked && captchaValid);
         }
 
-        // Override the global validateCaptcha function for register page
-        const originalValidateCaptcha = window.validateCaptcha;
-        window.validateCaptcha = function() {
-            const result = originalValidateCaptcha();
-            captchaValid = result;
-            console.log('🔐 Register captcha validation:', captchaValid);
-            updateRegisterButton();
-            return result;
-        };
-
         // Listen to terms checkbox changes
         termsCheckbox.addEventListener('change', function() {
             console.log('🔘 Terms checkbox changed:', this.checked);
             updateRegisterButton();
         });
 
-        // Handle resend OTP button
-        resendBtn.addEventListener('click', async function() {
-            if (!canResend) return;
-            
-            resendBtn.disabled = true;
-            resendBtn.textContent = 'Sending...';
-            
-            const result = await sendOtpToPhone(userPhone);
-            
-            if (result.success) {
-                alert('A new verification code has been sent to your phone.');
-                startResendCountdown();
-            } else {
-                alert(result.message || 'Failed to resend OTP');
-            }
-            
-            resendBtn.disabled = false;
-            resendBtn.textContent = 'Resend OTP';
-        });
 
-        // Handle cancel OTP button
-        cancelOtpBtn.addEventListener('click', function() {
-            otpModal.style.display = 'none';
-            otpInput.value = '';
-            otpErrorMsg.style.display = 'none';
-            otpVerifyingText.style.display = 'none';
-            registerBtn.disabled = false;
-            registerBtn.innerHTML = 'Send OTP';
-            if (countdownTimer) clearInterval(countdownTimer);
-        });
 
-        // Handle register form submission - send OTP first
+        // Handle register form submission - DIRECT submission without OTP
         registerForm.addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -766,7 +515,7 @@
                 const contactValue = sanitizePhone(contactInput.value);
                 
                 const passwordInput = document.getElementById('password');
-                const passwordValue = passwordInput.value; // Don't modify passwords
+                const passwordValue = passwordInput.value;
                 
                 const passwordConfirmInput = document.getElementById('password_confirmation');
                 const passwordConfirmValue = passwordConfirmInput.value;
@@ -858,86 +607,22 @@
                     return false;
                 }
 
-                // All validations passed - prepare data and send OTP
-                pendingRegistrationData = {
-                    firstname: firstnameValue,
-                    lastname: lastnameValue,
-                    email: emailValue,
-                    contact: contactValue,
-                    password: passwordValue,
-                    password_confirmation: passwordConfirmValue,
-                    terms: termsCheckbox.checked ? 'on' : '',
-                    captcha_input: captchaInputValue,
-                    captcha_word: captchaWord
-                };
-
-                userPhone = contactValue;
-                console.log('✅ All validations passed, sending OTP to:', userPhone);
-
-                // Send OTP
+                // All validations passed - submit registration directly
                 registerBtn.disabled = true;
-                registerBtn.innerHTML = '<span class="spinner" style="margin-right:8px;width:18px;height:18px;display:inline-block;border:2px solid #fff;border-top:2px solid #1D3557;border-radius:50%;animation:spin 1s linear infinite;"></span>Sending OTP...';
+                registerBtn.innerHTML = '<span class="spinner" style="margin-right:8px;width:18px;height:18px;display:inline-block;border:2px solid #fff;border-top:2px solid #1D3557;border-radius:50%;animation:spin 1s linear infinite;"></span>Signing Up...';
 
-                const result = await sendOtpToPhone(userPhone);
-
-                if (!result.success) {
-                    alert('❌ OTP Error\n\n' + (result.message || 'Failed to send OTP'));
-                    registerBtn.disabled = false;
-                    registerBtn.innerHTML = 'Send OTP';
-                    return;
-                }
-
-                // Show OTP modal
-                otpPhoneDisplay.textContent = normalizedPhone;
-                otpModal.style.display = 'flex';
-                otpInput.focus();
-                startResendCountdown();
-                
-                alert('✅ OTP Sent\n\nYour verification code has been sent to ' + normalizedPhone + '.\nIt is valid for 5 minutes.');
-            } catch (err) {
-                console.error('❌ Error in form submission:', err);
-                alert('❌ An error occurred. Please try again.');
-                registerBtn.disabled = false;
-                registerBtn.innerHTML = 'Send OTP';
-            }
-        });
-
-        // Auto-submit OTP when 6 digits are entered
-        otpInput.addEventListener('input', async function() {
-            const code = this.value.trim();
-            if (code.length === 6 && /^\d{6}$/.test(code)) {
-                otpVerifyingText.style.display = 'block';
-                otpErrorMsg.style.display = 'none';
-
-                const result = await verifyOtpCode(userPhone, code);
-
-                if (!result.success) {
-                    otpErrorMsg.style.display = 'block';
-                    otpErrorMsg.textContent = result.message || 'Invalid OTP';
-                    otpInput.value = '';
-                    otpVerifyingText.style.display = 'none';
-                    return;
-                }
-
-                // OTP verified, submit registration
-                await submitRegistration();
-            }
-        });
-
-        // Submit registration after OTP verification
-        async function submitRegistration() {
-            try {
+                // Submit registration directly without OTP
                 const formData = new FormData();
                 formData.append('_token', document.querySelector('input[name="_token"]').value);
-                formData.append('firstname', pendingRegistrationData.firstname);
-                formData.append('lastname', pendingRegistrationData.lastname);
-                formData.append('email', pendingRegistrationData.email);
-                formData.append('contact', pendingRegistrationData.contact);
-                formData.append('password', pendingRegistrationData.password);
-                formData.append('password_confirmation', pendingRegistrationData.password_confirmation);
-                formData.append('terms', pendingRegistrationData.terms);
-                formData.append('captcha_input', pendingRegistrationData.captcha_input);
-                formData.append('captcha_word', pendingRegistrationData.captcha_word);
+                formData.append('firstname', firstnameValue);
+                formData.append('lastname', lastnameValue);
+                formData.append('email', emailValue);
+                formData.append('contact', contactValue);
+                formData.append('password', passwordValue);
+                formData.append('password_confirmation', passwordConfirmValue);
+                formData.append('terms', termsCheckbox.checked ? 'on' : '');
+                formData.append('captcha_input', captchaInputValue);
+                formData.append('captcha_word', captchaWord);
 
                 const response = await fetch('{{ route("register") }}', {
                     method: 'POST',
@@ -950,23 +635,20 @@
                         alert('Registration Successful!\n\nYour account has been created.\n\nPlease login with your credentials.');
                         window.location.href = '{{ route("login") }}';
                     } else {
-                        otpErrorMsg.style.display = 'block';
-                        otpErrorMsg.textContent = 'Registration failed. Please try again.';
-                        otpInput.value = '';
-                        otpVerifyingText.style.display = 'none';
+                        alert('❌ Registration failed. Please try again.');
+                        registerBtn.disabled = false;
+                        registerBtn.innerHTML = 'Sign Up';
                     }
                 } else {
-                    otpErrorMsg.style.display = 'block';
-                    otpErrorMsg.textContent = 'Registration failed. Please try again.';
-                    otpInput.value = '';
-                    otpVerifyingText.style.display = 'none';
+                    alert('❌ Registration failed. Please try again.');
+                    registerBtn.disabled = false;
+                    registerBtn.innerHTML = 'Sign Up';
                 }
             } catch (err) {
-                console.error('Error submitting registration:', err);
-                otpErrorMsg.style.display = 'block';
-                otpErrorMsg.textContent = 'An error occurred. Please try again.';
-                otpInput.value = '';
-                otpVerifyingText.style.display = 'none';
+                console.error('❌ Error in form submission:', err);
+                alert('❌ An error occurred. Please try again.');
+                registerBtn.disabled = false;
+                registerBtn.innerHTML = 'Sign Up';
             }
         }
 
@@ -974,6 +656,21 @@
         const style = document.createElement('style');
         style.innerHTML = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
         document.head.appendChild(style);
+
+        // Override the captcha component's validateCaptcha after the captcha component has loaded
+        // This ensures captchaValid is set when the user enters the correct captcha
+        setTimeout(() => {
+            const originalValidateCaptcha = window.validateCaptcha;
+            window.validateCaptcha = function() {
+                const input = document.getElementById('captchaInput').value.toUpperCase();
+                const result = originalValidateCaptcha();
+                captchaValid = (input.length === 6 && input === currentCaptcha);
+                console.log('🔐 Captcha validation updated:', captchaValid, 'Terms:', termsCheckbox.checked);
+                updateRegisterButton();
+                return result;
+            };
+            console.log('✅ Captcha override installed');
+        }, 100);
     </script>
 </body>
 </html>

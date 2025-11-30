@@ -67,25 +67,30 @@ function encrypt(text) {
  */
 function decrypt(encryptedData) {
   if (!encryptedData) return encryptedData;
-  
+
   try {
     // Get the encryption key
     const key = getEncryptionKey();
-    
+
     // Decode the base64 encrypted data
     const combined = Buffer.from(encryptedData, 'base64');
-    
+
+    // Check if combined buffer is at least 17 bytes (16 for IV, 1+ for encrypted)
+    if (combined.length < 17) {
+      throw new Error('Invalid encrypted data: too short for IV');
+    }
+
     // Extract IV (first 16 bytes) and encrypted text
     const iv = combined.slice(0, 16);
     const encrypted = combined.slice(16);
-    
+
     // Create decipher
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    
+
     // Decrypt the text
     let decrypted = decipher.update(encrypted, undefined, 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
   } catch (error) {
     console.error('❌ Decryption error:', error.message);

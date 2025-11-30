@@ -38,7 +38,9 @@ export const reportService = {
       
       // Add basic report fields
       formData.append('title', reportData.title);
-      formData.append('crime_types', JSON.stringify(reportData.crimeTypes));
+      // Convert all crime types to lowercase for backend compatibility
+      const lowerCrimeTypes = reportData.crimeTypes.map(type => type.toLowerCase());
+      formData.append('crime_types', JSON.stringify(lowerCrimeTypes));
       formData.append('description', reportData.description);
       formData.append('incident_date', reportData.incidentDate);
       formData.append('is_anonymous', reportData.isAnonymous ? '1' : '0');

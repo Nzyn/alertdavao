@@ -2,15 +2,32 @@ const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
-// Exclude react-native-maps from being bundled on web
-const blockList = [
-  // Ignore react-native-maps on web
-  /node_modules\/react-native-maps\/.*/,
+// Fix for nanoid and other module resolution issues
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+};
+
+// Ignore problematic patterns
+config.resolver.blockList = [
+  ...config.resolver.blockList,
+  /.*node_modules\/@supabase\/postgrest-js\/.*/,
 ];
 
-config.resolver.blockList = blockList;
-
-// Tell metro to not resolve react-native-maps on web
-config.resolver.sourceExts = ['web.js', 'web.ts', 'web.tsx', 'js', 'jsx', 'ts', 'tsx', 'json'];
+// Handle module extensions properly
+config.resolver.extensions = [
+  '.web.js',
+  '.web.jsx',
+  '.web.ts',
+  '.web.tsx',
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.json',
+  '.native.js',
+  '.native.jsx',
+  '.native.ts',
+  '.native.tsx',
+];
 
 module.exports = config;

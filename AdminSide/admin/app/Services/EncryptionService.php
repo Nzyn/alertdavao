@@ -44,15 +44,19 @@ class EncryptionService
      */
     public static function decrypt($encryptedText)
     {
-        if (empty($encryptedText)) {
+        if (empty($encryptedText) || !is_string($encryptedText)) {
             return $encryptedText;
         }
-
+        // Only attempt decryption if the string looks like encrypted data (base64, length, etc.)
+        if (strlen($encryptedText) < 24 || !preg_match('/^[A-Za-z0-9\/=+]+$/', $encryptedText)) {
+            // Too short or not base64, likely not encrypted
+            return $encryptedText;
+        }
         try {
             return Crypt::decryptString($encryptedText);
         } catch (DecryptException $e) {
-            Log::warning('Decryption error: ' . $e->getMessage());
-            // Return encrypted data if decryption fails (might not be encrypted)
+            Log::warning('Decryption error: ' . $e->getMessage() . ' | Data: ' . $encryptedText);
+            // Return original data if decryption fails
             return $encryptedText;
         }
     }

@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS reports (
   description TEXT,
   media VARCHAR(255),
   status VARCHAR(50) DEFAULT 'pending',
+  is_valid VARCHAR(50) DEFAULT 'checking_for_report_validity',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (location_id) REFERENCES locations(location_id) ON DELETE SET NULL,

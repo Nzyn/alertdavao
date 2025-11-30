@@ -20,8 +20,6 @@ const Register = () => {
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [captchaValid, setCaptchaValid] = useState(false);
   const [captchaWord, setCaptchaWord] = useState(generateCaptchaWord(6));
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
   const [isChecked, setChecked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [passwordMatchError, setPasswordMatchError] = useState("");
@@ -74,7 +72,6 @@ const Register = () => {
       }
 
       setIsLoading(true);
-      // Send OTP for registration
       
       // Normalize phone number to match backend format
       let normalizedPhone = contact.trim().replace(/\s+/g, '');
@@ -82,72 +79,11 @@ const Register = () => {
         normalizedPhone = '+63' + normalizedPhone.slice(1);
       }
       
-      const sendResp = await fetch(`${BACKEND_URL}/api/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizedPhone, purpose: 'register' }),
-      });
-      const sendData = await sendResp.json();
-      setIsLoading(false);
-      
-      if (!sendResp.ok) {
-        Alert.alert('OTP Error', sendData.message || 'Failed to send OTP');
-        return;
-      }
-
-      // Show OTP in alert for development
-      if (sendData.debugOtp) {
-        Alert.alert(
-          '🔐 Development OTP',
-          `Your OTP code is: ${sendData.debugOtp}\n\n(This will be sent via SMS in production)`,
-          [{ text: 'OK' }]
-        );
-      }
-
-      // Show OTP modal to let user input code
-      setShowOtpModal(true);
-    } catch (error) {
-      console.error('Register flow error:', error);
-      Alert.alert('Error', 'Failed to start registration.');
-      setIsLoading(false);
-    }
-  };
-
-  const submitOtpAndRegister = async (code: string) => {
-    if (!code || code.length !== 6 || isLoading) {
-      return; // Wait for complete code or prevent duplicate submissions
-    }
-
-    setIsLoading(true);
-    try {
-      // Normalize phone number to match backend format
-      let normalizedPhone = contact.trim().replace(/\s+/g, '');
-      if (normalizedPhone.startsWith('0')) {
-        normalizedPhone = '+63' + normalizedPhone.slice(1);
-      }
-      
-      console.log('🔐 Verifying register OTP for phone:', normalizedPhone);
-      const verifyResp = await fetch(`${BACKEND_URL}/api/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalizedPhone, purpose: 'register', code }),
-      });
-      const verifyData = await verifyResp.json();
-      console.log('📥 OTP verification response:', verifyData);
-      
-      if (!verifyResp.ok) {
-        Alert.alert('OTP Error', verifyData.message || 'Incorrect OTP');
-        setOtpCode('');
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('✅ OTP verified, proceeding with registration...');
-      // Now call the existing register endpoint (which requires phone verification)
+      // Submit registration directly without OTP
       const regResp = await fetch(`${BACKEND_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstname, lastname, email, contact, password }),
+        body: JSON.stringify({ firstname, lastname, email, contact: normalizedPhone, password }),
       });
       const regData = await regResp.json();
       console.log('📥 Registration response:', regData);
@@ -159,7 +95,7 @@ const Register = () => {
         setShowOtpModal(false);
         setOtpCode('');
         
-        Alert.alert('Verification Email Sent', 'Please check your email to complete registration', [
+        Alert.alert('Registration Successful', 'Your account has been created. Please login with your credentials', [
           { text: 'OK', onPress: () => {
             console.log('🚀 Navigating to login...');
             router.replace('/login');
@@ -168,15 +104,15 @@ const Register = () => {
       } else {
         const errorMessage = regData.message || 'Failed to register';
         setRegistrationError(errorMessage);
-        setOtpCode('');
       }
-    } catch (err) {
-      console.error('❌ submitOtpAndRegister error:', err);
-      Alert.alert('Error', 'Failed to verify OTP or register');
-      setOtpCode('');
+    } catch (error) {
+      console.error('Register flow error:', error);
+      Alert.alert('Error', 'Failed to register.');
       setIsLoading(false);
     }
   };
+
+
 
   return (
     <ScrollView
@@ -404,33 +340,7 @@ const Register = () => {
         />
       </View>
 
-      <Modal visible={showOtpModal} animationType="slide" transparent={true}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View style={{ width: 320, padding: 20, backgroundColor: '#fff', borderRadius: 8 }}>
-            <Text style={{ fontSize: 16, marginBottom: 4, fontWeight: '600' }}>Enter OTP sent to your phone</Text>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>Auto-proceeds when complete</Text>
-            <TextInput
-              style={[styles.input, { marginBottom: 12, backgroundColor: '#fff', textAlign: 'center', fontSize: 24, letterSpacing: 8, fontWeight: '600' }]}
-              placeholder="000000"
-              placeholderTextColor="#ccc"
-              value={otpCode}
-              onChangeText={async (code) => {
-                setOtpCode(code);
-                // Auto-submit when 6 digits are entered - but not if already loading
-                if (code.length === 6 && !isLoading) {
-                  console.log('📝 OTP code complete, triggering submission:', code);
-                  await submitOtpAndRegister(code);
-                }
-              }}
-              keyboardType="number-pad"
-              maxLength={6}
-              autoFocus={true}
-              editable={true}
-              selectTextOnFocus={true}
-            />
-          </View>
-        </View>
-      </Modal>
+
 
       <Button
         title="Register"
