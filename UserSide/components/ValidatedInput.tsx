@@ -31,7 +31,7 @@ interface ValidatedInputProps extends Omit<TextInputProps, 'onChangeText'> {
 }
 
 // Sanitization functions
-export const sanitizers = {
+const sanitizers = {
   // Sanitize name (letters, spaces, hyphens, apostrophes only)
   name: (text: string): string => {
     return text
@@ -66,7 +66,7 @@ export const sanitizers = {
 };
 
 // Validation functions
-export const validators = {
+const validators = {
   // Validate name (2-50 chars, letters only)
   name: (value: string): ValidationResult => {
     const sanitized = sanitizers.name(value);

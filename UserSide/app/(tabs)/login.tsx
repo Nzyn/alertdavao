@@ -70,10 +70,11 @@ const Login = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          googleId: userInfo.id,
           email: userInfo.email,
           firstName: userInfo.given_name,
           lastName: userInfo.family_name,
-          profileImage: userInfo.picture,
+          profilePicture: userInfo.picture,
         }),
       });
 
@@ -107,6 +108,7 @@ const Login = () => {
         setIsLoading(false);
       }
     } catch (err: any) {
+      console.error('Google Sign-In Error:', err);
       Alert.alert('Network Error', err.message || 'Unknown error');
       setIsLoading(false);
     }
@@ -361,11 +363,11 @@ const Login = () => {
           {/* Google Sign-In */}
           <Pressable
             onPress={() => promptAsync()}
-            disabled={!request || isLoading}
-            style={localStyles.googleButton}
+            disabled={isLoading || !request}
+            style={[localStyles.googleButton, (isLoading || !request) && { opacity: 0.5 }]}
           >
             <Text style={localStyles.googleButtonText}>
-              🔐 Sign in with Google
+              🔐 {isLoading ? 'Signing in...' : 'Sign in with Google'}
             </Text>
           </Pressable>
         </View>
