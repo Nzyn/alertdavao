@@ -3,6 +3,8 @@
 @section('title', 'Reports')
 
 @section('styles')
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <style>
         .reports-header {
             display: flex;
@@ -637,6 +639,148 @@
             right: 20px;
         }
 
+        /* Map Container Styles */
+        .report-map-container {
+            margin-top: 1.5rem;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+        }
+
+        .report-map-header {
+            background: #f9fafb;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .report-map-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        #reportDetailMap {
+            width: 100%;
+            height: 300px;
+            background: #f3f4f6;
+        }
+
+        /* Custom Leaflet popup styles */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .leaflet-popup-content {
+            margin: 12px 16px;
+            line-height: 1.5;
+        }
+
+        /* Action Buttons Section */
+        .actions-section {
+            display: flex;
+            gap: 0.75rem;
+            padding: 1.5rem;
+            border-top: 1px solid #e5e7eb;
+            background: #f9fafb;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.625rem 1.25rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #2563eb;
+        }
+
+        .btn-warning {
+            background-color: #f59e0b;
+            color: white;
+        }
+
+        .btn-warning:hover:not(:disabled) {
+            background-color: #d97706;
+        }
+
+        .btn-success {
+            background-color: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #059669;
+        }
+
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background-color: #dc2626;
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #4b5563;
+        }
+
+        /* Station Assignment Modal */
+        .station-select-container {
+            margin: 1rem 0;
+        }
+
+        .station-select-container label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+
+        .station-select-container select,
+        .station-select-container textarea {
+            width: 100%;
+            padding: 0.625rem;
+            border: 1.5px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .station-select-container select:focus,
+        .station-select-container textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
         @media (max-width: 768px) {
             .reports-header {
                 flex-direction: column;
@@ -826,6 +970,64 @@
         </div>
         <button class="lightbox-nav lightbox-next" onclick="changeImage(1)">&#8250;</button>
     </div>
+
+    <!-- Assign Station Modal (Admin) -->
+    <div class="modal-overlay" id="assignStationModal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Assign Report to Station</h2>
+                <button class="modal-close" onclick="closeAssignStationModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="station-select-container">
+                    <label for="assignStationSelect">Select Police Station</label>
+                    <select id="assignStationSelect" class="station-select">
+                        <option value="">-- Select a station --</option>
+                    </select>
+                </div>
+                <div class="actions-section" style="margin-top: 0; border-top: none; background: white;">
+                    <button class="btn btn-primary" onclick="submitAssignStation()">
+                        <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                        </svg>
+                        Assign Station
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeAssignStationModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Request Reassignment Modal (Police) -->
+    <div class="modal-overlay" id="requestReassignmentModal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Request Report Reassignment</h2>
+                <button class="modal-close" onclick="closeReassignmentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="station-select-container">
+                    <label for="reassignStationSelect">Reassign to Police Station</label>
+                    <select id="reassignStationSelect" class="station-select">
+                        <option value="">-- Select a station --</option>
+                    </select>
+                </div>
+                <div class="station-select-container">
+                    <label for="reassignReason">Reason for Reassignment</label>
+                    <textarea id="reassignReason" rows="3" placeholder="Optional: Provide a reason for this reassignment request..."></textarea>
+                </div>
+                <div class="actions-section" style="margin-top: 0; border-top: none; background: white;">
+                    <button class="btn btn-warning" onclick="submitReassignmentRequest()">
+                        <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+                        </svg>
+                        Submit Request
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeReassignmentModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <button class="lightbox-nav lightbox-next" onclick="changeImage(1)">&#8250;</button>
 </div>
 
@@ -901,12 +1103,15 @@
 @endsection
 
 @section('scripts')
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
         // Global variables for lightbox
         let currentImages = [];
         let currentImageIndex = 0;
+        let reportDetailMap = null; // Global variable for the report detail map
 
         // Initialize jsPDF
         const { jsPDF } = window.jspdf;
@@ -1294,6 +1499,16 @@
                             mediaContent = '<p>No media files available for this report.</p>';
                         }
 
+                        // Create map container HTML
+                        const mapContainer = `
+                    <div class="report-map-container">
+                        <div class="report-map-header">
+                            <h3 class="report-map-title">Report Location</h3>
+                        </div>
+                        <div id="reportDetailMap"></div>
+                    </div>
+                `;
+
                         modalBody.innerHTML = `
                     <div class="detail-item">
                         <div class="detail-label">Title</div>
@@ -1343,11 +1558,21 @@
                         </div>
                     </div>
                 </div>
+                ${mapContainer}
                 ${mediaContent}
+                ${getActionButtons(report)}
             `;
+            
+            // Store current report ID globally for modal actions
+            window.currentReportId = reportId;
             
             // Show the modal
             document.getElementById('reportModal').classList.add('active');
+            
+            // Initialize map after modal is shown and DOM is updated
+            setTimeout(() => {
+                initializeReportMap(report);
+            }, 100);
         } else {
             alert('Failed to load report details: ' + (data.message || 'Unknown error'));
         }
@@ -1385,8 +1610,308 @@ function getVerificationBadge(report) {
      
      return '';
  }
+
+ function getActionButtons(report) {
+     const userRole = '{{ auth()->user()->role ?? "" }}';
+     const isUnassigned = !report.assigned_station_id;
+     
+     let buttons = '';
+     
+     // For admin users
+     if (userRole === 'admin') {
+         buttons = `
+             <div class="actions-section">
+                 ${isUnassigned ? `
+                     <button class="btn btn-primary" onclick="openAssignStationModal(${report.report_id})">
+                         <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="currentColor">
+                             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                         </svg>
+                         Assign to Station
+                     </button>
+                 ` : ''}
+             </div>
+         `;
+     }
+     // For police users
+     else if (userRole === 'police') {
+         buttons = `
+             <div class="actions-section">
+                 <button class="btn btn-warning" onclick="openReassignmentModal(${report.report_id})">
+                     <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="currentColor">
+                         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                     </svg>
+                     Request Reassignment
+                 </button>
+             </div>
+         `;
+     }
+     
+     return buttons;
+ }
+
+ // Station assignment/reassignment functions
+ let policeStations = [];
+
+ function loadPoliceStations() {
+     if (policeStations.length > 0) return Promise.resolve();
+     
+     return fetch('/api/police-stations')
+         .then(response => response.json())
+         .then(data => {
+             policeStations = data;
+             console.log('Loaded police stations:', policeStations);
+         })
+         .catch(error => {
+             console.error('Error loading police stations:', error);
+             alert('Failed to load police stations');
+         });
+ }
+
+ function populateStationSelect(selectId) {
+     const select = document.getElementById(selectId);
+     select.innerHTML = '<option value="">-- Select a station --</option>';
+     
+     policeStations.forEach(station => {
+         const option = document.createElement('option');
+         option.value = station.station_id;
+         option.textContent = station.station_name;
+         select.appendChild(option);
+     });
+ }
+
+ function openAssignStationModal(reportId) {
+     window.currentReportId = reportId;
+     loadPoliceStations().then(() => {
+         populateStationSelect('assignStationSelect');
+         document.getElementById('assignStationModal').classList.add('active');
+     });
+ }
+
+ function closeAssignStationModal() {
+     document.getElementById('assignStationModal').classList.remove('active');
+     document.getElementById('assignStationSelect').value = '';
+ }
+
+ function openReassignmentModal(reportId) {
+     window.currentReportId = reportId;
+     loadPoliceStations().then(() => {
+         populateStationSelect('reassignStationSelect');
+         document.getElementById('requestReassignmentModal').classList.add('active');
+     });
+ }
+
+ function closeReassignmentModal() {
+     document.getElementById('requestReassignmentModal').classList.remove('active');
+     document.getElementById('reassignStationSelect').value = '';
+     document.getElementById('reassignReason').value = '';
+ }
+
+ function submitAssignStation() {
+     const stationId = document.getElementById('assignStationSelect').value;
+     
+     if (!stationId) {
+         alert('Please select a police station');
+         return;
+     }
+     
+     fetch(`/reports/${window.currentReportId}/assign-station`, {
+         method: 'POST',
+         headers: {
+             'Content-Type': 'application/json',
+             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+         },
+         body: JSON.stringify({ station_id: stationId })
+     })
+     .then(response => response.json())
+     .then(data => {
+         if (data.success) {
+             alert('Report successfully assigned to station');
+             closeAssignStationModal();
+             closeModal();
+             location.reload(); // Refresh to show updated data
+         } else {
+             alert('Failed to assign report: ' + (data.message || 'Unknown error'));
+         }
+     })
+     .catch(error => {
+         console.error('Error:', error);
+         alert('An error occurred while assigning the report');
+     });
+ }
+
+ function submitReassignmentRequest() {
+     const stationId = document.getElementById('reassignStationSelect').value;
+     const reason = document.getElementById('reassignReason').value;
+     
+     if (!stationId) {
+         alert('Please select a police station');
+         return;
+     }
+     
+     fetch(`/reports/${window.currentReportId}/request-reassignment`, {
+         method: 'POST',
+         headers: {
+             'Content-Type': 'application/json',
+             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+         },
+         body: JSON.stringify({ 
+             station_id: stationId,
+             reason: reason
+         })
+     })
+     .then(response => response.json())
+     .then(data => {
+         if (data.success) {
+             alert('Reassignment request submitted successfully');
+             closeReassignmentModal();
+             closeModal();
+         } else {
+             alert('Failed to submit request: ' + (data.message || 'Unknown error'));
+         }
+     })
+     .catch(error => {
+         console.error('Error:', error);
+         alert('An error occurred while submitting the request');
+     });
+ }
+ 
+ function initializeReportMap(report) {
+     // Remove existing map if it exists
+     if (reportDetailMap) {
+         reportDetailMap.remove();
+         reportDetailMap = null;
+     }
+     
+     // Get latitude and longitude from the report's location object
+     const lat = report.location ? (report.location.latitude || report.location.lat) : (report.latitude || report.lat);
+     const lng = report.location ? (report.location.longitude || report.location.lng || report.location.long) : (report.longitude || report.lng || report.long);
+     
+     // Default to Davao City center if no coordinates
+     const latitude = lat ? parseFloat(lat) : 7.1907;
+     const longitude = lng ? parseFloat(lng) : 125.4553;
+     const hasValidCoordinates = lat && lng;
+     
+     console.log('Report coordinates:', { lat, lng, hasValidCoordinates });
+     
+     // Davao City bounds for geofencing
+     const davaoCityBounds = [
+         [6.9, 125.2],  // Southwest corner
+         [7.5, 125.7]   // Northeast corner
+     ];
+     
+     // Initialize the map with geofencing
+     reportDetailMap = L.map('reportDetailMap', {
+         maxBounds: davaoCityBounds,
+         maxBoundsViscosity: 1.0,
+         minZoom: 11,
+         maxZoom: 18
+     }).setView([latitude, longitude], hasValidCoordinates ? 15 : 13);
+     
+     // Add OpenStreetMap tile layer
+     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+         attribution: '© OpenStreetMap contributors',
+         maxZoom: 18,
+     }).addTo(reportDetailMap);
+     
+     // Add a RED marker for the crime location if coordinates are valid
+     if (hasValidCoordinates) {
+         // Create custom red person icon for crime location
+         const redIcon = L.divIcon({
+             className: 'custom-marker-icon',
+             html: `<div style="position: relative; width: 40px; height: 40px;">
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                     <circle cx="12" cy="8" r="5" fill="#EF4444" stroke="white" stroke-width="1.5"/>
+                     <path d="M12 14c-5 0-9 3-9 6v2h18v-2c0-3-4-6-9-6z" fill="#EF4444" stroke="white" stroke-width="1.5"/>
+                 </svg>
+             </div>`,
+             iconSize: [40, 40],
+             iconAnchor: [20, 40],
+             popupAnchor: [0, -40]
+         });
+         
+         const crimeMarker = L.marker([latitude, longitude], { icon: redIcon }).addTo(reportDetailMap);
+         
+         // Add popup with location info
+         const locationName = getLocationDisplay(report);
+         const popupContent = `
+             <div style="text-align: center; min-width: 150px;">
+                 <strong style="color: #EF4444; font-size: 14px;">📍 Crime Location</strong><br>
+                 <strong style="font-size: 13px; margin-top: 8px; display: block;">${report.title || 'Incident Report'}</strong><br>
+                 <span style="font-size: 12px; color: #666;">${locationName}</span><br>
+                 <span style="font-size: 11px; color: #999; margin-top: 4px; display: block;">
+                     ${latitude.toFixed(6)}, ${longitude.toFixed(6)}
+                 </span>
+             </div>
+         `;
+         crimeMarker.bindPopup(popupContent).openPopup();
+     }
+     
+     // Fetch and add police station markers (BLUE pins)
+     fetch(`/reports/${report.report_id}/details`)
+         .then(response => response.json())
+         .then(data => {
+             if (data.success && data.policeStations) {
+                 console.log('Police stations loaded:', data.policeStations.length);
+                 
+                 // Create custom blue shield/officer icon for police stations
+                 const blueIcon = L.divIcon({
+                     className: 'custom-marker-icon',
+                     html: `<div style="position: relative; width: 40px; height: 40px;">
+                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                             <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" fill="#3B82F6" stroke="white" stroke-width="1"/>
+                             <circle cx="12" cy="10" r="2.5" fill="white"/>
+                             <path d="M12 13c-2 0-3.5 1-3.5 2v1.5h7V15c0-1-1.5-2-3.5-2z" fill="white"/>
+                         </svg>
+                     </div>`,
+                     iconSize: [40, 40],
+                     iconAnchor: [20, 40],
+                     popupAnchor: [0, -40]
+                 });
+                 
+                 let stationsAdded = 0;
+                 data.policeStations.forEach(station => {
+                     // Only add stations with valid, non-zero coordinates
+                     if (station.latitude && station.longitude && 
+                         parseFloat(station.latitude) !== 0 && 
+                         parseFloat(station.longitude) !== 0) {
+                         
+                         const stationMarker = L.marker(
+                             [parseFloat(station.latitude), parseFloat(station.longitude)], 
+                             { icon: blueIcon }
+                         ).addTo(reportDetailMap);
+                         
+                         const stationPopup = `
+                             <div style="text-align: center; min-width: 150px;">
+                                 <strong style="color: #3B82F6; font-size: 14px;">🚔 Police Station</strong><br>
+                                 <strong style="font-size: 13px; margin-top: 8px; display: block;">${station.station_name}</strong><br>
+                                 <span style="font-size: 11px; color: #666; margin-top: 4px; display: block;">${station.address || 'N/A'}</span>
+                             </div>
+                         `;
+                         stationMarker.bindPopup(stationPopup);
+                         stationsAdded++;
+                     }
+                 });
+                 console.log('Police station markers added:', stationsAdded);
+             }
+         })
+         .catch(error => {
+             console.error('Error loading police stations:', error);
+         });
+     
+     // Invalidate size to ensure proper rendering
+     setTimeout(() => {
+         if (reportDetailMap) {
+             reportDetailMap.invalidateSize();
+         }
+     }, 200);
+ }
  
  function closeModal() {
+    // Remove the map when closing modal
+    if (reportDetailMap) {
+        reportDetailMap.remove();
+        reportDetailMap = null;
+    }
     document.getElementById('reportModal').classList.remove('active');
 }
 

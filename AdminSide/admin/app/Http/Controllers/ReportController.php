@@ -154,6 +154,23 @@ class ReportController extends Controller
         $reports = $query->select('reports.*')
                          ->orderBy('reports.created_at', 'desc')
                          ->paginate(10);
+        
+        // Decrypt sensitive fields for admin and police roles
+        $userRole = auth()->check() ? auth()->user()->role : null;
+        if (\App\Services\EncryptionService::canDecrypt($userRole)) {
+            foreach ($reports as $report) {
+                // Decrypt report fields
+                $fieldsToDecrypt = ['title', 'description'];
+                $report = \App\Services\EncryptionService::decryptModelFields($report, $fieldsToDecrypt);
+                
+                // Decrypt location data if it exists
+                if ($report->location) {
+                    $locationFieldsToDecrypt = ['barangay', 'reporters_address'];
+                    $report->location = \App\Services\EncryptionService::decryptModelFields($report->location, $locationFieldsToDecrypt);
+                }
+            }
+        }
+        
         return view('reports', compact('reports'));
     }
 
@@ -334,16 +351,61 @@ class ReportController extends Controller
             return $mediaUrl;
         }
 
-        // Check if file exists in public storage
-        if (Storage::disk('public')->exists($mediaUrl)) {
-            // Use the proper public URL for storage disk
-            return Storage::disk('public')->url($mediaUrl);
+        // Clean up the path - remove leading slashes
+        $cleanPath = ltrim($mediaUrl, '/');
+        $fileName = basename($cleanPath);
+        
+        // IMPORTANT: Files are stored in UserSide/evidence by the Node.js backend
+        // Check if file exists in the React Native evidence folder
+        $userSideEvidencePath = dirname(dirname(dirname(__DIR__))) . '/../../UserSide/evidence/' . $fileName;
+        
+        if (file_exists($userSideEvidencePath)) {
+            // Serve from Node.js backend URL
+            // Assuming Node.js backend runs on port 3000
+            $nodeBackendUrl = config('app.node_backend_url', 'http://localhost:3000');
+            $url = $nodeBackendUrl . '/evidence/' . $fileName;
+            
+            \Log::debug('Media file found in UserSide', [
+                'original' => $mediaUrl,
+                'found_at' => $userSideEvidencePath,
+                'url' => $url
+            ]);
+            
+            return $url;
         }
+        
+        // Check various possible paths in storage/app/public (fallback)
+        $possiblePaths = [
+            $cleanPath,                              // Try original path
+            'evidence/' . $fileName,                  // Try in evidence folder
+            'reports/' . $fileName,                   // Try in reports folder
+            'uploads/images/' . $fileName,            // Try in uploads/images
+            'uploads/videos/' . $fileName,            // Try in uploads/videos
+        ];
+        
+        foreach ($possiblePaths as $path) {
+            if (Storage::disk('public')->exists($path)) {
+                // Construct URL manually
+                $url = url('/storage/' . $path);
+                \Log::debug('Media file found in storage', [
+                    'original' => $mediaUrl,
+                    'found_at' => $path,
+                    'url' => $url
+                ]);
+                return $url;
+            }
+        }
+        
+        // Log missing file for debugging
+        \Log::warning('Media file not found in any location', [
+            'original_path' => $mediaUrl,
+            'checked_paths' => array_merge([$userSideEvidencePath], $possiblePaths),
+            'storage_path' => storage_path('app/public')
+        ]);
 
-        // Fallback: construct the URL manually if storage symlink is set up
-        // This handles paths like "reports/filename.jpg"
-        $url = url('/storage/' . ltrim($mediaUrl, '/'));
-        return $url;
+        // Fallback: construct the URL from Node.js backend
+        $nodeBackendUrl = config('app.node_backend_url', 'http://localhost:3000');
+        return $nodeBackendUrl . '/evidence/' . $fileName;
     }
 
     /**
@@ -355,12 +417,40 @@ class ReportController extends Controller
         try {
             $report = Report::with(['user.verification', 'location', 'media', 'policeStation'])->findOrFail($id);
 
+            // Get authenticated user and role
+            $authUser = auth()->user();
+            $userRole = $authUser ? $authUser->role : null;
+            
+            // Log for debugging
+            \Log::info('Report details accessed', [
+                'report_id' => $id,
+                'auth_check' => auth()->check(),
+                'user_id' => $authUser ? $authUser->id : null,
+                'user_role' => $userRole,
+                'can_decrypt' => \App\Services\EncryptionService::canDecrypt($userRole)
+            ]);
+
             // Only police and admin can decrypt sensitive fields
-            $userRole = auth()->check() ? auth()->user()->role : null;
             if (\App\Services\EncryptionService::canDecrypt($userRole)) {
-                // Decrypt sensitive fields
+                \Log::info('Decrypting report fields for authorized user', [
+                    'report_id' => $id,
+                    'user_role' => $userRole
+                ]);
+                
+                // Decrypt sensitive fields in the report
                 $fieldsToDecrypt = ['title', 'description'];
                 $report = \App\Services\EncryptionService::decryptModelFields($report, $fieldsToDecrypt);
+                
+                // Decrypt location data if it exists
+                if ($report->location) {
+                    $locationFieldsToDecrypt = ['barangay', 'reporters_address'];
+                    $report->location = \App\Services\EncryptionService::decryptModelFields($report->location, $locationFieldsToDecrypt);
+                }
+            } else {
+                \Log::warning('User not authorized to decrypt report fields', [
+                    'report_id' => $id,
+                    'user_role' => $userRole
+                ]);
             }
 
             // Transform media URLs to ensure they're properly accessible
@@ -377,13 +467,192 @@ class ReportController extends Controller
                 }
             }
 
-            return response()->json(['success' => true, 'data' => $report]);
+            // Get all police stations for map display
+            $policeStations = \App\Models\PoliceStation::select('station_id', 'station_name', 'latitude', 'longitude', 'address')
+                ->whereNotNull('latitude')
+                ->whereNotNull('longitude')
+                ->get();
+
+            return response()->json([
+                'success' => true, 
+                'data' => $report,
+                'policeStations' => $policeStations
+            ]);
         } catch (\Exception $e) {
             \Log::error('Error loading report details', [
                 'report_id' => $id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return response()->json(['success' => false, 'message' => 'Failed to load report details: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Assign a report to a police station (Admin only)
+     */
+    public function assignToStation(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'station_id' => 'required|exists:police_stations,station_id',
+            ]);
+
+            $report = Report::findOrFail($id);
+            $report->assigned_station_id = $request->station_id;
+            $report->save();
+
+            \Log::info('Report manually assigned to station', [
+                'report_id' => $id,
+                'station_id' => $request->station_id,
+                'assigned_by' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Report successfully assigned to station'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error assigning report to station', [
+                'report_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to assign report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Request reassignment of a report (Police only)
+     */
+    public function requestReassignment(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'station_id' => 'required|exists:police_stations,station_id',
+                'reason' => 'nullable|string|max:500',
+            ]);
+
+            $report = Report::findOrFail($id);
+            
+            // Create reassignment request
+            $reassignmentRequest = \App\Models\ReportReassignmentRequest::create([
+                'report_id' => $id,
+                'requested_by_user_id' => auth()->id(),
+                'current_station_id' => $report->assigned_station_id,
+                'requested_station_id' => $request->station_id,
+                'reason' => $request->reason,
+                'status' => 'pending',
+            ]);
+
+            \Log::info('Report reassignment requested', [
+                'request_id' => $reassignmentRequest->request_id,
+                'report_id' => $id,
+                'requested_by' => auth()->id(),
+                'requested_station_id' => $request->station_id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Reassignment request submitted successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error requesting report reassignment', [
+                'report_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to submit request: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get all reassignment requests (Admin only)
+     */
+    public function getReassignmentRequests()
+    {
+        try {
+            $requests = \App\Models\ReportReassignmentRequest::with([
+                'report',
+                'requestedBy',
+                'currentStation',
+                'requestedStation',
+                'reviewedBy'
+            ])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $requests
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching reassignment requests', [
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch requests: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Approve or reject a reassignment request (Admin only)
+     */
+    public function reviewReassignmentRequest(Request $request, $requestId)
+    {
+        try {
+            $request->validate([
+                'action' => 'required|in:approve,reject',
+            ]);
+
+            $reassignmentRequest = \App\Models\ReportReassignmentRequest::findOrFail($requestId);
+            
+            if ($reassignmentRequest->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This request has already been reviewed'
+                ], 400);
+            }
+
+            $reassignmentRequest->status = $request->action === 'approve' ? 'approved' : 'rejected';
+            $reassignmentRequest->reviewed_by_user_id = auth()->id();
+            $reassignmentRequest->reviewed_at = now();
+            $reassignmentRequest->save();
+
+            // If approved, update the report's assigned station
+            if ($request->action === 'approve') {
+                $report = Report::find($reassignmentRequest->report_id);
+                if ($report) {
+                    $report->assigned_station_id = $reassignmentRequest->requested_station_id;
+                    $report->save();
+                }
+            }
+
+            \Log::info('Reassignment request reviewed', [
+                'request_id' => $requestId,
+                'action' => $request->action,
+                'reviewed_by' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Request ' . ($request->action === 'approve' ? 'approved' : 'rejected') . ' successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error reviewing reassignment request', [
+                'request_id' => $requestId,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to review request: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

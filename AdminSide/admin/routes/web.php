@@ -46,6 +46,12 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/reports/{id}/status', [ReportController::class, 'updateStatus'])->name('reports.updateStatus');
     Route::put('/reports/{id}/validity', [ReportController::class, 'updateValidity'])->name('reports.updateValidity');
     Route::get('/reports/{id}/details', [ReportController::class, 'getDetails'])->name('reports.details');
+    
+    // Report reassignment routes
+    Route::post('/reports/{id}/assign-station', [ReportController::class, 'assignToStation'])->name('reports.assignStation')->middleware('role:admin');
+    Route::post('/reports/{id}/request-reassignment', [ReportController::class, 'requestReassignment'])->name('reports.requestReassignment')->middleware('role:police');
+    Route::get('/api/reassignment-requests', [ReportController::class, 'getReassignmentRequests'])->name('api.reassignmentRequests')->middleware('role:admin');
+    Route::post('/reassignment-requests/{id}/review', [ReportController::class, 'reviewReassignmentRequest'])->name('reports.reviewReassignment')->middleware('role:admin');
 
     // Barangay management routes (commented out - controller missing)
     // Route::get('/barangays', [BarangayController::class, 'index'])->name('barangays.index');
@@ -93,6 +99,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/verification', function () {
         return view('verification');
     })->name('verification');
+
+    // Reassignment requests page (admin only)
+    Route::get('/reassignment-requests', function () {
+        return view('reassignment-requests');
+    })->name('reassignment-requests')->middleware('role:admin');
 
     // API routes for verification management (now properly protected by auth middleware)
     Route::get('/api/verifications/all', [VerificationController::class, 'getAllVerifications']);
