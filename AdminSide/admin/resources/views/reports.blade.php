@@ -271,25 +271,53 @@
         }
 
         .validity-select {
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            border: 1px solid #d1d5db;
-            font-size: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+            font-size: 0.813rem;
+            font-weight: 500;
+            background-color: white;
+            cursor: pointer;
+            width: 100%;
+            max-width: 150px;
+            transition: all 0.2s ease;
+            color: #374151;
+        }
+
+        .validity-select:hover {
+            border-color: #3b82f6;
+            background-color: #f9fafb;
+        }
+
+        .validity-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .status-select {
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+            font-size: 0.813rem;
+            font-weight: 500;
             background-color: white;
             cursor: pointer;
             width: 100%;
             max-width: 140px;
+            transition: all 0.2s ease;
+            color: #374151;
         }
 
-        .status-select {
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            border: 1px solid #d1d5db;
-            font-size: 0.75rem;
-            background-color: white;
-            cursor: pointer;
-            width: 100%;
-            max-width: 120px;
+        .status-select:hover {
+            border-color: #10b981;
+            background-color: #f9fafb;
+        }
+
+        .status-select:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
         }
 
         .action-btn {
@@ -604,41 +632,6 @@
             transform: scale(1.1);
         }
 
-        .lightbox-nav {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            background: rgba(0, 0, 0, 0.6);
-            border: 2px solid rgba(255, 255, 255, 0.7);
-            border-radius: 50%;
-            width: 56px;
-            height: 56px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 2rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            z-index: 10002;
-            padding: 0;
-            line-height: 1;
-        }
-
-        .lightbox-nav:hover {
-            background: rgba(0, 0, 0, 0.8);
-            border-color: white;
-            transform: translateY(-50%) scale(1.15);
-        }
-
-        .lightbox-prev {
-            left: 20px;
-        }
-
-        .lightbox-next {
-            right: 20px;
-        }
-
         /* Map Container Styles */
         .report-map-container {
             margin-top: 1.5rem;
@@ -682,9 +675,10 @@
             display: flex;
             gap: 0.75rem;
             padding: 1.5rem;
+            padding-left: 0;
             border-top: 1px solid #e5e7eb;
             background: #f9fafb;
-            margin-top: 1.5rem;
+            margin-top: 0.5rem;
             flex-wrap: wrap;
         }
 
@@ -870,7 +864,20 @@
                                         Unknown
                                     @endif
                                 </td>
-                                <td>{{ \Illuminate\Support\Str::limit($report->report_type ?? 'N/A', 10) }}</td>
+                                <td>
+                                    @php
+                                        $reportType = $report->report_type ?? 'N/A';
+                                        if (is_string($reportType)) {
+                                            $decoded = json_decode($reportType, true);
+                                            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                                                $reportType = implode(', ', $decoded);
+                                            }
+                                        } elseif (is_array($reportType)) {
+                                            $reportType = implode(', ', $reportType);
+                                        }
+                                    @endphp
+                                    {{ \Illuminate\Support\Str::limit($reportType, 20) }}
+                                </td>
                                 <td>{{ \Illuminate\Support\Str::limit($report->title, 30) }}</td>
                                 <td>
                                     <?php 
@@ -964,11 +971,9 @@
     <!-- Image Lightbox -->
     <div class="lightbox-overlay" id="lightbox">
         <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-        <button class="lightbox-nav lightbox-prev" onclick="changeImage(-1)">&#8249;</button>
         <div class="lightbox-content">
             <img id="lightboxImage" src="" alt="Enlarged view">
         </div>
-        <button class="lightbox-nav lightbox-next" onclick="changeImage(1)">&#8250;</button>
     </div>
 
     <!-- Assign Station Modal (Admin) -->
@@ -1028,7 +1033,6 @@
             </div>
         </div>
     </div>
-    <button class="lightbox-nav lightbox-next" onclick="changeImage(1)">&#8250;</button>
 </div>
 
 <!-- Pagination -->
@@ -1510,33 +1514,27 @@
                 `;
 
                         modalBody.innerHTML = `
-                    <div class="detail-item">
-                        <div class="detail-label">Title</div>
-                        <div class="detail-value">${report.title || 'No title provided'}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Location</div>
-                        <div class="detail-value">${getLocationDisplay(report)}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Description</div>
-                        <div class="detail-value">${report.description || 'No description provided'}</div>
-                    </div>
                     <div class="report-details-grid">
                         <div>
+                            <div class="detail-item">
+                                <div class="detail-label">Title</div>
+                                <div class="detail-value">${report.title || 'No title provided'}</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Location</div>
+                                <div class="detail-value">${getLocationDisplay(report)}</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Description</div>
+                                <div class="detail-value">${report.description || 'No description provided'}</div>
+                            </div>
                             <div class="detail-item">
                                 <div class="detail-label">Report ID</div>
                                 <div class="detail-value">${report.report_id.toString().padStart(5, '0')}</div>
                             </div>
                             <div class="detail-item">
                                 <div class="detail-label">Report Type</div>
-                                <div class="detail-value">${report.report_type || 'N/A'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Status</div>
-                                <div class="detail-value">
-                                    <span class="status-badge ${report.status}">${report.status}</span>
-                                </div>
+                                <div class="detail-value">${Array.isArray(report.report_type) ? report.report_type.join(', ') : (report.report_type || 'N/A')}</div>
                             </div>
                         </div>
                         <div>
@@ -1555,12 +1553,18 @@
                                     ${getVerificationBadge(report)}
                                 </div>
                             </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Status</div>
+                                <div class="detail-value">
+                                    <span class="status-badge ${report.status}">${report.status}</span>
+                                </div>
+                            </div>
+                            ${getActionButtons(report)}
                         </div>
                     </div>
                 </div>
                 ${mapContainer}
                 ${mediaContent}
-                ${getActionButtons(report)}
             `;
             
             // Store current report ID globally for modal actions
@@ -1617,18 +1621,17 @@ function getVerificationBadge(report) {
      
      let buttons = '';
      
-     // For admin users
+     // For admin users - always show assign/reassign button
      if (userRole === 'admin') {
+         const buttonText = isUnassigned ? 'Assign to Station' : 'Reassign Station';
          buttons = `
              <div class="actions-section">
-                 ${isUnassigned ? `
-                     <button class="btn btn-primary" onclick="openAssignStationModal(${report.report_id})">
-                         <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="currentColor">
-                             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                         </svg>
-                         Assign to Station
-                     </button>
-                 ` : ''}
+                 <button class="btn btn-primary" onclick="openAssignStationModal(${report.report_id})">
+                     <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="currentColor">
+                         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                     </svg>
+                     ${buttonText}
+                 </button>
              </div>
          `;
      }
@@ -1948,6 +1951,16 @@ function generatePDF(report) {
     // Get user display (anonymous or actual name)
     const userDisplay = report.is_anonymous ? 'Anonymous' : (report.user ? report.user.firstname + ' ' + report.user.lastname : 'Unknown User');
     
+    // Determine verification status
+    let verificationStatus = 'Unverified';
+    if (!report.is_anonymous && report.user) {
+        if (report.user.email_verified_at) {
+            verificationStatus = 'Verified';
+        } else if (report.user.verification_status === 'pending') {
+            verificationStatus = 'Pending';
+        }
+    }
+    
     // Create HTML content for the PDF
     tempContainer.innerHTML = `
         <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1D3557; padding-bottom: 20px;">
@@ -1955,79 +1968,54 @@ function generatePDF(report) {
             <div class="davao">Davao</div>
         </div>
         
-        <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Title</div>
-            <div style="margin-bottom: 15px; padding-left: 10px;">${report.title || 'No title provided'}</div>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Location</div>
-            <div style="margin-bottom: 15px; padding-left: 10px;">${locationDisplay}</div>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Description</div>
-            <div style="margin-bottom: 15px; padding-left: 10px;">${report.description || 'No description provided'}</div>
-        </div>
-        
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
             <div>
+                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Title</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">${report.title || 'No title provided'}</div>
+                
+                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Location</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">${locationDisplay}</div>
+                
+                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Description</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">${report.description || 'No description provided'}</div>
+                
                 <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Report ID</div>
                 <div style="margin-bottom: 15px; padding-left: 10px;">${report.report_id.toString().padStart(5, '0')}</div>
                 
                 <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Report Type</div>
-                <div style="margin-bottom: 15px; padding-left: 10px;">${report.report_type || 'N/A'}</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">${Array.isArray(report.report_type) ? report.report_type.join(', ') : (report.report_type || 'N/A')}</div>
+            </div>
+            <div>
+                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Date Reported</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">${new Date(report.created_at).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}</div>
+                
+                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Last Updated</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">${new Date(report.updated_at).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}</div>
+                
+                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">User</div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">
+                    ${userDisplay} 
+                    <span style="display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; 
+                        ${verificationStatus === 'Verified' ? 'background-color: #d1fae5; color: #065f46;' : verificationStatus === 'Pending' ? 'background-color: #fef3c7; color: #92400e;' : 'background-color: #fee2e2; color: #991b1b;'}">
+                        ${verificationStatus}
+                    </span>
+                </div>
                 
                 <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Status</div>
-                <div style="margin-bottom: 15px; padding-left: 10px;">${report.status}</div>
-            </div>
-
-            <div style="margin-bottom: 20px;">
-                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Title</div>
-                <div style="margin-bottom: 15px; padding-left: 10px;">${report.title || 'No title provided'}</div>
-            </div>
-
-            <div style="margin-bottom: 20px;">
-                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Location</div>
-                <div style="margin-bottom: 15px; padding-left: 10px;">${locationDisplay}</div>
-            </div>
-
-            <div style="margin-bottom: 20px;">
-                <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Description</div>
-                <div style="margin-bottom: 15px; padding-left: 10px;">${report.description || 'No description provided'}</div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-                <div>
-                    <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Report ID</div>
-                    <div style="margin-bottom: 15px; padding-left: 10px;">${report.report_id.toString().padStart(5, '0')}</div>
-
-                    <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Report Type</div>
-                    <div style="margin-bottom: 15px; padding-left: 10px;">${report.report_type || 'N/A'}</div>
-
-                    <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Status</div>
-                    <div style="margin-bottom: 15px; padding-left: 10px;">${report.status}</div>
-                </div>
-                <div>
-                    <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Date Reported</div>
-                    <div style="margin-bottom: 15px; padding-left: 10px;">${new Date(report.created_at).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}</div>
-
-                    <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Last Updated</div>
-                    <div style="margin-bottom: 15px; padding-left: 10px;">${new Date(report.updated_at).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}</div>
-
-                    <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">User</div>
-                    <div style="margin-bottom: 15px; padding-left: 10px;">
-                        ${userDisplay} 
-                        <span style="display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; 
-                            ${verificationStatus === 'Verified' ? 'background-color: #d1fae5; color: #065f46;' : verificationStatus === 'Pending' ? 'background-color: #fef3c7; color: #92400e;' : 'background-color: #fee2e2; color: #991b1b;'}">
-                            ${verificationStatus}
-                        </span>
-                    </div>
+                <div style="margin-bottom: 15px; padding-left: 10px;">
+                    <span style="display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; text-transform: capitalize;
+                        ${report.status === 'pending' ? 'background-color: #fef3c7; color: #92400e;' : 
+                          report.status === 'investigating' ? 'background-color: #dbeafe; color: #1e40af;' : 
+                          report.status === 'resolved' ? 'background-color: #d1fae5; color: #065f46;' : 
+                          'background-color: #fee2e2; color: #991b1b;'}">
+                        ${report.status}
+                    </span>
                 </div>
             </div>
+        </div>
 
-            <div id="images-container" style="margin-top: 20px;"></div>
-        `;
+        <div id="images-container" style="margin-top: 20px;"></div>
+    `;
 
             // Add images container
             const imagesContainer = tempContainer.querySelector('#images-container');

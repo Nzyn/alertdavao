@@ -388,19 +388,55 @@
     
     /* Hotspots Ranking Section */
     .hotspots-ranking-section {
-        padding: 2rem 1.5rem;
+        padding: 0;
         background: white;
         border-top: 2px solid #e5e7eb;
+    }
+    
+    .ranking-header {
+        padding: 1.5rem;
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: background-color 0.2s;
+    }
+    
+    .ranking-header:hover {
+        background: #f9fafb;
     }
     
     .ranking-title {
         font-size: 1.125rem;
         font-weight: 700;
         color: #1f2937;
-        margin-bottom: 1.5rem;
-        margin-top: 0;
+        margin: 0;
         display: flex;
         align-items: center;
+    }
+    
+    .ranking-chevron {
+        width: 24px;
+        height: 24px;
+        fill: #6b7280;
+        transition: transform 0.3s ease;
+    }
+    
+    .ranking-chevron.open {
+        transform: rotate(180deg);
+    }
+    
+    .ranking-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        padding: 0 1.5rem;
+    }
+    
+    .ranking-content.open {
+        max-height: 3000px;
+        padding: 0 1.5rem 1.5rem;
     }
     
     .hotspot-list {
@@ -702,18 +738,25 @@
 
     <!-- Crime Hotspots Ranking -->
     <div class="hotspots-ranking-section">
-        <h3 class="ranking-title">
-            <svg style="width: 20px; height: 20px; fill: currentColor; display: inline-block; margin-right: 8px; vertical-align: middle;" viewBox="0 0 24 24">
-                <path d="M16 6l2.29 2.29-4.58 4.58L10 10.58 3.29 17.29 4.7 18.7l6.71-6.71 3.71 3.71 6.59-6.59L22 12v-6z"/>
-            </svg>
-            Crime Hotspots Ranking
-        </h3>
-        <div class="hotspot-list" id="hotspot-list">
-            <div class="loading-spinner">
-                <svg fill="currentColor" viewBox="0 0 24 24">
-                    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+        <div class="ranking-header" onclick="toggleRankingSection()">
+            <h3 class="ranking-title">
+                <svg style="width: 20px; height: 20px; fill: currentColor; display: inline-block; margin-right: 8px; vertical-align: middle;" viewBox="0 0 24 24">
+                    <path d="M16 6l2.29 2.29-4.58 4.58L10 10.58 3.29 17.29 4.7 18.7l6.71-6.71 3.71 3.71 6.59-6.59L22 12v-6z"/>
                 </svg>
-                Loading hotspot data...
+                Crime Hotspots Ranking
+            </h3>
+            <svg class="ranking-chevron" id="ranking-chevron" viewBox="0 0 24 24">
+                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+            </svg>
+        </div>
+        <div class="ranking-content" id="ranking-content">
+            <div class="hotspot-list" id="hotspot-list">
+                <div class="loading-spinner">
+                    <svg fill="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    Loading hotspot data...
+                </div>
             </div>
         </div>
     </div>
@@ -780,6 +823,7 @@
             
             // Load initial data
             loadReports();
+            loadHotspotRankingData();
         }, 100); // End setTimeout
     }); // End DOMContentLoaded
     
@@ -1040,6 +1084,15 @@
         
         loadReports();
         loadHotspotRankingData();
+        }
+        
+        // Toggle ranking section
+        function toggleRankingSection() {
+            const content = document.getElementById('ranking-content');
+            const chevron = document.getElementById('ranking-chevron');
+            
+            content.classList.toggle('open');
+            chevron.classList.toggle('open');
         }
         
         // Load hotspot ranking data

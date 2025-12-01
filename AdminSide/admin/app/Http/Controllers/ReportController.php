@@ -467,6 +467,14 @@ class ReportController extends Controller
                 }
             }
 
+            // Parse report_type from JSON string to array for frontend display
+            if ($report->report_type && is_string($report->report_type)) {
+                $decoded = json_decode($report->report_type, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $report->report_type = $decoded;
+                }
+            }
+
             // Get all police stations for map display
             $policeStations = \App\Models\PoliceStation::select('station_id', 'station_name', 'latitude', 'longitude', 'address')
                 ->whereNotNull('latitude')

@@ -844,10 +844,13 @@
             // Update stat values
             const statCards = document.querySelectorAll('.stat-value');
             const newStatCards = doc.querySelectorAll('.stat-value');
+            let hasUpdates = false;
             
             statCards.forEach((card, index) => {
                 if (newStatCards[index] && card.textContent !== newStatCards[index].textContent) {
+                    console.log('📊 Dashboard stat updated:', card.parentElement.querySelector('.stat-title').textContent, card.textContent, '→', newStatCards[index].textContent);
                     card.textContent = newStatCards[index].textContent;
+                    hasUpdates = true;
                     // Add flash animation
                     card.style.animation = 'flash 0.5s';
                     setTimeout(() => {
@@ -855,13 +858,18 @@
                     }, 500);
                 }
             });
+            
+            if (hasUpdates) {
+                console.log('✅ Dashboard statistics updated successfully');
+            }
         })
         .catch(error => {
-            console.error('Error checking for new stats:', error);
+            console.error('❌ Error checking for new stats:', error);
         });
     }
     
     // Start auto-refresh when page loads
+    console.log('🔄 Dashboard auto-refresh enabled - Checking every 3 seconds for all users');
     setInterval(checkForNewStats, 3000);
 </script>
 
