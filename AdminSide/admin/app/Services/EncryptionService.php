@@ -9,12 +9,25 @@ use Illuminate\Support\Facades\Log;
 /**
  * AES-256-CBC Encryption Service
  * Provides encryption/decryption for sensitive data
- * Uses Laravel's Crypt facade with AES-256-CBC
- * 
- * Compatible with Node.js encryptionService.js
+ * Compatible with both Laravel and Node.js encryption formats
  */
 class EncryptionService
 {
+    /**
+     * Get the encryption key from Laravel's APP_KEY
+     */
+    private static function getEncryptionKey()
+    {
+        $key = config('app.key');
+        
+        // If key starts with "base64:", decode it
+        if (str_starts_with($key, 'base64:')) {
+            return base64_decode(substr($key, 7));
+        }
+        
+        return $key;
+    }
+
     /**
      * Encrypt sensitive text data
      * 
@@ -37,7 +50,55 @@ class EncryptionService
     }
 
     /**
+     * Decrypt data encrypted by Node.js encryptionService (simple format)
+     * Format: base64(iv + encrypted_data)
+     */
+    private static function decryptNodeJsFormat($encryptedData)
+    {
+        try {
+            // Decode the base64 data
+            $combined = base64_decode($encryptedData, true);
+            if ($combined === false) {
+                return null;
+            }
+            
+            // Check minimum length (16 bytes IV + at least 1 byte data)
+            if (strlen($combined) < 17) {
+                return null;
+            }
+            
+            // Extract IV (first 16 bytes) and encrypted text
+            $iv = substr($combined, 0, 16);
+            $encrypted = substr($combined, 16);
+            
+            // Get encryption key
+            $key = self::getEncryptionKey();
+            
+            // Decrypt using AES-256-CBC
+            $decrypted = openssl_decrypt(
+                $encrypted,
+                'aes-256-cbc',
+                $key,
+                OPENSSL_RAW_DATA,
+                $iv
+            );
+            
+            if ($decrypted === false) {
+                return null;
+            }
+            
+            return $decrypted;
+        } catch (\Exception $e) {
+            Log::debug('Node.js format decryption failed', [
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Decrypt encrypted text data
+     * Supports both Laravel and Node.js encryption formats
      * 
      * @param string|null $encryptedText
      * @return string|null
@@ -47,16 +108,34 @@ class EncryptionService
         if (empty($encryptedText) || !is_string($encryptedText)) {
             return $encryptedText;
         }
-        // Only attempt decryption if the string looks like encrypted data (base64, length, etc.)
-        if (strlen($encryptedText) < 24 || !preg_match('/^[A-Za-z0-9\/=+]+$/', $encryptedText)) {
-            // Too short or not base64, likely not encrypted
-            return $encryptedText;
-        }
+        
         try {
-            return Crypt::decryptString($encryptedText);
+            // First, try Laravel's default decryption (JSON format with MAC)
+            $decrypted = Crypt::decryptString($encryptedText);
+            Log::debug('Successfully decrypted using Laravel format');
+            return $decrypted;
         } catch (DecryptException $e) {
-            Log::warning('Decryption error: ' . $e->getMessage() . ' | Data: ' . $encryptedText);
-            // Return original data if decryption fails
+            // Laravel format failed, try Node.js simple format
+            Log::debug('Laravel decryption failed, trying Node.js format', [
+                'error' => $e->getMessage()
+            ]);
+            
+            $decrypted = self::decryptNodeJsFormat($encryptedText);
+            if ($decrypted !== null) {
+                Log::debug('Successfully decrypted using Node.js format');
+                return $decrypted;
+            }
+            
+            // Both formats failed, return original data
+            Log::warning('Decryption failed for both formats - returning original data', [
+                'data_preview' => substr($encryptedText, 0, 50)
+            ]);
+            return $encryptedText;
+        } catch (\Exception $e) {
+            Log::error('Unexpected error during decryption', [
+                'error' => $e->getMessage(),
+                'data_preview' => substr($encryptedText, 0, 50)
+            ]);
             return $encryptedText;
         }
     }

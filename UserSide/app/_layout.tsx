@@ -73,13 +73,22 @@ function AppContent() {
     };
   }, []);
 
-  // Reset inactivity timer on any touch
+  // Reset inactivity timer on any touch - using onStartShouldSetResponder to capture all touches
   const handleUserActivity = () => {
     inactivityManager.resetActivity();
   };
 
   return (
-    <Pressable onPress={handleUserActivity} style={{ flex: 1 }}>
+    <Pressable 
+      onPress={handleUserActivity}
+      onPressIn={handleUserActivity}
+      onTouchStart={handleUserActivity}
+      onStartShouldSetResponder={() => {
+        handleUserActivity();
+        return false; // Don't capture the touch, let it pass through
+      }}
+      style={{ flex: 1 }}
+    >
       <GradientBackground>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack
