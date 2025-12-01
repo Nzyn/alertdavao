@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\PoliceStationController;
 // use App\Http\Controllers\BarangayController;
 
 /*
@@ -35,6 +36,11 @@ Route::get('/reports/user/{userId}', [ReportController::class, 'getUserReports']
 // Route::get('/barangays', [BarangayController::class, 'getAll']);
 // Route::post('/barangays/{barangayId}/assign-station', [BarangayController::class, 'assignStation']);
 // Route::post('/barangays/find-by-coordinates', [BarangayController::class, 'findByCoordinates']);
+
+// Police station and barangay routes (for offline support in mobile app)
+Route::get('/police-stations-with-barangays', [PoliceStationController::class, 'getAllWithBarangays']);
+Route::get('/barangays-with-stations', [PoliceStationController::class, 'getBarangaysWithStations']);
+Route::get('/police-station-search', [PoliceStationController::class, 'searchByBarangay']);
 
 // For debugging/testing - remove in production
 Route::get('/test', function () {

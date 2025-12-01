@@ -29,6 +29,11 @@ class User extends Authenticatable
         'is_verified',
         'station_id',
         'role',
+        'email_verified_at',
+        'verification_token',
+        'token_expires_at',
+        'reset_token',
+        'reset_token_expires_at',
     ];
 
     /**
@@ -50,6 +55,9 @@ class User extends Authenticatable
         'is_verified' => 'boolean',
         'latitude' => 'double',
         'longitude' => 'double',
+        'email_verified_at' => 'datetime',
+        'token_expires_at' => 'datetime',
+        'reset_token_expires_at' => 'datetime',
     ];
     
     public function reports()

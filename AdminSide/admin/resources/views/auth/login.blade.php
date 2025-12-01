@@ -294,6 +294,10 @@
                        <label for="remember">Remember Me</label>
                    </div>
 
+                   <div style="text-align: right; margin-bottom: 1rem;">
+                       <a href="{{ route('password.request') }}" style="color: #3b82f6; text-decoration: none; font-size: 0.875rem; font-weight: 500;">Forgot Password?</a>
+                   </div>
+
                    @include('components.captcha')
 
                    <button type="submit" class="submit-btn" id="proceedBtn">Login</button>

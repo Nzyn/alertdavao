@@ -15,6 +15,7 @@ use App\Http\Controllers\PersonnelController;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\HotspotDataController;
+use App\Http\Controllers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -34,6 +35,16 @@ Route::get('/register', [AuthController::class, 'showRegister'])->name('register
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+// Email Verification Routes
+Route::get('/email/verify/{token}', [AuthController::class, 'verifyEmail'])->name('email.verify');
+Route::post('/email/resend', [AuthController::class, 'resendVerification'])->name('email.resend');
+
+// Password Reset Routes
+Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
+Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email');
+Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset.form');
+Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
+
 // OTP Routes
 Route::post('/api/otp/send', [OtpController::class, 'sendOtp'])->name('otp.send');
 Route::post('/api/otp/verify', [OtpController::class, 'verifyOtp'])->name('otp.verify');
@@ -41,6 +52,11 @@ Route::post('/api/otp/verify', [OtpController::class, 'verifyOtp'])->name('otp.v
 // Protected Routes (require authentication)
 Route::middleware(['auth'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Profile Routes
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
     Route::get('/reports', [ReportController::class, 'index'])->name('reports');
     Route::put('/reports/{id}/status', [ReportController::class, 'updateStatus'])->name('reports.updateStatus');

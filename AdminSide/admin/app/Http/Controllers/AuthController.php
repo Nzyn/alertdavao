@@ -7,6 +7,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Carbon\Carbon;
+use App\Notifications\EmailVerification;
+use App\Notifications\PasswordResetNotification;
 
 class AuthController extends Controller
 {
@@ -57,16 +61,38 @@ class AuthController extends Controller
             return back()->withErrors(['captcha_input' => 'Invalid security code. Please try again.'])->withInput();
         }
 
+        // Generate verification token
+        $verificationToken = Str::random(64);
+        $tokenExpiresAt = Carbon::now()->addHours(24);
+
+        // Create user with verification token (email not verified yet)
         $user = User::create([
             'firstname' => $request->firstname,
             'lastname' => $request->lastname,
             'email' => $request->email,
             'contact' => $request->contact,
-            'password' => Hash::make($request->password)
+            'password' => Hash::make($request->password),
+            'verification_token' => $verificationToken,
+            'token_expires_at' => $tokenExpiresAt,
+            'email_verified_at' => null, // Not verified yet
         ]);
 
-        // Redirect to login page instead of auto-login for extra security
-        return redirect()->route('login')->with('success', 'Registration successful! Please login with your credentials.');
+        // Generate verification URL
+        $verificationUrl = route('email.verify', ['token' => $verificationToken]);
+
+        // Send verification email
+        try {
+            $user->notify(new EmailVerification($verificationUrl, $user->firstname));
+            
+            return redirect()->route('login')->with('success', 
+                'Registration successful! Please check your email (' . $user->email . ') for a verification link to activate your account. The link will expire in 24 hours.');
+        } catch (\Exception $e) {
+            // Delete user if email fails to send
+            $user->delete();
+            \Log::error('Email verification failed: ' . $e->getMessage());
+            
+            return back()->withErrors(['email' => 'Failed to send verification email. Please check your email address and try again.'])->withInput();
+        }
     }
 
     // Show login form
@@ -83,6 +109,22 @@ class AuthController extends Controller
             'email' => 'required|email',
             'password' => 'required'
         ]);
+
+        // Check if user exists
+        $user = User::where('email', $credentials['email'])->first();
+        
+        if (!$user) {
+            return back()->withErrors([
+                'email' => 'The provided credentials do not match our records.',
+            ])->withInput($request->except('password'));
+        }
+
+        // Check if email is verified
+        if (is_null($user->email_verified_at)) {
+            return back()->withErrors([
+                'email' => 'Please verify your email address before logging in. Check your inbox for the verification link.',
+            ])->withInput($request->except('password'));
+        }
 
         // Only use email and password for authentication
         if (Auth::attempt($credentials, $request->filled('remember'))) {
@@ -135,5 +177,184 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect()->route('login')->with('success', 'You have been logged out successfully!');
+    }
+
+    // Show forgot password form
+    public function showForgotPassword()
+    {
+        return view('auth.forgot-password');
+    }
+
+    // Handle forgot password request
+    public function sendResetLink(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email'
+        ], [
+            'email.exists' => 'We could not find a user with that email address.'
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // Check if email is verified
+        if (is_null($user->email_verified_at)) {
+            return back()->withErrors([
+                'email' => 'Your email address is not verified. Please verify your email before resetting your password.',
+            ])->withInput();
+        }
+
+        // Generate reset token
+        $resetToken = Str::random(64);
+        $tokenExpiresAt = Carbon::now()->addHour();
+
+        // Update user with reset token
+        $user->update([
+            'reset_token' => $resetToken,
+            'reset_token_expires_at' => $tokenExpiresAt,
+        ]);
+
+        // Generate reset URL
+        $resetUrl = route('password.reset.form', ['token' => $resetToken]);
+
+        // Send reset email
+        try {
+            $user->notify(new PasswordResetNotification($resetUrl, $user->firstname));
+            
+            return back()->with('success', 
+                'Password reset link has been sent to your email address. Please check your inbox.');
+        } catch (\Exception $e) {
+            \Log::error('Password reset email failed: ' . $e->getMessage());
+            
+            return back()->withErrors([
+                'email' => 'Failed to send password reset email. Please try again later.'
+            ])->withInput();
+        }
+    }
+
+    // Show reset password form
+    public function showResetPassword($token)
+    {
+        $user = User::where('reset_token', $token)
+            ->where('reset_token_expires_at', '>', Carbon::now())
+            ->first();
+
+        if (!$user) {
+            return redirect()->route('login')->withErrors([
+                'token' => 'This password reset link is invalid or has expired.'
+            ]);
+        }
+
+        return view('auth.reset-password', ['token' => $token, 'email' => $user->email]);
+    }
+
+    // Handle password reset
+    public function resetPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'regex:/^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/'
+            ],
+            'password_confirmation' => 'required|same:password',
+        ], [
+            'password.regex' => 'Password must contain at least one letter, one number, and one symbol (@$!%*?&)',
+            'password.min' => 'Password must be at least 8 characters long',
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        $user = User::where('reset_token', $request->token)
+            ->where('email', $request->email)
+            ->where('reset_token_expires_at', '>', Carbon::now())
+            ->first();
+
+        if (!$user) {
+            return back()->withErrors([
+                'token' => 'This password reset link is invalid or has expired.'
+            ])->withInput();
+        }
+
+        // Update password and clear reset token
+        $user->update([
+            'password' => Hash::make($request->password),
+            'reset_token' => null,
+            'reset_token_expires_at' => null,
+        ]);
+
+        return redirect()->route('login')->with('success', 
+            'Your password has been reset successfully! Please login with your new password.');
+    }
+
+    // Verify email
+    public function verifyEmail($token)
+    {
+        $user = User::where('verification_token', $token)
+            ->where('token_expires_at', '>', Carbon::now())
+            ->whereNull('email_verified_at')
+            ->first();
+
+        if (!$user) {
+            return redirect()->route('login')->withErrors([
+                'token' => 'This verification link is invalid or has expired.'
+            ]);
+        }
+
+        // Mark email as verified
+        $user->update([
+            'email_verified_at' => Carbon::now(),
+            'verification_token' => null,
+            'token_expires_at' => null,
+        ]);
+
+        return redirect()->route('login')->with('success', 
+            'Email verified successfully! You can now login to your account.');
+    }
+
+    // Resend verification email
+    public function resendVerification(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email'
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if ($user->email_verified_at) {
+            return back()->withErrors([
+                'email' => 'This email address is already verified.'
+            ])->withInput();
+        }
+
+        // Generate new verification token
+        $verificationToken = Str::random(64);
+        $tokenExpiresAt = Carbon::now()->addHours(24);
+
+        $user->update([
+            'verification_token' => $verificationToken,
+            'token_expires_at' => $tokenExpiresAt,
+        ]);
+
+        // Generate verification URL
+        $verificationUrl = route('email.verify', ['token' => $verificationToken]);
+
+        // Send verification email
+        try {
+            $user->notify(new EmailVerification($verificationUrl, $user->firstname));
+            
+            return back()->with('success', 
+                'Verification email has been sent! Please check your inbox.');
+        } catch (\Exception $e) {
+            \Log::error('Email verification resend failed: ' . $e->getMessage());
+            
+            return back()->withErrors([
+                'email' => 'Failed to send verification email. Please try again later.'
+            ])->withInput();
+        }
     }
 }
