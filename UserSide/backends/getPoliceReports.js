@@ -33,7 +33,7 @@ async function getReportsByStation(req, res) {
         r.is_anonymous,
         r.date_reported,
         r.created_at,
-        r.station_id,
+        r.assigned_station_id as station_id,
         r.user_id,
         l.latitude,
         l.longitude,
@@ -49,9 +49,9 @@ async function getReportsByStation(req, res) {
       FROM reports r
       LEFT JOIN locations l ON r.location_id = l.location_id
       LEFT JOIN users u ON r.user_id = u.id
-      LEFT JOIN police_stations ps ON r.station_id = ps.station_id
+      LEFT JOIN police_stations ps ON r.assigned_station_id = ps.station_id
       LEFT JOIN report_media rm ON r.report_id = rm.report_id
-      WHERE r.station_id = ?
+      WHERE r.assigned_station_id = ?
         AND r.location_id IS NOT NULL 
         AND r.location_id != 0
         AND l.latitude IS NOT NULL 
@@ -157,7 +157,7 @@ async function getReportsByStationAndStatus(req, res) {
         r.is_anonymous,
         r.date_reported,
         r.created_at,
-        r.station_id,
+        r.assigned_station_id as station_id,
         r.user_id,
         l.latitude,
         l.longitude,
@@ -173,9 +173,9 @@ async function getReportsByStationAndStatus(req, res) {
       FROM reports r
       LEFT JOIN locations l ON r.location_id = l.location_id
       LEFT JOIN users u ON r.user_id = u.id
-      LEFT JOIN police_stations ps ON r.station_id = ps.station_id
+      LEFT JOIN police_stations ps ON r.assigned_station_id = ps.station_id
       LEFT JOIN report_media rm ON r.report_id = rm.report_id
-      WHERE r.station_id = ? AND r.status = ?
+      WHERE r.assigned_station_id = ? AND r.status = ?
         AND r.location_id IS NOT NULL 
         AND r.location_id != 0
         AND l.latitude IS NOT NULL 
@@ -273,7 +273,7 @@ async function getStationDashboardStats(req, res) {
         SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
         SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
       FROM reports
-      WHERE station_id = ?`,
+      WHERE assigned_station_id = ?`,
       [stationId]
     );
 
@@ -283,7 +283,7 @@ async function getStationDashboardStats(req, res) {
         report_type,
         COUNT(*) as count
       FROM reports
-      WHERE station_id = ?
+      WHERE assigned_station_id = ?
       GROUP BY report_type
       ORDER BY count DESC
       LIMIT 5`,
@@ -305,7 +305,7 @@ async function getStationDashboardStats(req, res) {
       FROM reports r
       LEFT JOIN locations l ON r.location_id = l.location_id
       LEFT JOIN users u ON r.user_id = u.id
-      WHERE r.station_id = ?
+      WHERE r.assigned_station_id = ?
       ORDER BY r.created_at DESC
       LIMIT 10`,
       [stationId]

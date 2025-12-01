@@ -59,6 +59,10 @@ const CRIME_TYPES = [
     'Harassment',
     'Sexual Assault',
     'Missing Person',
+    'Motornapping',
+    'Murder',
+    'Rape'
+    
 ];
 
 // ✅ Type for CheckRow props
@@ -460,7 +464,7 @@ export default function ReportCrime() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 16 }}>
                     {/* Left Column */}
                     <View style={{ flex: 1 }}>
-                        {CRIME_TYPES.slice(0, 8).map((crime) => (
+                         {CRIME_TYPES.slice(0, 9).map((crime) => (
                             <CheckRow
                                 key={crime}
                                 label={crime}
@@ -471,7 +475,7 @@ export default function ReportCrime() {
                     </View>
                     {/* Right Column */}
                     <View style={{ flex: 1 }}>
-                        {CRIME_TYPES.slice(8).map((crime) => (
+                        {CRIME_TYPES.slice(9).map((crime) => (
                             <CheckRow
                                 key={crime}
                                 label={crime}

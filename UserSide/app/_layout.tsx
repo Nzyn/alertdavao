@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useState, useEffect } from 'react';
 import 'react-native-reanimated';
 import * as SplashScreen from 'expo-splash-screen';
+import { Pressable } from 'react-native';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import LoadingScreen from '../components/LoadingScreen';
@@ -12,6 +13,7 @@ import LoadingOverlay from '../components/LoadingOverlay';
 import GradientBackground from '../components/GradientBackground';
 import { UserProvider } from '../contexts/UserContext';
 import { LoadingProvider, useLoading } from '../contexts/LoadingContext';
+import { inactivityManager } from '../services/inactivityManager';
 
 // Prevent auto-hiding splash screen
 SplashScreen.preventAutoHideAsync();
@@ -62,9 +64,24 @@ function AppContent() {
   const colorScheme = useColorScheme();
   const { isLoading, loadingMessage } = useLoading();
 
+  // Start inactivity manager when app loads
+  useEffect(() => {
+    inactivityManager.start();
+    
+    return () => {
+      inactivityManager.stop();
+    };
+  }, []);
+
+  // Reset inactivity timer on any touch
+  const handleUserActivity = () => {
+    inactivityManager.resetActivity();
+  };
+
   return (
-    <GradientBackground>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <Pressable onPress={handleUserActivity} style={{ flex: 1 }}>
+      <GradientBackground>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack
           screenOptions={{
             // Add page transition animations
@@ -101,5 +118,6 @@ function AppContent() {
       </ThemeProvider>
       <LoadingOverlay visible={isLoading} message={loadingMessage} />
     </GradientBackground>
+    </Pressable>
   );
 }
