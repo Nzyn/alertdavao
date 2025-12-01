@@ -40,7 +40,20 @@ class ReportController extends Controller
 
             // Normalize to lowercase for comparison
             $types = array_map('strtolower', $types);
-            if (in_array('cybercrime', $types)) {
+            $types = array_map('trim', $types);
+            
+            // Check if 'cybercrime' or 'cyber crime' is explicitly selected
+            $isCybercrime = in_array('cybercrime', $types) || in_array('cyber crime', $types);
+            
+            // Also check for variations like "cybercrime - fraud", "cyber crime - hacking"
+            foreach ($types as $type) {
+                if (str_starts_with($type, 'cybercrime -') || str_starts_with($type, 'cyber crime -')) {
+                    $isCybercrime = true;
+                    break;
+                }
+            }
+            
+            if ($isCybercrime) {
                 $cybercrimeStation = \App\Models\PoliceStation::where('station_name', 'Cybercrime Division')->first();
                 if ($cybercrimeStation) {
                     $report->assigned_station_id = $cybercrimeStation->station_id;

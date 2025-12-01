@@ -11,21 +11,21 @@ async function checkReportAssignment(req, res) {
   try {
     console.log("📊 Checking report assignment status...");
 
-    // Count reports with NULL station_id
+    // Count reports with NULL assigned_station_id
     const [nullStationReports] = await db.query(
-      `SELECT COUNT(*) as count FROM reports WHERE station_id IS NULL`
+      `SELECT COUNT(*) as count FROM reports WHERE assigned_station_id IS NULL`
     );
 
-    // Count reports with station_id set
+    // Count reports with assigned_station_id set
     const [withStationReports] = await db.query(
-      `SELECT COUNT(*) as count FROM reports WHERE station_id IS NOT NULL`
+      `SELECT COUNT(*) as count FROM reports WHERE assigned_station_id IS NOT NULL`
     );
 
-    // Get sample reports without station_id
+    // Get sample reports without assigned_station_id
     const [sampleReports] = await db.query(
-      `SELECT report_id, title, report_type, user_id, created_at, station_id
+      `SELECT report_id, title, report_type, user_id, created_at, assigned_station_id
        FROM reports
-       WHERE station_id IS NULL
+       WHERE assigned_station_id IS NULL
        LIMIT 10`
     );
 
@@ -74,12 +74,12 @@ async function autoAssignStationToReports(req, res) {
 
     const cybercrimeStationId = cybercrimeStation.length > 0 ? cybercrimeStation[0].station_id : null;
 
-    // Get all reports without station_id with location data
+    // Get all reports without assigned_station_id with location data
     const [reportsToFix] = await connection.query(
       `SELECT r.report_id, r.report_type, l.latitude, l.longitude
        FROM reports r
        LEFT JOIN locations l ON r.location_id = l.location_id
-       WHERE r.station_id IS NULL`
+       WHERE r.assigned_station_id IS NULL`
     );
 
     console.log(`📋 Found ${reportsToFix.length} reports without station assignment`);
@@ -149,7 +149,7 @@ async function autoAssignStationToReports(req, res) {
       // If we determined a station, update it
       if (stationId) {
         await connection.query(
-          `UPDATE reports SET station_id = ? WHERE report_id = ?`,
+          `UPDATE reports SET assigned_station_id = ? WHERE report_id = ?`,
           [stationId, report.report_id]
         );
       } else {

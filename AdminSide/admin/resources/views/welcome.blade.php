@@ -828,5 +828,47 @@
         document.getElementById('crime-type-filter').value = '';
         loadMiniMapReports();
     }
+
+    // Auto-refresh dashboard stats every 3 seconds
+    function checkForNewStats() {
+        fetch('{{ route("dashboard") }}', {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Update stat values
+            const statCards = document.querySelectorAll('.stat-value');
+            const newStatCards = doc.querySelectorAll('.stat-value');
+            
+            statCards.forEach((card, index) => {
+                if (newStatCards[index] && card.textContent !== newStatCards[index].textContent) {
+                    card.textContent = newStatCards[index].textContent;
+                    // Add flash animation
+                    card.style.animation = 'flash 0.5s';
+                    setTimeout(() => {
+                        card.style.animation = '';
+                    }, 500);
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Error checking for new stats:', error);
+        });
+    }
+    
+    // Start auto-refresh when page loads
+    setInterval(checkForNewStats, 3000);
 </script>
+
+<style>
+@keyframes flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; background-color: #fef3c7; }
+}
+</style>
 @endsection

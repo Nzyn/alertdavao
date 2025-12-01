@@ -4,6 +4,32 @@ const path = require("path");
 const fs = require("fs");
 const { encrypt, decrypt, canDecrypt, encryptFields, decryptFields } = require("./encryptionService");
 
+/**
+ * Point-in-polygon algorithm (Ray Casting)
+ * Checks if a GPS coordinate falls within a polygon boundary
+ * @param {number} lat - Point latitude
+ * @param {number} lon - Point longitude
+ * @param {Array} polygon - Array of [longitude, latitude] coordinates
+ * @returns {boolean} - True if point is inside polygon
+ */
+function isPointInPolygon(lat, lon, polygon) {
+  let inside = false;
+  
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0]; // longitude
+    const yi = polygon[i][1]; // latitude
+    const xj = polygon[j][0]; // longitude
+    const yj = polygon[j][1]; // latitude
+
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    
+    if (intersect) inside = !inside;
+  }
+
+  return inside;
+}
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -160,16 +186,15 @@ async function submitReport(req, res) {
     // Get the station_id from provided barangay_id or calculate from coordinates
     let stationId = null;
     
-    // Check if this is a cybercrime report - route to Cybercrime Division globally
-    const isCybercrime = crimeTypesArray.some(crime => 
-      crime.toLowerCase().includes('cybercrime') || 
-      crime.toLowerCase().includes('cyber crime') ||
-      crime.toLowerCase().includes('online fraud') ||
-      crime.toLowerCase().includes('hacking') ||
-      crime.toLowerCase().includes('phishing') ||
-      crime.toLowerCase().includes('identity theft') ||
-      crime.toLowerCase().includes('ransomware')
-    );
+    // Check if this is a cybercrime report - ONLY if explicitly contains "cybercrime"
+    // Route to Cybercrime Division globally
+    const isCybercrime = crimeTypesArray.some(crime => {
+      const normalized = crime.toLowerCase().trim();
+      return normalized === 'cybercrime' || 
+             normalized === 'cyber crime' ||
+             normalized.startsWith('cybercrime -') ||
+             normalized.startsWith('cyber crime -');
+    });
     
     if (isCybercrime) {
       // Route cybercrime reports to Cybercrime Division (global assignment, no location-based assignment)
@@ -204,29 +229,49 @@ async function submitReport(req, res) {
         }
       }
       
-      // Fallback: Use Haversine formula to find nearest barangay
+      // Fallback: Use point-in-polygon to find barangay by GPS coordinates
+      // ONLY assign if point falls within a barangay's polygon boundary
       if (!stationId && lat !== 0 && lng !== 0) {
         try {
-          const [stationResult] = await connection.query(
-            `SELECT b.station_id FROM barangays b 
-             WHERE b.latitude IS NOT NULL AND b.longitude IS NOT NULL
-             ORDER BY (
-               6371 * acos(
-                 cos(radians(90 - b.latitude)) * cos(radians(90 - ?)) +
-                 sin(radians(90 - b.latitude)) * sin(radians(90 - ?)) * cos(radians(b.longitude - ?))
-               )
-             ) ASC
-             LIMIT 1`,
-            [lat, lat, lng]
+          console.log(`🗺️  Checking if coordinates (${lat}, ${lng}) fall within any barangay polygon...`);
+          
+          // Get all barangays with boundary polygons
+          const [barangays] = await connection.query(
+            `SELECT barangay_id, barangay_name, station_id, boundary_polygon 
+             FROM barangays 
+             WHERE boundary_polygon IS NOT NULL`
           );
-          if (stationResult && stationResult.length > 0) {
-            stationId = stationResult[0].station_id;
-            console.log("✅ Station ID assigned via nearest barangay (Haversine):", stationId);
+          
+          let foundBarangay = null;
+          
+          // Check each barangay's polygon
+          for (const barangay of barangays) {
+            if (barangay.boundary_polygon) {
+              try {
+                const polygon = JSON.parse(barangay.boundary_polygon);
+                if (polygon && polygon.coordinates && polygon.coordinates[0]) {
+                  // Use point-in-polygon algorithm
+                  if (isPointInPolygon(lat, lng, polygon.coordinates[0])) {
+                    foundBarangay = barangay;
+                    break;
+                  }
+                }
+              } catch (parseError) {
+                console.log(`⚠️  Could not parse polygon for ${barangay.barangay_name}`);
+              }
+            }
+          }
+          
+          if (foundBarangay && foundBarangay.station_id) {
+            stationId = foundBarangay.station_id;
+            console.log(`✅ Point falls within ${foundBarangay.barangay_name} polygon → Station ID: ${stationId}`);
           } else {
-            console.log("⚠️  No nearby barangay found");
+            console.log("⚠️  Coordinates do not fall within any barangay polygon - report will remain UNASSIGNED");
+            stationId = null; // Explicitly set to null - do not assign
           }
         } catch (err) {
-          console.log("⚠️  Could not determine station from location:", err.message);
+          console.log("⚠️  Error checking polygon boundaries:", err.message);
+          stationId = null; // On error, leave unassigned
         }
       }
     }
@@ -240,9 +285,10 @@ async function submitReport(req, res) {
     
     console.log("🔐 Encrypting sensitive report data using AES-256-CBC...");
     
+    // Note: stationId can be NULL if coordinates don't fall within any polygon
     const [reportResult] = await connection.query(
       `INSERT INTO reports 
-       (user_id, location_id, title, report_type, description, date_reported, status, is_anonymous, station_id, created_at, updated_at) 
+       (user_id, location_id, title, report_type, description, date_reported, status, is_anonymous, assigned_station_id, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, NOW(), NOW())`,
       [user_id, locationId, title, reportType, encryptedDescription, incident_date, isAnon, stationId]
     );

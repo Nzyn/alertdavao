@@ -911,6 +911,148 @@
         // Initialize jsPDF
         const { jsPDF } = window.jspdf;
 
+        // Auto-refresh reports every 10 seconds for live updates
+        let autoRefreshInterval = null;
+        let lastReportCount = {{ $reports->total() ?? 0 }};
+
+        function checkForNewReports() {
+            // Get current URL with all query parameters
+            const currentUrl = window.location.href;
+            const url = new URL(currentUrl);
+            
+            // Add a timestamp to prevent caching
+            url.searchParams.set('check_new', Date.now());
+            
+            fetch(url.toString(), {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Parse the HTML response
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newTableBody = doc.querySelector('#reportsTable tbody');
+                const currentTableBody = document.querySelector('#reportsTable tbody');
+                
+                if (newTableBody && currentTableBody) {
+                    const newRowCount = newTableBody.querySelectorAll('tr').length;
+                    const currentRowCount = currentTableBody.querySelectorAll('tr').length;
+                    
+                    // Check if there are new reports
+                    if (newRowCount !== currentRowCount) {
+                        console.log('New reports detected! Updating table...');
+                        
+                        // Show notification
+                        showNewReportNotification(newRowCount - currentRowCount);
+                        
+                        // Update the table
+                        currentTableBody.innerHTML = newTableBody.innerHTML;
+                        
+                        // Update pagination if exists
+                        const newPagination = doc.querySelector('.pagination');
+                        const currentPagination = document.querySelector('.pagination');
+                        if (newPagination && currentPagination) {
+                            currentPagination.innerHTML = newPagination.innerHTML;
+                        }
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error checking for new reports:', error);
+            });
+        }
+
+        function showNewReportNotification(count) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #10b981;
+                color: white;
+                padding: 16px 24px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                z-index: 9999;
+                font-weight: 500;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = count === 1 
+                ? '🚨 New report received!' 
+                : `🚨 ${count} new reports received!`;
+            
+            document.body.appendChild(notification);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+            
+            // Play notification sound (optional)
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGWi77eafTRALT6fk77RgGwU7k9bxy3ktBSJ1xe/glEILElyx6OyrVhYMQp3e8bhlHQYogczx2Ik2CBlouezmn00QC06m5O+0YRsGOJHX8ct5LQUidMXu4ZVDBBFYrOfqrFgWDT+a3vK6aB4HI33H8NqJNwgZaLvt559NEAtOpuTvtGEbBjiR1/HLeS0FInXF7+KWRAUSVqnm6axaGQ0+m97yuWgeBx9+yPDaiTYHGGi77+SfTBEMTKbk7bNhHAQ4kdXzyn0tBSJ1xe/jl0QGEVan5eitWhsMPpne87ppHwcdfMbv2ok3CBdpvO7kn0wRDU2m4+60YRsGOZPY88p9LQQhdsfv45dFBhFWp+XprVsbDD6Y3/K6ah8HHn7J79qKNggXabzv5J9MEAJQ');
+                audio.play();
+            } catch (e) {
+                // Ignore audio errors
+            }
+        }
+
+        // Start auto-refresh when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check for new reports every 3 seconds for real-time updates
+            autoRefreshInterval = setInterval(checkForNewReports, 3000);
+            console.log('Auto-refresh enabled: Checking for new reports every 3 seconds');
+        });
+
+        // Stop auto-refresh when page is hidden/user switches tabs
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    console.log('Auto-refresh paused (page hidden)');
+                }
+            } else {
+                if (!autoRefreshInterval) {
+                    autoRefreshInterval = setInterval(checkForNewReports, 3000);
+                    console.log('Auto-refresh resumed (page visible)');
+                    // Check immediately when page becomes visible
+                    checkForNewReports();
+                }
+            }
+        });
+
+        // Add CSS animation for notification
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+            @keyframes slideOut {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+
         function searchReports() {
             const input = document.getElementById('searchInput');
             const filter = input.value.toUpperCase();
@@ -1217,20 +1359,34 @@
 }
 
 function getLocationDisplay(report) {
-    // Check if location object exists with barangay name
-    if (report.location && report.location.barangay) {
-        const barangay = report.location.barangay;
-        // Only show barangay if it's not just coordinates
-        if (barangay && barangay !== 'Unknown' && !barangay.startsWith('Lat:') && !barangay.includes(',')) {
-            return barangay;
-        }
-    }
-    
-    // No valid location name found
-    return 'Location not specified';
-}
+     // Check if location object exists with barangay name
+     if (report.location && report.location.barangay) {
+         const barangay = report.location.barangay;
+         // Only show barangay if it's not just coordinates
+         if (barangay && barangay !== 'Unknown' && !barangay.startsWith('Lat:') && !barangay.includes(',')) {
+             return barangay;
+         }
+     }
+     
+     // No valid location name found
+     return 'Location not specified';
+ }
 
-function closeModal() {
+function getVerificationBadge(report) {
+     // Return empty string if user is anonymous or doesn't exist
+     if (report.is_anonymous || !report.user) {
+         return '';
+     }
+     
+     // Check if user is verified (email_verified_at is not null)
+     if (report.user.email_verified_at) {
+         return '<span style="display: inline-block; margin-left: 6px; background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">✓ Verified</span>';
+     }
+     
+     return '';
+ }
+ 
+ function closeModal() {
     document.getElementById('reportModal').classList.remove('active');
 }
 
