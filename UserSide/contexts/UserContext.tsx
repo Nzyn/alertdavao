@@ -242,7 +242,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     console.log('🧹 Clearing user context...');
     setUserState(null);
     setCurrentUserId(null);
-    console.log('✅ User context cleared');
+    setIsLoading(false); // Reset loading state to prevent stuck buttons
+    console.log('✅ User context cleared and loading state reset');
   };
 
   const refreshProfile = async (userId: string) => {

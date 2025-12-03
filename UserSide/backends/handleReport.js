@@ -3,6 +3,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const { encrypt, decrypt, canDecrypt, encryptFields, decryptFields } = require("./encryptionService");
+const { getClientIp, normalizeIp, getUserAgent } = require("./ipUtils");
 
 /**
  * Point-in-polygon algorithm (Ray Casting)
@@ -169,8 +170,16 @@ async function submitReport(req, res) {
     const address = reporters_address || null;
 
     // 🔐 ENCRYPT location data before storing
+    console.log("🔐 Encrypting location data (AES-256-CBC):");
+    console.log("   Original Barangay:", barangayName);
     const encryptedBarangayName = encrypt(barangayName);
+    console.log("   Encrypted Barangay (base64):", encryptedBarangayName.substring(0, 50) + "...");
+    
     const encryptedAddress = address ? encrypt(address) : null;
+    if (address) {
+      console.log("   Original Address:", address);
+      console.log("   Encrypted Address (base64):", encryptedAddress.substring(0, 50) + "...");
+    }
 
     const [locationResult] = await connection.query(
       "INSERT INTO locations (barangay, reporters_address, latitude, longitude, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())",
@@ -281,9 +290,15 @@ async function submitReport(req, res) {
     
     // 🔐 ENCRYPT SENSITIVE DATA (AES-256-CBC)
     // As per capstone requirement: encrypt incident reports for confidentiality
+    console.log("🔐 Encrypting report description (AES-256-CBC):");
+    console.log("   Original Description Length:", description.length, "characters");
+    console.log("   Original Description Preview:", description.substring(0, 50) + "...");
+    
     const encryptedDescription = encrypt(description);
     
-    console.log("🔐 Encrypting sensitive report data using AES-256-CBC...");
+    console.log("   Encrypted Description (base64):", encryptedDescription.substring(0, 50) + "...");
+    console.log("   Encrypted Length:", encryptedDescription.length, "characters");
+    console.log("✅ Encryption complete - data secured with AES-256-CBC");
     
     // Note: stationId can be NULL if coordinates don't fall within any polygon
     const [reportResult] = await connection.query(
@@ -306,6 +321,24 @@ async function submitReport(req, res) {
       console.log("   MIME type:", req.file.mimetype);
       console.log("   Saved to:", req.file.path);
       
+      // 🔐 ENCRYPT the evidence file (AES-256-CBC)
+      console.log("🔐 Encrypting evidence file...");
+      const { encryptFile } = require('./encryptionService');
+      const fs = require('fs');
+      
+      // Read the uploaded file
+      const fileBuffer = fs.readFileSync(req.file.path);
+      
+      // Encrypt the file content
+      const encryptedBuffer = encryptFile(fileBuffer);
+      
+      // Write encrypted file back (overwrite original)
+      fs.writeFileSync(req.file.path, encryptedBuffer);
+      
+      console.log("✅ Evidence file encrypted and saved");
+      console.log("   Original size:", fileBuffer.length, "bytes");
+      console.log("   Encrypted size:", encryptedBuffer.length, "bytes");
+      
       const mediaUrl = `/evidence/${req.file.filename}`;
       const mediaType = path.extname(req.file.originalname).substring(1).toLowerCase();
 
@@ -322,7 +355,7 @@ async function submitReport(req, res) {
           media_id: mediaResult.insertId,
           media_url: mediaUrl,
           media_type: mediaType,
-          file_size: req.file.size,
+          file_size: encryptedBuffer.length,
           original_name: req.file.originalname,
         };
 
@@ -336,6 +369,28 @@ async function submitReport(req, res) {
       }
     } else {
       console.log("⚠️  No file uploaded with this report");
+    }
+
+    // Track IP address for security and audit purposes
+    try {
+      const clientIp = normalizeIp(getClientIp(req));
+      const userAgent = getUserAgent(req);
+      
+      console.log("📍 Tracking submission IP address...");
+      console.log("   IP Address:", clientIp);
+      console.log("   User Agent:", userAgent);
+      
+      await connection.query(
+        `INSERT INTO report_ip_tracking (report_id, ip_address, user_agent, submitted_at) 
+         VALUES (?, ?, ?, NOW())`,
+        [reportId, clientIp, userAgent]
+      );
+      
+      console.log("✅ IP address tracked successfully");
+    } catch (ipError) {
+      // Don't fail the entire submission if IP tracking fails
+      console.error("⚠️  Failed to track IP address:", ipError.message);
+      // Continue with the transaction
     }
 
     // Commit transaction
@@ -381,7 +436,18 @@ async function submitReport(req, res) {
 async function getUserReports(req, res) {
   try {
     const { userId } = req.params;
-    const userRole = req.query.role || req.body.role || 'user'; // Get user role from request
+    // 🔒 SECURITY: Get verified role from database, NOT from client input
+    const requestingUserId = req.query.requestingUserId || req.body.requestingUserId;
+    let userRole = 'user';
+    if (requestingUserId) {
+      const [requestingUsers] = await db.query(
+        "SELECT role FROM users WHERE id = ?",
+        [requestingUserId]
+      );
+      if (requestingUsers.length > 0) {
+        userRole = requestingUsers[0].role || 'user';
+      }
+    }
 
     const [reports] = await db.query(
       `SELECT 
@@ -434,10 +500,20 @@ async function getUserReports(req, res) {
       const decryptedBarangay = report.barangay ? decrypt(report.barangay) : null;
       const decryptedAddress = report.reporters_address ? decrypt(report.reporters_address) : null;
 
+      // Parse report_type from JSON string to array
+      let parsedReportType;
+      try {
+        parsedReportType = typeof report.report_type === 'string' 
+          ? JSON.parse(report.report_type) 
+          : report.report_type;
+      } catch (e) {
+        parsedReportType = [report.report_type];
+      }
+
       return {
         report_id: report.report_id,
         title: report.title,
-        report_type: report.report_type,
+        report_type: parsedReportType,
         description: decryptedDescription,
         status: report.status,
         is_anonymous: Boolean(report.is_anonymous),
@@ -476,10 +552,24 @@ async function getUserReports(req, res) {
 // Get all reports
 async function getAllReports(req, res) {
   try {
-    const userRole = req.query.role || req.body.role || 'user'; // Get user role from request
+    // 🔒 SECURITY: Get verified role and station from database, NOT from client input
+    const requestingUserId = req.query.requestingUserId || req.body.requestingUserId;
+    let userRole = 'user';
+    let userStationId = null;
     
-    const [reports] = await db.query(
-      `SELECT 
+    if (requestingUserId) {
+      const [requestingUsers] = await db.query(
+        "SELECT role, station_id FROM users WHERE id = ?",
+        [requestingUserId]
+      );
+      if (requestingUsers.length > 0) {
+        userRole = requestingUsers[0].role || 'user';
+        userStationId = requestingUsers[0].station_id;
+      }
+    }
+    
+    // Build query with role-based filtering
+    let query = `SELECT 
         r.report_id,
         r.title,
         r.report_type,
@@ -489,7 +579,7 @@ async function getAllReports(req, res) {
         r.date_reported,
         r.created_at,
         r.user_id,
-        r.station_id,
+        r.assigned_station_id as station_id,
         l.latitude,
         l.longitude,
         l.barangay,
@@ -505,17 +595,35 @@ async function getAllReports(req, res) {
       FROM reports r
       LEFT JOIN locations l ON r.location_id = l.location_id
       LEFT JOIN users u ON r.user_id = u.id
-      LEFT JOIN police_stations ps ON r.station_id = ps.station_id
+      LEFT JOIN police_stations ps ON r.assigned_station_id = ps.station_id
       LEFT JOIN report_media rm ON r.report_id = rm.report_id
       WHERE r.location_id IS NOT NULL 
         AND r.location_id != 0
         AND l.latitude IS NOT NULL 
         AND l.longitude IS NOT NULL
         AND l.latitude != 0
-        AND l.longitude != 0
-      GROUP BY r.report_id
-      ORDER BY r.created_at DESC`
-    );
+        AND l.longitude != 0`;
+    
+    // 🚨 ROLE-BASED FILTERING:
+    // - Police: Only see reports assigned to their station
+    // - Admin: See all reports (assigned and unassigned)
+    // - User: See only their own reports
+    const queryParams = [];
+    if (userRole === 'police' && userStationId) {
+      query += ` AND r.assigned_station_id = ?`;
+      queryParams.push(userStationId);
+      console.log(`👮 Police user requesting reports - filtering by station_id: ${userStationId}`);
+    } else if (userRole === 'admin') {
+      console.log(`👨‍💼 Admin user requesting reports - showing all reports (assigned and unassigned)`);
+    } else if (userRole === 'user' && requestingUserId) {
+      query += ` AND r.user_id = ?`;
+      queryParams.push(requestingUserId);
+      console.log(`👤 Regular user requesting reports - filtering by user_id: ${requestingUserId}`);
+    }
+    
+    query += ` GROUP BY r.report_id ORDER BY r.created_at DESC`;
+    
+    const [reports] = await db.query(query, queryParams);
 
     // Parse media data and decrypt for authorized roles
     const formattedReports = reports.map((report) => {
@@ -542,10 +650,20 @@ async function getAllReports(req, res) {
         console.log(`🔒 Keeping report ${report.report_id} encrypted for role: ${userRole}`);
       }
 
+      // Parse report_type from JSON string to array
+      let parsedReportType;
+      try {
+        parsedReportType = typeof report.report_type === 'string' 
+          ? JSON.parse(report.report_type) 
+          : report.report_type;
+      } catch (e) {
+        parsedReportType = [report.report_type];
+      }
+
       return {
         report_id: report.report_id,
         title: report.title,
-        report_type: report.report_type,
+        report_type: parsedReportType,
         description: decryptedDescription,
         status: report.status,
         is_anonymous: Boolean(report.is_anonymous),

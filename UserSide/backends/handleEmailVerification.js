@@ -1,234 +1,302 @@
-const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
 const db = require("./db");
-const nodemailer = require("nodemailer");
 
-// Configure email transporter
-// TODO: Replace with your actual email credentials
-const transporter = nodemailer.createTransport({
-  service: 'gmail', // or your email service
-  auth: {
-    user: process.env.EMAIL_USER || 'your-email@gmail.com',
-    pass: process.env.EMAIL_PASSWORD || 'your-app-password'
-  }
-});
-
-// Generate verification token
-const generateVerificationToken = () => {
-  return crypto.randomBytes(32).toString('hex');
-};
-
-// Send verification email
-const sendVerificationEmail = async (email, token, firstname) => {
-  const verificationUrl = `http://localhost:3000/api/verify-email?token=${token}`;
-  
-  const mailOptions = {
-    from: process.env.EMAIL_USER || 'your-email@gmail.com',
-    to: email,
-    subject: 'AlertDavao - Verify Your Email Address',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #dc2626;">AlertDavao Email Verification</h2>
-        <p>Hello ${firstname},</p>
-        <p>Thank you for registering with AlertDavao. Please verify your email address to complete your registration.</p>
-        <p style="margin: 30px 0;">
-          <a href="${verificationUrl}" 
-             style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-            Verify Email Address
-          </a>
-        </p>
-        <p style="color: #666; font-size: 14px;">
-          If the button doesn't work, copy and paste this link into your browser:<br>
-          <a href="${verificationUrl}">${verificationUrl}</a>
-        </p>
-        <p style="color: #666; font-size: 14px;">
-          This link will expire in 24 hours.
-        </p>
-        <p style="color: #666; font-size: 14px;">
-          If you didn't create an account with AlertDavao, you can safely ignore this email.
-        </p>
-      </div>
-    `
-  };
-
-  try {
-    await transporter.sendMail(mailOptions);
-    return true;
-  } catch (error) {
-    console.error('Error sending verification email:', error);
-    return false;
-  }
-};
-
-// Handle registration with email verification
-const handleRegisterWithVerification = async (req, res) => {
-  const { firstname, lastname, email, contact, password } = req.body;
-
-  if (!firstname || !lastname || !email || !contact || !password) {
-    return res.status(400).json({ message: "All fields are required" });
-  }
-
-  // Validate email format
-  const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ 
-      message: "Invalid email format. Please enter a valid email address with @ and domain (e.g., user@gmail.com, admin@yahoo.com)" 
-    });
-  }
-
-  if (!email.includes('@')) {
-    return res.status(400).json({ 
-      message: "Email must contain @ symbol. For example: nicolequim@gmail.com" 
-    });
-  }
-
-  // Validate password requirements
-  const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-  if (!passwordRegex.test(password)) {
-    return res.status(400).json({ 
-      message: "Password must contain minimum 8 characters with at least one letter, one number, and one symbol (@$!%*?&)" 
-    });
-  }
-
-  try {
-    // Ensure phone has been OTP-verified
-    const [verifiedRows] = await db.query("SELECT * FROM verified_phones WHERE phone = ? AND verified = 1", [contact]);
-    if (verifiedRows.length === 0) {
-      return res.status(400).json({ message: 'Phone number not verified. Please complete OTP verification.' });
-    }
-
-    // Check if email already exists in users table
-    const [existingUsers] = await db.query("SELECT id FROM users WHERE email = ?", [email]);
-    if (existingUsers.length > 0) {
-      return res.status(409).json({ message: "Email already registered" });
-    }
-
-    // Check if email already has a pending verification
-    const [pendingUsers] = await db.query("SELECT id FROM pending_users WHERE email = ?", [email]);
-    if (pendingUsers.length > 0) {
-      // Delete old pending verification
-      await db.query("DELETE FROM pending_users WHERE email = ?", [email]);
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const verificationToken = generateVerificationToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    // Store in pending_users table
-    const sql = `
-      INSERT INTO pending_users (first_name, last_name, email, password, phone_number, verification_token, expires_at) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-    await db.query(sql, [firstname, lastname, email, hashedPassword, contact, verificationToken, expiresAt]);
-
-    // Send verification email
-    const emailSent = await sendVerificationEmail(email, verificationToken, firstname);
-
-    if (!emailSent) {
-      // Email sending failed, but we still saved the pending user
-      console.warn('Verification email failed to send');
-    }
-
-    res.status(200).json({ 
-      message: "If the email you provided exists, a verification link has been sent. Please check your inbox and click the link to complete your registration. The link will expire in 24 hours.",
-      emailSent: emailSent
-    });
-
-  } catch (err) {
-    console.error("❌ Registration error:", err);
-    
-    if (err.code === 'ECONNREFUSED') {
-      return res.status(500).json({ message: "Database connection failed. Please check if MySQL is running." });
-    }
-    if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-      return res.status(500).json({ message: "Database access denied. Please check credentials." });
-    }
-    
-    res.status(500).json({ 
-      message: "Error processing registration",
-      error: err.message || err.sqlMessage || "Unknown error"
-    });
-  }
-};
-
-// Verify email token and activate account
-const verifyEmail = async (req, res) => {
-  const { token } = req.query;
+// Verify email with token
+const handleVerifyEmail = async (req, res) => {
+  const { token } = req.params;
 
   if (!token) {
-    return res.status(400).send(`
-      <html>
-        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-          <h2 style="color: #dc2626;">Invalid Verification Link</h2>
-          <p>The verification link is invalid or missing.</p>
-        </body>
-      </html>
-    `);
+    return res.status(400).json({ message: "Verification token is required" });
   }
 
   try {
-    // Find pending user with this token
-    const [pendingUsers] = await db.query(
-      "SELECT * FROM pending_users WHERE verification_token = ? AND expires_at > NOW()",
+    // Find user with this token
+    const [rows] = await db.query(
+      "SELECT * FROM users WHERE verification_token = ? AND token_expires_at > NOW() AND email_verified_at IS NULL",
       [token]
     );
 
-    if (pendingUsers.length === 0) {
-      return res.status(400).send(`
+    if (rows.length === 0) {
+      return res.send(`
+        <!DOCTYPE html>
         <html>
-          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-            <h2 style="color: #dc2626;">Verification Link Expired</h2>
-            <p>This verification link has expired or is invalid. Please register again.</p>
-          </body>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Verification Link Expired - AlertDavao</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              background: linear-gradient(135deg, #1D3557 0%, #457B9D 100%);
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+              padding: 20px;
+            }
+            .container {
+              background: white;
+              border-radius: 16px;
+              box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+              padding: 40px;
+              text-align: center;
+              max-width: 500px;
+              width: 100%;
+            }
+            .error-icon {
+              width: 80px;
+              height: 80px;
+              background: #ef4444;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin: 0 auto 24px;
+            }
+            .x-mark {
+              width: 40px;
+              height: 40px;
+              stroke: white;
+              stroke-width: 3;
+              stroke-linecap: round;
+            }
+            h1 { color: #1D3557; font-size: 28px; margin-bottom: 16px; }
+            p { color: #6b7280; font-size: 16px; line-height: 1.6; margin-bottom: 16px; }
+            .info {
+              background: #fef2f2;
+              border: 1px solid #fecaca;
+              border-radius: 8px;
+              padding: 16px;
+              margin-top: 24px;
+              font-size: 14px;
+              color: #991b1b;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="error-icon">
+              <svg class="x-mark" viewBox="0 0 52 52">
+                <line x1="16" y1="16" x2="36" y2="36"/>
+                <line x1="36" y1="16" x2="16" y2="36"/>
+              </svg>
+            </div>
+            <h1>Link Expired or Invalid</h1>
+            <p>This verification link is invalid, has already been used, or has expired.</p>
+            <div class="info">
+              ⚠️ If you need a new verification link, please contact support or register again.
+            </div>
+          </div>
+        </body>
         </html>
       `);
     }
 
-    const pendingUser = pendingUsers[0];
+    const user = rows[0];
 
-    // Move user to users table
-    const insertSql = `
-      INSERT INTO users (firstname, lastname, email, contact, password, latitude, longitude, created_at) 
-      VALUES (?, ?, ?, ?, ?, NULL, NULL, NOW())
-    `;
-    await db.query(insertSql, [
-      pendingUser.first_name,
-      pendingUser.last_name,
-      pendingUser.email,
-      pendingUser.phone_number,
-      pendingUser.password
-    ]);
+    // Mark email as verified
+    await db.query(
+      "UPDATE users SET email_verified_at = NOW(), verification_token = NULL, token_expires_at = NULL WHERE id = ?",
+      [user.id]
+    );
 
-    // Delete from pending_users
-    await db.query("DELETE FROM pending_users WHERE id = ?", [pendingUser.id]);
+    console.log("✅ Email verified successfully for:", user.email);
 
-    res.status(200).send(`
+    // Return HTML success page
+    res.send(`
+      <!DOCTYPE html>
       <html>
-        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-          <div style="max-width: 500px; margin: 0 auto;">
-            <h2 style="color: #16a34a;">✓ Email Verified Successfully!</h2>
-            <p>Your AlertDavao account has been activated.</p>
-            <p>You can now log in to the AlertDavao app with your credentials.</p>
-            <p style="margin-top: 30px; color: #666;">You can close this window now.</p>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Email Verified - AlertDavao</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1D3557 0%, #457B9D 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+          }
+          .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            animation: slideUp 0.5s ease-out;
+          }
+          @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          .success-icon {
+            width: 80px;
+            height: 80px;
+            background: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            animation: scaleIn 0.5s ease-out 0.2s both;
+          }
+          @keyframes scaleIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+          }
+          .checkmark {
+            width: 40px;
+            height: 40px;
+            stroke: white;
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+          }
+          h1 {
+            color: #1D3557;
+            font-size: 28px;
+            margin-bottom: 16px;
+          }
+          p {
+            color: #6b7280;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+          }
+          .email {
+            color: #1D3557;
+            font-weight: 600;
+          }
+          .info {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 24px;
+            font-size: 14px;
+            color: #6b7280;
+          }
+          .close-message {
+            margin-top: 16px;
+            font-size: 13px;
+            color: #9ca3af;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="success-icon">
+            <svg class="checkmark" viewBox="0 0 52 52">
+              <polyline points="14 27 22 35 38 19"/>
+            </svg>
           </div>
-        </body>
+          <h1>Email Verified!</h1>
+          <p>
+            Your email address <span class="email">${user.email}</span> has been successfully verified.
+          </p>
+          <div class="info">
+            ✅ Your account is now active!<br>
+            You can close this window and login to AlertDavao.
+          </div>
+          <p class="close-message">
+            This window will close automatically in <span id="countdown">5</span> seconds...
+          </p>
+        </div>
+        <script>
+          let seconds = 5;
+          const countdownEl = document.getElementById('countdown');
+          const timer = setInterval(() => {
+            seconds--;
+            countdownEl.textContent = seconds;
+            if (seconds <= 0) {
+              clearInterval(timer);
+              window.close();
+            }
+          }, 1000);
+        </script>
+      </body>
       </html>
     `);
 
-  } catch (err) {
-    console.error("❌ Email verification error:", err);
-    res.status(500).send(`
-      <html>
-        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-          <h2 style="color: #dc2626;">Verification Failed</h2>
-          <p>An error occurred while verifying your email. Please try again later.</p>
-        </body>
-      </html>
-    `);
+  } catch (error) {
+    console.error("❌ Email verification error:", error);
+    res.status(500).json({
+      message: "Server error during email verification",
+      error: error.message || error.sqlMessage || "Unknown error"
+    });
+  }
+};
+
+// Resend verification email
+const handleResendVerification = async (req, res) => {
+  const { email } = req.body;
+  const { sendVerificationEmail } = require("./emailService");
+  const { generateToken, getVerificationTokenExpiry, formatForMySQL } = require("./tokenUtils");
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  try {
+    // Find user
+    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const user = rows[0];
+
+    // Check if already verified
+    if (user.email_verified_at) {
+      return res.status(400).json({ 
+        message: "This email address is already verified.",
+        alreadyVerified: true
+      });
+    }
+
+    // Generate new verification token
+    const verificationToken = generateToken();
+    const tokenExpiresAt = formatForMySQL(getVerificationTokenExpiry());
+
+    await db.query(
+      "UPDATE users SET verification_token = ?, token_expires_at = ? WHERE id = ?",
+      [verificationToken, tokenExpiresAt, user.id]
+    );
+
+    // Send verification email
+    const emailResult = await sendVerificationEmail(email, verificationToken, user.firstname);
+
+    if (!emailResult.success) {
+      return res.status(500).json({ 
+        message: "Failed to send verification email. Please try again later.",
+        error: emailResult.error
+      });
+    }
+
+    console.log("✅ Verification email resent to:", email);
+
+    res.json({ 
+      success: true,
+      message: "Verification email has been sent! Please check your inbox."
+    });
+
+  } catch (error) {
+    console.error("❌ Resend verification error:", error);
+    res.status(500).json({
+      message: "Server error while resending verification email",
+      error: error.message || error.sqlMessage || "Unknown error"
+    });
   }
 };
 
 module.exports = {
-  handleRegisterWithVerification,
-  verifyEmail
+  handleVerifyEmail,
+  handleResendVerification,
 };

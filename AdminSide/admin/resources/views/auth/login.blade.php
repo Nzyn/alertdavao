@@ -362,49 +362,57 @@
 
         // Real-time email validation
         emailInput.addEventListener('input', function() {
-            const value = sanitizeEmail(this.value);
-            this.value = value;
-            
-            if (!value) {
-                emailError.textContent = '';
-                emailError.style.display = 'none';
-                this.classList.remove('error');
-                return;
-            }
-            
-            const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-            if (!value.includes('@')) {
-                emailError.textContent = 'Email must contain @ symbol';
-                emailError.style.display = 'block';
-                this.classList.add('error');
-            } else if (!emailRegex.test(value)) {
-                emailError.textContent = 'Please enter a valid email address';
-                emailError.style.display = 'block';
-                this.classList.add('error');
-            } else {
-                emailError.textContent = '';
-                emailError.style.display = 'none';
-                this.classList.remove('error');
-                this.style.borderColor = '#22c55e';
+            try {
+                const value = sanitizeEmail(this.value);
+                this.value = value;
+                
+                if (!value) {
+                    emailError.textContent = '';
+                    emailError.style.display = 'none';
+                    this.classList.remove('error');
+                    return;
+                }
+                
+                const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                if (!value.includes('@')) {
+                    emailError.textContent = 'Email must contain @ symbol';
+                    emailError.style.display = 'block';
+                    this.classList.add('error');
+                } else if (!emailRegex.test(value)) {
+                    emailError.textContent = 'Please enter a valid email address';
+                    emailError.style.display = 'block';
+                    this.classList.add('error');
+                } else {
+                    emailError.textContent = '';
+                    emailError.style.display = 'none';
+                    this.classList.remove('error');
+                    this.style.borderColor = '#22c55e';
+                }
+            } catch (error) {
+                console.error('Error processing email input:', error);
             }
         });
 
         // Real-time password validation (removed length check for login)
         passwordInput.addEventListener('input', function() {
-            const value = this.value;
-            
-            if (!value) {
+            try {
+                const value = this.value;
+                
+                if (!value) {
+                    passwordError.textContent = '';
+                    passwordError.style.display = 'none';
+                    this.classList.remove('error');
+                    return;
+                }
+                
+                // No validation on login, just clear errors if password is entered
                 passwordError.textContent = '';
                 passwordError.style.display = 'none';
                 this.classList.remove('error');
-                return;
+                this.style.borderColor = '#22c55e';
+            } catch (error) {
+                console.error('Error processing password input:', error);
             }
-            
-            // No validation on login, just clear errors if password is entered
-            passwordError.textContent = '';
-            passwordError.style.display = 'none';
-            this.classList.remove('error');
-            this.style.borderColor = '#22c55e';
         });
 
         // Handle login form submission - direct login without OTP

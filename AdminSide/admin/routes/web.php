@@ -52,6 +52,7 @@ Route::post('/api/otp/verify', [OtpController::class, 'verifyOtp'])->name('otp.v
 // Protected Routes (require authentication)
 Route::middleware(['auth'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/api/crime-data', [DashboardController::class, 'getCrimeData'])->name('crime.data');
 
     // Profile Routes
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
@@ -135,9 +136,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/statistics/forecast', [StatisticsController::class, 'getForecast'])->name('statistics.forecast');
     Route::get('/api/statistics/crime-stats', [StatisticsController::class, 'getCrimeStats'])->name('statistics.crime');
     Route::get('/api/statistics/export', [StatisticsController::class, 'exportCrimeData'])->name('statistics.export');
+    Route::get('/api/statistics/barangay-stats', [StatisticsController::class, 'getBarangayCrimeStats'])->name('statistics.barangay');
 
     Route::get('/view-map', [MapController::class, 'index'])->name('view-map');
     Route::get('/api/reports', [MapController::class, 'getReports'])->name('api.reports');
+    Route::get('/api/csv-crime-data', [MapController::class, 'getCsvCrimeData'])->name('api.csv-crimes');
     
     // Crime hotspot mapping route
     Route::get('/hotspot-map', [MapController::class, 'hotspotIndex'])->name('hotspot-map');

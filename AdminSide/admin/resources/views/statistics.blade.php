@@ -3,6 +3,8 @@
 @section('title', 'Statistics & Crime Forecast')
 
 @section('styles')
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
     .statistics-container {
         padding: 2rem;
@@ -268,8 +270,8 @@
 @section('content')
 <div class="statistics-container">
     <div class="stats-header">
-        <h1 class="stats-title">Crime Statistics & Forecast</h1>
-        <p class="stats-subtitle">Advanced analytics and predictive insights using SARIMA modeling</p>
+        <h1 class="stats-title">📊 Crime Statistics & SARIMA Forecast</h1>
+        <p class="stats-subtitle">Advanced predictive analytics using Seasonal AutoRegressive Integrated Moving Average modeling</p>
     </div>
 
     <!-- SARIMA API Status (removed) -->
@@ -305,18 +307,18 @@
 
         <div class="stat-card">
             <div class="stat-card-header">
-                <span class="stat-label">Forecast Status</span>
+                <span class="stat-label">SARIMA API Status</span>
                 <div class="stat-icon purple">🔮</div>
             </div>
-            <div class="stat-value" style="font-size: 1.25rem;" id="forecastStatus">Loading...</div>
-            <div class="stat-change">SARIMA Model</div>
+            <div class="stat-value" style="font-size: 1.25rem;" id="forecastStatus">Checking...</div>
+            <div class="stat-change">Port 8001</div>
         </div>
     </div>
 
     <!-- Crime Trend Chart -->
     <div class="chart-section">
         <div class="chart-header">
-            <h2 class="chart-title">Crime Trends & Forecast</h2>
+            <h2 class="chart-title">📊 Crime Trends & Forecast</h2>
             <div class="chart-controls">
                 <select class="forecast-select" id="forecastHorizon">
                     <option value="6">6 Months Forecast</option>
@@ -324,8 +326,15 @@
                     <option value="18">18 Months Forecast</option>
                     <option value="24">24 Months Forecast</option>
                 </select>
-                <button class="chart-btn" id="refreshForecast">🔄 Refresh</button>
+                <button class="chart-btn" id="refreshForecast">🔄 Refresh Forecast</button>
             </div>
+        </div>
+        <div id="forecastInfoBox" style="display: none; margin-bottom: 1rem; padding: 1rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; color: #0c4a6e;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <span style="font-size: 1.25rem;">ℹ️</span>
+                <strong>Forecast Information</strong>
+            </div>
+            <div id="forecastInfoText" style="font-size: 0.875rem; line-height: 1.5;"></div>
         </div>
         <div class="chart-canvas" id="trendChartContainer">
             <canvas id="trendChart"></canvas>
@@ -337,11 +346,11 @@
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background: #e63946;"></div>
-                <span>Forecast</span>
+                <span>SARIMA Forecast</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background: rgba(230, 57, 70, 0.2);"></div>
-                <span>Confidence Interval (95%)</span>
+                <span>95% Confidence Interval</span>
             </div>
         </div>
     </div>
@@ -367,6 +376,17 @@
         </div>
     </div>
 
+    <!-- Top Barangays by Crime Count -->
+    <div class="chart-section" style="margin-top: 2rem;">
+        <div class="chart-header">
+            <h2 class="chart-title">Top Barangays by Crime Count</h2>
+            <p style="color: #6b7280; font-size: 0.875rem; margin-top: 0.5rem;">
+                Historical crime data from CrimeReports.csv
+            </p>
+        </div>
+        <div id="topBarangays" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-top: 1rem;"></div>
+    </div>
+
     <!-- Data Export Section -->
     <div class="chart-section">
         <div class="chart-header">
@@ -381,6 +401,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 let trendChart, typeChart, locationChart;
 let crimeStats = null;
@@ -390,6 +411,7 @@ let forecastData = null;
 document.addEventListener('DOMContentLoaded', function() {
     loadCrimeStats();
     loadForecast();
+    loadBarangayStats();
     
     document.getElementById('forecastHorizon').addEventListener('change', loadForecast);
     document.getElementById('refreshForecast').addEventListener('click', loadForecast);
@@ -428,8 +450,10 @@ async function loadCrimeStats() {
 async function loadForecast() {
     const horizon = document.getElementById('forecastHorizon').value;
     const forecastStatusEl = document.getElementById('forecastStatus');
+    const forecastInfoBox = document.getElementById('forecastInfoBox');
+    const forecastInfoText = document.getElementById('forecastInfoText');
     
-    console.log(`Loading forecast with horizon: ${horizon} months...`);
+    console.log(`🔮 Loading SARIMA forecast with horizon: ${horizon} months...`);
     
     // Show loading
     if (trendChart) {
@@ -441,19 +465,21 @@ async function loadForecast() {
     container.innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div><canvas id="trendChart"></canvas>';
     
     try {
+        console.log('📡 Fetching from SARIMA API endpoint...');
         const response = await fetch(`/api/statistics/forecast?horizon=${horizon}`);
-        console.log('Forecast response status:', response.status);
+        console.log('✅ Forecast response status:', response.status);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
         const data = await response.json();
-        console.log('Forecast data:', data);
+        console.log('📊 Forecast data received:', data);
         
         if (data.status === 'success' && data.data && Array.isArray(data.data)) {
             forecastData = data.data;
-            console.log(`Rendering chart with ${crimeStats?.monthly?.length || 0} historical points and ${forecastData.length} forecast points`);
+            console.log(`✅ Successfully loaded ${forecastData.length} forecast points`);
+            console.log(`📈 Rendering chart with ${crimeStats?.monthly?.length || 0} historical points and ${forecastData.length} forecast points`);
             
             // Remove loading overlay before rendering chart
             container.innerHTML = '<canvas id="trendChart"></canvas>';
@@ -463,15 +489,34 @@ async function loadForecast() {
             
             renderTrendChart(crimeStats?.monthly || [], data.data);
             
-            forecastStatusEl.textContent = 'Active';
+            // Update forecast status
+            forecastStatusEl.textContent = '✓ Active';
             forecastStatusEl.style.color = '#059669';
+            
+            // Show forecast information
+            forecastInfoBox.style.display = 'block';
+            const firstDate = data.data[0]?.date?.substring(0, 7) || 'N/A';
+            const lastDate = data.data[data.data.length - 1]?.date?.substring(0, 7) || 'N/A';
+            const avgForecast = (data.data.reduce((sum, d) => sum + parseFloat(d.forecast || 0), 0) / data.data.length).toFixed(1);
+            
+            forecastInfoText.innerHTML = `
+                <strong>Forecast Period:</strong> ${firstDate} to ${lastDate} (${horizon} months)<br>
+                <strong>Average Predicted Crimes:</strong> ${avgForecast} per month<br>
+                <strong>Model:</strong> SARIMA(1,1,1)(1,1,1)[12] with 95% confidence intervals<br>
+                <strong>Last Updated:</strong> ${new Date().toLocaleString()}
+            `;
+            
+            console.log('✅ SARIMA forecast loaded and displayed successfully');
         } else {
-            throw new Error(data.message || 'Invalid forecast data');
+            throw new Error(data.message || 'Invalid forecast data structure');
         }
     } catch (error) {
-        console.error('Error loading forecast:', error);
-        forecastStatusEl.textContent = 'Offline';
+        console.error('❌ Error loading SARIMA forecast:', error);
+        forecastStatusEl.textContent = '✗ Offline';
         forecastStatusEl.style.color = '#dc2626';
+        
+        // Hide forecast info box
+        forecastInfoBox.style.display = 'none';
         
         // Remove loading overlay
         container.innerHTML = '<canvas id="trendChart"></canvas>';
@@ -481,12 +526,19 @@ async function loadForecast() {
         
         // Render historical data only
         if (crimeStats && crimeStats.monthly && crimeStats.monthly.length > 0) {
-            console.log('Rendering historical data only (forecast failed)');
+            console.log('⚠️ Rendering historical data only (SARIMA API unavailable)');
             renderTrendChart(crimeStats.monthly, []);
         } else {
             // Show error message in chart area
-            console.warn('No historical data available to display');
-            container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 400px; color: #9ca3af;"><p>No data available to display. Please ensure reports exist in the database.</p></div>';
+            console.warn('❌ No historical data available to display');
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; color: #9ca3af; text-align: center; padding: 2rem;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
+                    <p style="font-size: 1.125rem; font-weight: 600; color: #4b5563; margin-bottom: 0.5rem;">No Data Available</p>
+                    <p style="font-size: 0.875rem;">Please ensure crime reports exist in the database and the SARIMA API is running.</p>
+                    <p style="font-size: 0.75rem; margin-top: 1rem; color: #6b7280;">SARIMA API should be running on <code style="background: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 4px;">localhost:8001</code></p>
+                </div>
+            `;
         }
     }
 }
@@ -505,14 +557,13 @@ function updateOverviewCards(overview) {
 }
 
 // Render trend chart with forecast
-// Render trend chart with forecast
 function renderTrendChart(historical, forecast) {
-    console.log(`renderTrendChart called with ${historical.length} historical points and ${forecast.length} forecast points`);
+    console.log(`📊 renderTrendChart: ${historical.length} historical + ${forecast.length} forecast points`);
     
     const ctx = document.getElementById('trendChart');
     
     if (!ctx) {
-        console.error('Chart canvas not found');
+        console.error('❌ Chart canvas not found');
         return;
     }
     
@@ -526,10 +577,8 @@ function renderTrendChart(historical, forecast) {
     const lowerCI = forecast.map(d => parseFloat(d.lower_ci) || 0);
     const upperCI = forecast.map(d => parseFloat(d.upper_ci) || 0);
     
-    console.log('Historical labels:', historicalLabels);
-    console.log('Historical data:', historicalData);
-    console.log('Forecast labels:', forecastLabels);
-    console.log('Forecast values:', forecastValues);
+    console.log('📅 Historical period:', historicalLabels.length > 0 ? `${historicalLabels[0]} to ${historicalLabels[historicalLabels.length - 1]}` : 'None');
+    console.log('🔮 Forecast period:', forecastLabels.length > 0 ? `${forecastLabels[0]} to ${forecastLabels[forecastLabels.length - 1]}` : 'None');
     
     // Combine labels
     const allLabels = [...historicalLabels, ...forecastLabels];
@@ -540,7 +589,7 @@ function renderTrendChart(historical, forecast) {
     // Forecast dataset (starts where historical ends)
     const forecastDataset = [...Array(historicalLabels.length).fill(null), ...forecastValues];
     
-    // Connect the gap
+    // Connect the gap between historical and forecast
     if (historicalData.length > 0 && forecastValues.length > 0) {
         forecastDataset[historicalLabels.length] = historicalData[historicalData.length - 1];
     }
@@ -550,7 +599,7 @@ function renderTrendChart(historical, forecast) {
         trendChart.destroy();
     }
     
-    console.log('Creating Chart.js instance...');
+    console.log('🎨 Creating SARIMA forecast chart...');
     
     trendChart = new Chart(ctx, {
         type: 'line',
@@ -558,58 +607,106 @@ function renderTrendChart(historical, forecast) {
             labels: allLabels,
             datasets: [
                 {
-                    label: 'Historical',
+                    label: 'Historical Crime Data',
                     data: historicalDataset,
                     borderColor: '#1D3557',
                     backgroundColor: 'rgba(29, 53, 87, 0.1)',
-                    borderWidth: 2,
+                    borderWidth: 3,
                     tension: 0.4,
                     fill: false,
-                    yAxisID: 'y'
+                    yAxisID: 'y',
+                    pointRadius: 3,
+                    pointHoverRadius: 6
                 },
                 {
-                    label: 'Forecast',
+                    label: 'SARIMA Forecast',
                     data: forecastDataset,
                     borderColor: '#e63946',
                     backgroundColor: 'rgba(230, 57, 70, 0.1)',
-                    borderWidth: 2,
-                    borderDash: [5, 5],
+                    borderWidth: 3,
+                    borderDash: [8, 4],
                     tension: 0.4,
                     fill: false,
-                    yAxisID: 'y1'
+                    yAxisID: 'y1',
+                    pointRadius: 4,
+                    pointHoverRadius: 7,
+                    pointStyle: 'circle'
                 },
                 {
-                    label: 'Upper CI',
+                    label: '95% Upper Confidence',
                     data: [...Array(historicalLabels.length).fill(null), ...upperCI],
                     borderColor: 'rgba(230, 57, 70, 0.3)',
-                    backgroundColor: 'rgba(230, 57, 70, 0.1)',
+                    backgroundColor: 'rgba(230, 57, 70, 0.15)',
                     borderWidth: 1,
                     fill: '+1',
                     pointRadius: 0,
-                    yAxisID: 'y1'
+                    yAxisID: 'y1',
+                    tension: 0.4
                 },
                 {
-                    label: 'Lower CI',
+                    label: '95% Lower Confidence',
                     data: [...Array(historicalLabels.length).fill(null), ...lowerCI],
                     borderColor: 'rgba(230, 57, 70, 0.3)',
-                    backgroundColor: 'rgba(230, 57, 70, 0.1)',
+                    backgroundColor: 'rgba(230, 57, 70, 0.15)',
                     borderWidth: 1,
                     fill: false,
                     pointRadius: 0,
-                    yAxisID: 'y1'
+                    yAxisID: 'y1',
+                    tension: 0.4
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             plugins: {
                 legend: {
-                    display: false
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15,
+                        font: {
+                            size: 12,
+                            weight: '500'
+                        },
+                        filter: function(item) {
+                            // Hide confidence interval labels from legend
+                            return !item.text.includes('Confidence');
+                        }
+                    }
                 },
                 tooltip: {
                     mode: 'index',
-                    intersect: false
+                    intersect: false,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 13
+                    },
+                    callbacks: {
+                        title: function(context) {
+                            return 'Period: ' + context[0].label;
+                        },
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += Math.round(context.parsed.y) + ' crimes';
+                            }
+                            return label;
+                        }
+                    }
                 }
             },
             scales: {
@@ -618,10 +715,17 @@ function renderTrendChart(historical, forecast) {
                     beginAtZero: true,
                     title: {
                         display: true,
-                        text: 'Number of Reports (Historical)'
+                        text: '📊 Historical Crime Reports',
+                        font: {
+                            size: 13,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        precision: 0
                     }
                 },
-                // Secondary axis for forecast (separate scale so large forecasts don't squash history)
+                // Secondary axis for forecast
                 y1: {
                     beginAtZero: true,
                     position: 'right',
@@ -630,20 +734,35 @@ function renderTrendChart(historical, forecast) {
                     },
                     title: {
                         display: true,
-                        text: 'Forecast (Model)'
+                        text: '🔮 SARIMA Forecast',
+                        font: {
+                            size: 13,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        precision: 0
                     }
                 },
                 x: {
                     title: {
                         display: true,
-                        text: 'Date'
+                        text: '📅 Time Period (Year-Month)',
+                        font: {
+                            size: 13,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
                     }
                 }
             }
         }
     });
     
-    console.log('Trend chart created successfully!');
+    console.log('✅ SARIMA forecast chart rendered successfully!');
 }
 
 // Render crime by type chart
@@ -745,5 +864,66 @@ function exportForecastData() {
     const horizon = document.getElementById('forecastHorizon').value;
     window.location.href = `/api/statistics/forecast?horizon=${horizon}`;
 }
+
+// Load barangay crime statistics
+async function loadBarangayStats() {
+    console.log('Loading barangay statistics...');
+    try {
+        const response = await fetch('/api/statistics/barangay-stats');
+        console.log('Barangay stats response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Barangay stats data:', result);
+        
+        if (result.status === 'success') {
+            displayTopBarangays(result.data.slice(0, 15));
+            console.log('Barangay statistics loaded successfully');
+        } else {
+            console.error('Barangay stats API returned error:', result.message);
+        }
+    } catch (error) {
+        console.error('Error loading barangay statistics:', error);
+    }
+}
+
+// Display top barangays in a clean, concise format
+function displayTopBarangays(topBarangays) {
+    const container = document.getElementById('topBarangays');
+    container.innerHTML = '';
+    
+    topBarangays.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'padding: 1rem; background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border-radius: 8px; border-left: 4px solid ' + getRankColor(index) + '; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s;';
+        div.onmouseenter = function() { this.style.transform = 'translateY(-2px)'; this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)'; };
+        div.onmouseleave = function() { this.style.transform = 'translateY(0)'; this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'; };
+        div.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="flex: 1;">
+                    <div style="font-size: 0.75rem; color: #6b7280; font-weight: 600; margin-bottom: 0.25rem;">#${index + 1}</div>
+                    <div style="font-weight: 600; font-size: 0.875rem; color: #1f2937; line-height: 1.2;">${item.barangay}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: ${getRankColor(index)};">${item.total_crimes}</div>
+                    <div style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase;">crimes</div>
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// Get color based on rank
+function getRankColor(index) {
+    if (index === 0) return '#dc2626'; // Red for #1
+    if (index === 1) return '#ea580c'; // Orange-red for #2
+    if (index === 2) return '#f59e0b'; // Orange for #3
+    if (index < 5) return '#3b82f6'; // Blue for top 5
+    return '#6b7280'; // Gray for others
+}
+
 </script>
 @endsection

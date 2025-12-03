@@ -11,11 +11,13 @@ No manual setup needed - just visit `/statistics` in AdminSide.
 ## Manual Start (Optional)
 
 ### From Project Root
+
 ```bash
 python start_sarima.py
 ```
 
 ### From This Directory
+
 ```bash
 # Install dependencies
 pip install -r requirements.txt
@@ -25,7 +27,8 @@ python -m uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 ### Windows Batch File
-```bash
+
+```cmd
 start.bat
 ```
 
@@ -33,9 +36,10 @@ start.bat
 
 For production servers, use systemd or supervisor to run as a system service.
 
-See: `../../SARIMA_DEPLOYMENT.md` for complete setup instructions.
+**See:** `../../SARIMA_DEPLOYMENT.md` for complete setup instructions.
 
-**Quick Setup (Linux):**
+### Quick Setup (Linux):
+
 ```bash
 # Copy service file
 sudo cp sarima-api.service /etc/systemd/system/
@@ -56,8 +60,8 @@ The model uses historical crime data from `data/CrimeDAta.csv` and trains a SARI
 
 ## API URL
 
-**Local:** http://localhost:8001
-**Production:** Configure reverse proxy or use direct port
+- **Local:** `http://localhost:8001/`
+- **Production:** Configure reverse proxy or use direct port
 
 ## Files
 

@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { validateDavaoLocation, isInsideDavaoCity } from '../utils/geofence';
 
 // Determine backend URL based on platform and environment
 const getBackendURL = () => {
@@ -41,8 +42,8 @@ if (Platform.OS !== 'web') {
 interface Barangay {
     barangay_id: number;
     barangay_name: string;
-    latitude: number;
-    longitude: number;
+    latitude: number | null;
+    longitude: number | null;
     station_id: number;
 }
 
@@ -87,6 +88,9 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
     const [loadingLocation, setLoadingLocation] = useState(false);
     const [loadingBarangays, setLoadingBarangays] = useState(false);
     const [barangaysError, setBarangaysError] = useState<string | null>(null);
+    const [mapLocationSet, setMapLocationSet] = useState(false);
+    const [barangayAutoDetected, setBarangayAutoDetected] = useState(false);
+    const [isLocationValid, setIsLocationValid] = useState(true); // Track if current location is within Davao
     const addressTimeoutRef = useRef<any>(null);
     const webViewRef = useRef<any>(null);
 
@@ -141,13 +145,19 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
         setSelectedBarangay(barangay);
         setBarangaySearch(barangay.barangay_name);
         setShowBarangayDropdown(false);
+        setBarangayAutoDetected(false); // User manually selected, not auto-detected
 
-        // Update map to barangay center
-        setMapCoordinates({
-            latitude: barangay.latitude,
-            longitude: barangay.longitude,
-        });
-        updateMapLocation(barangay.latitude, barangay.longitude);
+        // Update map to barangay center only if coordinates exist
+        if (barangay.latitude && barangay.longitude) {
+            setMapCoordinates({
+                latitude: barangay.latitude,
+                longitude: barangay.longitude,
+            });
+            updateMapLocation(barangay.latitude, barangay.longitude);
+        } else {
+            // Keep current map position if barangay has no coordinates
+            console.log(`⚠️ Barangay '${barangay.barangay_name}' has no coordinates - keeping current map position`);
+        }
     };
 
     // Filter barangays based on search
@@ -218,25 +228,81 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
         }
     };
 
-    // Determine barangay from coordinates using geofencing
+    // Determine barangay from street address using reverse geocoding
     const determineBarangayFromCoordinates = async (lat: number, lon: number) => {
+        console.log('🔍 Determining barangay from coordinates:', { lat, lon });
+        
+        // First, try to get barangay from reverse geocoding the street address
+        if (streetAddress.trim()) {
+            try {
+                console.log('🗺️ Reverse geocoding street address:', streetAddress);
+                const geocodeResponse = await fetch(
+                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(streetAddress + ', Davao City')}&limit=1`
+                );
+                
+                if (geocodeResponse.ok) {
+                    const geocodeData = await geocodeResponse.json();
+                    console.log('🗺️ Geocode response:', geocodeData);
+                    
+                    if (geocodeData && geocodeData.length > 0) {
+                        const addressComponents = geocodeData[0].display_name;
+                        console.log('🗺️ Address components:', addressComponents);
+                        
+                        // Try to find barangay in the address
+                        const matchedBarangay = barangays.find(b => {
+                            const barangayName = b.barangay_name.toLowerCase();
+                            const addressLower = addressComponents.toLowerCase();
+                            return addressLower.includes(barangayName);
+                        });
+                        
+                        if (matchedBarangay) {
+                            console.log('✅ Barangay matched from address:', matchedBarangay.barangay_name);
+                            setSelectedBarangay(matchedBarangay);
+                            setBarangaySearch(matchedBarangay.barangay_name);
+                            setShowBarangayDropdown(false);
+                            setBarangayAutoDetected(true);
+                            return; // Successfully found barangay
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('⚠️ Reverse geocoding error:', error);
+            }
+        }
+        
+        // Fallback: Try coordinate-based barangay detection
         try {
             const response = await fetch(
                 `${BACKEND_URL}/api/barangay/by-coordinates?latitude=${lat}&longitude=${lon}`
             );
 
+            console.log('🔍 Barangay API response status:', response.status);
+
             if (response.ok) {
                 const data = await response.json();
+                console.log('🔍 Barangay API response data:', data);
+                
                 if (data.success && data.barangay) {
+                    console.log('✅ Barangay found:', data.barangay);
                     const barangay = barangays.find(b => b.barangay_id === data.barangay.barangay_id);
                     if (barangay) {
+                        console.log('✅ Matching barangay in list:', barangay.barangay_name);
                         setSelectedBarangay(barangay);
                         setBarangaySearch(barangay.barangay_name);
+                        setShowBarangayDropdown(false);
+                        setBarangayAutoDetected(true);
+                        console.log('✅ Barangay auto-selected and dropdown closed:', barangay.barangay_name);
+                    } else {
+                        console.log('⚠️ Barangay not found in local list:', data.barangay.barangay_id);
                     }
+                } else {
+                    console.log('⚠️ No barangay data in response or not successful');
                 }
+            } else {
+                console.log('❌ Barangay API request failed with status:', response.status);
             }
         } catch (error) {
-            console.error('Error determining barangay:', error);
+            console.error('❌ Error determining barangay:', error);
         }
     };
 
@@ -256,6 +322,31 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
             });
 
             const { latitude, longitude } = location.coords;
+
+            // Validate GPS location is within Davao City (GEOFENCE CHECK)
+            console.log('🚧 Checking geofence for GPS location:', { latitude, longitude });
+            const geofenceValidation = validateDavaoLocation(latitude, longitude);
+            
+            if (!geofenceValidation.isValid) {
+                console.log('❌ GPS location outside Davao City:', geofenceValidation.errorMessage);
+                Alert.alert(
+                    'We Only Accept Reports Within Davao City',
+                    'Your current GPS location appears to be outside Davao City boundaries.\n\n' +
+                    'AlertDavao only accepts reports from locations within Davao City.\n\n' +
+                    'Please manually select a location on the map if you are in Davao City, or move to a location within Davao City.',
+                    [{ 
+                        text: 'Select Manually on Map', 
+                        style: 'default',
+                        onPress: () => {
+                            console.log('🔄 User will manually select location on map');
+                        }
+                    }]
+                );
+                return;
+            }
+            
+            console.log('✅ GPS location within Davao City boundaries');
+
             setMapCoordinates({ latitude, longitude });
             updateMapLocation(latitude, longitude);
 
@@ -303,52 +394,183 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
     useEffect(() => {
         if (Platform.OS === 'web') {
             const handleMessage = (event: MessageEvent) => {
+                console.log('🔔 Message received:', event.data);
+                
+                if (event.data && event.data.type === 'locationOutOfBounds') {
+                    const { latitude, longitude } = event.data;
+                    console.log('❌ Location out of bounds:', { latitude, longitude });
+                    
+                    setIsLocationValid(false);
+                    
+                    Alert.alert(
+                        'Location Outside Davao City',
+                        'The marker went outside Davao City boundaries.\n\n' +
+                        'Please select a location within Davao City to continue.',
+                        [{ 
+                            text: 'OK', 
+                            style: 'default'
+                        }]
+                    );
+                    return;
+                }
+                
                 if (event.data && event.data.type === 'locationSelected') {
                     const { latitude, longitude } = event.data;
+                    console.log('📍 Map location selected:', { latitude, longitude });
+                    console.log('📍 Previous coordinates:', mapCoordinates);
+
+                    // Validate map click location is within Davao City (GEOFENCE CHECK)
+                    console.log('🚧 Checking geofence for map click:', { latitude, longitude });
+                    if (!isInsideDavaoCity(latitude, longitude)) {
+                        console.log('❌ Map click outside Davao City');
+                        setIsLocationValid(false);
+                        Alert.alert(
+                            'We Only Accept Reports Within Davao City',
+                            'The selected location is outside Davao City boundaries.\n\n' +
+                            'Please click on a location within Davao City to continue.',
+                            [{ 
+                                text: 'Try Again', 
+                                style: 'default',
+                                onPress: () => {
+                                    console.log('🔄 User will click another location on map');
+                                }
+                            }]
+                        );
+                        // Do not update coordinates - keep previous valid location
+                        return;
+                    }
+                    
+                    console.log('✅ Map click within Davao City boundaries');
+                    setIsLocationValid(true);
+
                     setMapCoordinates({ latitude, longitude });
+                    setMapLocationSet(true);
+                    console.log('📍 Map coordinates updated, mapLocationSet:', true);
 
                     // Reverse geocode
                     fetch(`${BACKEND_URL}/api/location/reverse?lat=${latitude}&lon=${longitude}`)
                         .then(res => res.json())
                         .then(data => {
                             if (data.success && data.address) {
+                                console.log('🏠 Reverse geocoded address:', data.address);
                                 setStreetAddress(data.address);
                             }
-                        });
+                        })
+                        .catch(err => console.error('Reverse geocode error:', err));
 
                     // Determine barangay
+                    console.log('🔍 Calling determineBarangayFromCoordinates (web)');
                     determineBarangayFromCoordinates(latitude, longitude);
                 }
             };
 
+            console.log('📡 Setting up message listener for web platform');
             window.addEventListener('message', handleMessage);
-            return () => window.removeEventListener('message', handleMessage);
+            return () => {
+                console.log('📡 Removing message listener');
+                window.removeEventListener('message', handleMessage);
+            };
         }
     }, [barangays]);
 
     // Handle confirm
     const handleConfirm = () => {
-        if (!selectedBarangay) {
-            Alert.alert('Missing Information', 'Please select a barangay.');
-            return;
-        }
+        console.log('🔍 Confirm clicked - Current state:', {
+            selectedBarangay: selectedBarangay?.barangay_name,
+            selectedBarangay_id: selectedBarangay?.barangay_id,
+            streetAddress,
+            streetAddressLength: streetAddress.length,
+            streetAddressTrimmed: streetAddress.trim(),
+            mapCoordinates,
+            mapCoordinates_lat: mapCoordinates.latitude,
+            mapCoordinates_lng: mapCoordinates.longitude,
+            mapLocationSet,
+            hasLatitude: !!mapCoordinates.latitude,
+            hasLongitude: !!mapCoordinates.longitude,
+        });
+
+        // Barangay is now optional - will be determined server-side if not found
 
         if (!streetAddress.trim()) {
-            Alert.alert('Missing Information', 'Please enter a street address.');
+            console.log('❌ No street address');
+            Alert.alert(
+                'Missing Information', 
+                'Please enter your street address, building, and house number in the text field above.'
+            );
             return;
         }
 
-        const fullAddress = `Mindanao, Davao Del Sur, Davao City, ${selectedBarangay.barangay_name}`;
+        // Validate that we have valid coordinates
+        if (!mapCoordinates.latitude || !mapCoordinates.longitude) {
+            console.log('❌ Invalid coordinates:', {
+                latitude: mapCoordinates.latitude,
+                longitude: mapCoordinates.longitude,
+                hasLat: !!mapCoordinates.latitude,
+                hasLng: !!mapCoordinates.longitude
+            });
+            Alert.alert(
+                'Invalid Location', 
+                'Please select a valid location on the map or use your current location.'
+            );
+            return;
+        }
 
-        onLocationSelect({
-            barangay: selectedBarangay.barangay_name,
-            barangay_id: selectedBarangay.barangay_id,
+        // Validate location is within Davao City boundaries (GEOFENCE CHECK)
+        console.log('🚧 Checking geofence for coordinates:', {
+            latitude: mapCoordinates.latitude,
+            longitude: mapCoordinates.longitude
+        });
+        
+        const geofenceValidation = validateDavaoLocation(
+            mapCoordinates.latitude, 
+            mapCoordinates.longitude
+        );
+        
+        if (!geofenceValidation.isValid) {
+            console.log('❌ Location outside Davao City:', geofenceValidation.errorMessage);
+            Alert.alert(
+                'We Only Accept Reports Within Davao City',
+                geofenceValidation.errorMessage || 
+                'The selected location is outside Davao City boundaries.\n\n' +
+                'Please select a different location within Davao City to proceed with your report.',
+                [{ 
+                    text: 'Select Another Location', 
+                    style: 'default',
+                    onPress: () => {
+                        // Keep the modal open, allow user to try again
+                        console.log('🔄 User will select another location within Davao City');
+                    }
+                }]
+            );
+            // DO NOT close modal - keep it open so user can try selecting another location
+            return;
+        }
+        
+        console.log('✅ Location within Davao City boundaries');
+
+        // Build the data object - barangay can be null if not found
+        const fullAddress = selectedBarangay 
+            ? `Mindanao, Davao Del Sur, Davao City, ${selectedBarangay.barangay_name}`
+            : `Mindanao, Davao Del Sur, Davao City`;
+
+        const dataToSend = {
+            barangay: selectedBarangay ? selectedBarangay.barangay_name : null,
+            barangay_id: selectedBarangay ? selectedBarangay.barangay_id : null,
             street_address: streetAddress,
             full_address: fullAddress,
             latitude: mapCoordinates.latitude,
             longitude: mapCoordinates.longitude,
-        });
+        };
 
+        console.log('✅ All validations passed, confirming location:', dataToSend);
+        if (!selectedBarangay) {
+            console.log('⚠️ Barangay not found in list - will be determined server-side from coordinates');
+        }
+        console.log('📤 Calling onLocationSelect with data...');
+
+        onLocationSelect(dataToSend);
+
+        console.log('📤 onLocationSelect called, closing modal...');
         handleClose();
     };
 
@@ -359,6 +581,9 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
         setAddressSuggestions([]);
         setShowBarangayDropdown(false);
         setShowAddressSuggestions(false);
+        setMapLocationSet(false);
+        setBarangayAutoDetected(false);
+        setIsLocationValid(true);
         onClose();
     };
 
@@ -378,38 +603,110 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
         <body>
             <div id="map"></div>
             <script>
-                var map = L.map('map').setView([${mapCoordinates.latitude}, ${mapCoordinates.longitude}], 15);
+                // Davao City boundaries - Strict enforcement
+                // Based on administrative boundary level 6
+                var davaoBounds = L.latLngBounds(
+                    L.latLng(6.85, 125.20),  // Southwest corner
+                    L.latLng(7.40, 125.75)   // Northeast corner
+                );
+                
+                var map = L.map('map', {
+                    maxBounds: davaoBounds,
+                    maxBoundsViscosity: 1.0,  // Prevent dragging outside bounds
+                    minZoom: 11,
+                    maxZoom: 18
+                }).setView([${mapCoordinates?.latitude || 7.0731}, ${mapCoordinates?.longitude || 125.6128}], 13);
+                
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors'
+                    attribution: '© OpenStreetMap contributors',
+                    bounds: davaoBounds
                 }).addTo(map);
 
-                var marker = L.marker([${mapCoordinates.latitude}, ${mapCoordinates.longitude}], {
+                // Add visual indicator of Davao City boundary
+                var davaoPolygon = L.polygon([
+                    [7.38, 125.45], [7.35, 125.55], [7.30, 125.65],
+                    [7.25, 125.70], [7.20, 125.72], [7.15, 125.73],
+                    [7.10, 125.72], [7.05, 125.70], [7.00, 125.68],
+                    [6.95, 125.65], [6.90, 125.60], [6.88, 125.55],
+                    [6.87, 125.50], [6.88, 125.45], [6.90, 125.40],
+                    [6.95, 125.35], [7.00, 125.30], [7.05, 125.25],
+                    [7.10, 125.23], [7.15, 125.22], [7.20, 125.23],
+                    [7.25, 125.25], [7.30, 125.30], [7.35, 125.35]
+                ], {
+                    color: '#FF6B6B',
+                    weight: 2,
+                    fillOpacity: 0.05,
+                    dashArray: '5, 10'
+                }).addTo(map);
+
+                var marker = L.marker([${mapCoordinates?.latitude || 7.0731}, ${mapCoordinates?.longitude || 125.6128}], {
                     draggable: true
                 }).addTo(map);
 
+                // Function to check if point is inside Davao City
+                function isInsideDavao(lat, lng) {
+                    return lat >= 6.85 && lat <= 7.40 && lng >= 125.20 && lng <= 125.75;
+                }
+
+                // Store the last valid position
+                var lastValidPosition = [${mapCoordinates?.latitude || 7.0731}, ${mapCoordinates?.longitude || 125.6128}];
+
                 marker.on('dragend', function(e) {
                     var pos = marker.getLatLng();
-                    window.parent.postMessage({
-                        type: 'locationSelected',
-                        latitude: pos.lat,
-                        longitude: pos.lng
-                    }, '*');
+                    console.log('Marker dragged to:', pos.lat, pos.lng);
+                    
+                    if (isInsideDavao(pos.lat, pos.lng)) {
+                        console.log('Position is inside Davao City - updating coordinates');
+                        lastValidPosition = [pos.lat, pos.lng];
+                        window.parent.postMessage({
+                            type: 'locationSelected',
+                            latitude: pos.lat,
+                            longitude: pos.lng
+                        }, '*');
+                    } else {
+                        console.log('Position is OUTSIDE Davao City - showing alert');
+                        // Snap back to last valid position
+                        marker.setLatLng(lastValidPosition);
+                        
+                        // Send message to show alert
+                        window.parent.postMessage({
+                            type: 'locationOutOfBounds',
+                            latitude: pos.lat,
+                            longitude: pos.lng
+                        }, '*');
+                    }
                 });
 
                 map.on('click', function(e) {
-                    marker.setLatLng(e.latlng);
-                    window.parent.postMessage({
-                        type: 'locationSelected',
-                        latitude: e.latlng.lat,
-                        longitude: e.latlng.lng
-                    }, '*');
+                    console.log('Map clicked at:', e.latlng.lat, e.latlng.lng);
+                    
+                    if (isInsideDavao(e.latlng.lat, e.latlng.lng)) {
+                        console.log('Click is inside Davao City - updating marker');
+                        lastValidPosition = [e.latlng.lat, e.latlng.lng];
+                        marker.setLatLng(e.latlng);
+                        window.parent.postMessage({
+                            type: 'locationSelected',
+                            latitude: e.latlng.lat,
+                            longitude: e.latlng.lng
+                        }, '*');
+                    } else {
+                        console.log('Click is OUTSIDE Davao City - showing alert');
+                        window.parent.postMessage({
+                            type: 'locationOutOfBounds',
+                            latitude: e.latlng.lat,
+                            longitude: e.latlng.lng
+                        }, '*');
+                    }
                 });
 
                 window.addEventListener('message', function(event) {
                     if (event.data.type === 'updateLocation') {
                         var newPos = [event.data.latitude, event.data.longitude];
-                        marker.setLatLng(newPos);
-                        map.setView(newPos, 15);
+                        if (isInsideDavao(newPos[0], newPos[1])) {
+                            lastValidPosition = newPos;
+                            marker.setLatLng(newPos);
+                            map.setView(newPos, 15);
+                        }
                     }
                 });
             </script>
@@ -546,9 +843,27 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
 
                         {/* Info when no dropdown shown */}
                         {!showBarangayDropdown && barangays.length > 0 && selectedBarangay && (
-                            <Text style={{ fontSize: 12, color: '#4CAF50', marginTop: 4, fontWeight: '500' }}>
-                                ✓ {selectedBarangay.barangay_name} selected
-                            </Text>
+                            <>
+                                <Text style={{ fontSize: 12, color: '#4CAF50', marginTop: 4, fontWeight: '500' }}>
+                                    ✓ {selectedBarangay.barangay_name} selected
+                                    {barangayAutoDetected && ' (auto-detected from map)'}
+                                </Text>
+                                {/* Warning if barangay has no coordinates */}
+                                {(!selectedBarangay.latitude || !selectedBarangay.longitude) && (
+                                    <View style={{
+                                        backgroundColor: '#fff3e0',
+                                        padding: 10,
+                                        borderRadius: 6,
+                                        marginTop: 8,
+                                        borderLeftWidth: 3,
+                                        borderLeftColor: '#ff9800'
+                                    }}>
+                                        <Text style={{ color: '#e65100', fontSize: 12, fontWeight: '500' }}>
+                                            ⚠️ This barangay has no predefined map area. Please manually select the exact location on the map below or use your current location.
+                                        </Text>
+                                    </View>
+                                )}
+                            </>
                         )}
                     </View>
 
@@ -614,21 +929,27 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
                                     style={{ width: '100%', height: 300, borderRadius: 8 }}
                                     onMessage={(event: any) => {
                                         const data = JSON.parse(event.nativeEvent.data);
+                                        console.log('📱 WebView message received:', data);
                                         if (data.type === 'locationSelected') {
                                             const { latitude, longitude } = data;
+                                            console.log('📍 Map location selected (mobile):', { latitude, longitude });
                                             setMapCoordinates({ latitude, longitude });
+                                            setMapLocationSet(true);
+                                            console.log('📍 Map coordinates updated (mobile), mapLocationSet:', true);
 
                                             // Reverse geocode to get street address
                                             fetch(`${BACKEND_URL}/api/location/reverse?lat=${latitude}&lon=${longitude}`)
                                                 .then(res => res.json())
                                                 .then(addressData => {
                                                     if (addressData.success && addressData.address) {
+                                                        console.log('🏠 Reverse geocoded address (mobile):', addressData.address);
                                                         setStreetAddress(addressData.address);
                                                     }
                                                 })
                                                 .catch(err => console.error('Reverse geocode error:', err));
 
                                             // Determine barangay
+                                            console.log('🔍 Calling determineBarangayFromCoordinates (mobile)');
                                             determineBarangayFromCoordinates(latitude, longitude);
                                         }
                                     }}
@@ -640,15 +961,37 @@ const EnhancedLocationPicker: React.FC<EnhancedLocationPickerProps> = ({
                     {/* Coordinates Display */}
                     <View style={localStyles.coordsDisplay}>
                         <Text style={localStyles.coordsText}>
-                            Latitude: {mapCoordinates.latitude.toFixed(6)} | Longitude: {mapCoordinates.longitude.toFixed(6)}
+                            Latitude: {mapCoordinates.latitude?.toFixed(6) || 'N/A'} | Longitude: {mapCoordinates.longitude?.toFixed(6) || 'N/A'}
                         </Text>
+                        {mapLocationSet && isLocationValid && (
+                            <Text style={{ fontSize: 12, color: '#4CAF50', marginTop: 4, fontWeight: '500' }}>
+                                ✓ Map location updated
+                            </Text>
+                        )}
+                        {!isLocationValid && (
+                            <Text style={{ fontSize: 12, color: '#f44336', marginTop: 4, fontWeight: '500' }}>
+                                ✗ Location is outside Davao City boundaries
+                            </Text>
+                        )}
                     </View>
                 </ScrollView>
 
                 {/* Confirm Button */}
                 <View style={localStyles.footer}>
-                    <TouchableOpacity style={localStyles.confirmButton} onPress={handleConfirm}>
-                        <Text style={localStyles.confirmButtonText}>Confirm Location</Text>
+                    <TouchableOpacity 
+                        style={[
+                            localStyles.confirmButton,
+                            !isLocationValid && localStyles.confirmButtonDisabled
+                        ]} 
+                        onPress={handleConfirm}
+                        disabled={!isLocationValid}
+                    >
+                        <Text style={[
+                            localStyles.confirmButtonText,
+                            !isLocationValid && localStyles.confirmButtonTextDisabled
+                        ]}>
+                            Confirm Location
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -803,10 +1146,17 @@ const localStyles = StyleSheet.create({
         borderRadius: 8,
         alignItems: 'center',
     },
+    confirmButtonDisabled: {
+        backgroundColor: '#ccc',
+        opacity: 0.6,
+    },
     confirmButtonText: {
         color: '#fff',
         fontSize: 16,
         fontWeight: '600',
+    },
+    confirmButtonTextDisabled: {
+        color: '#888',
     },
 });
 

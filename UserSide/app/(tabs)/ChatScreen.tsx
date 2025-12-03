@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import styles from "./styles";
@@ -22,6 +22,8 @@ const ChatScreen = () => {
     const [showEnforcerModal, setShowEnforcerModal] = useState(false);
     const [enforcerDetails, setEnforcerDetails] = useState<any>(null);
     const [loadingEnforcerDetails, setLoadingEnforcerDetails] = useState(false);
+    const [messageError, setMessageError] = useState('');
+    const MAX_MESSAGE_LENGTH = 10000; // Safe limit for TEXT column (65,535 bytes)
     let typingTimeout: ReturnType<typeof setTimeout> | null = null;
     let typingCheckInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -35,9 +37,12 @@ const ChatScreen = () => {
                 setMessages(response.data);
                 // Mark conversation as read
                 await messageService.markConversationAsRead(parseInt(user.id), parseInt(otherUserId));
+            } else {
+                console.error('Failed to fetch messages:', response);
             }
         } catch (error) {
             console.error('Error fetching messages:', error);
+            // Don't alert on background fetch errors, just log
         } finally {
             setLoading(false);
         }
@@ -74,12 +79,24 @@ const ChatScreen = () => {
             return;
         }
 
+        // Validate message length
+        if (newMessage.trim().length > MAX_MESSAGE_LENGTH) {
+            Alert.alert(
+                'Message Too Long',
+                `Your message is too long (${newMessage.trim().length} characters). Maximum allowed is ${MAX_MESSAGE_LENGTH} characters.`,
+                [{ text: 'OK' }]
+            );
+            return;
+        }
+
         setSending(true);
+        setMessageError('');
+        
         try {
             console.log('📨 Attempting to send message:', {
                 senderId: user.id,
                 receiverId: otherUserId,
-                message: newMessage.trim()
+                messageLength: newMessage.trim().length
             });
 
             const response = await messageService.sendMessage(
@@ -93,13 +110,24 @@ const ChatScreen = () => {
             if (response.success) {
                 console.log('✅ Message sent, clearing input and refreshing...');
                 setNewMessage('');
+                setMessageError('');
                 // Refresh messages
                 await fetchMessages();
             } else {
                 console.error('❌ Message send failed:', response);
+                Alert.alert(
+                    'Failed to Send',
+                    'Could not send your message. Please try again.',
+                    [{ text: 'OK' }]
+                );
             }
         } catch (error) {
             console.error('❌ Error sending message:', error);
+            Alert.alert(
+                'Network Error',
+                'Could not send your message. Please check your connection and try again.',
+                [{ text: 'OK' }]
+            );
         } finally {
             setSending(false);
         }
@@ -143,6 +171,11 @@ const ChatScreen = () => {
                     'Content-Type': 'application/json',
                 }
             });
+
+            if (!response.ok) {
+                console.error('Failed to check typing status:', response.status);
+                return;
+            }
 
             const data = await response.json();
             if (data.success) {
@@ -261,38 +294,56 @@ const ChatScreen = () => {
                 )}
 
                 {/* Input Area */}
-                <View style={styles.inputContainer}>
-                    <TextInput
-                        style={styles.chatInput}
-                        placeholder="Write a message"
-                        value={newMessage}
-                        onChangeText={(text) => {
-                            setNewMessage(text);
-                            // Send typing status
-                            sendTypingStatus(true);
+                <View>
+                    {newMessage.length > MAX_MESSAGE_LENGTH * 0.8 && (
+                        <View style={{ paddingHorizontal: 10, paddingVertical: 4 }}>
+                            <Text style={{ 
+                                fontSize: 12, 
+                                color: newMessage.length > MAX_MESSAGE_LENGTH ? '#ef4444' : '#f59e0b',
+                                fontWeight: '500'
+                            }}>
+                                {newMessage.length > MAX_MESSAGE_LENGTH 
+                                    ? `⚠️ Message too long! (${newMessage.length - MAX_MESSAGE_LENGTH} over limit)`
+                                    : `${MAX_MESSAGE_LENGTH - newMessage.length} characters remaining`}
+                            </Text>
+                        </View>
+                    )}
+                    <View style={styles.inputContainer}>
+                        <TextInput
+                            style={styles.chatInput}
+                            placeholder="Write a message"
+                            value={newMessage}
+                            onChangeText={(text) => {
+                                setNewMessage(text);
+                                if (text.length <= MAX_MESSAGE_LENGTH) {
+                                    setMessageError('');
+                                }
+                                // Send typing status
+                                sendTypingStatus(true);
 
-                            // Clear previous timeout
-                            if (typingTimeout) clearTimeout(typingTimeout);
+                                // Clear previous timeout
+                                if (typingTimeout) clearTimeout(typingTimeout);
 
-                            // Set timeout to clear typing status after 3 seconds
-                            typingTimeout = setTimeout(() => {
-                                sendTypingStatus(false);
-                            }, 3000);
-                        }}
-                        multiline
-                        editable={!sending}
-                    />
-                    <TouchableOpacity
-                        style={[styles.sendButton, sending && { opacity: 0.5 }]}
-                        onPress={sendMessage}
-                        disabled={sending || newMessage.trim() === ''}
-                    >
-                        {sending ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                            <Ionicons name="send" size={20} color="#fff" />
-                        )}
-                    </TouchableOpacity>
+                                // Set timeout to clear typing status after 3 seconds
+                                typingTimeout = setTimeout(() => {
+                                    sendTypingStatus(false);
+                                }, 3000);
+                            }}
+                            multiline
+                            editable={!sending}
+                        />
+                        <TouchableOpacity
+                            style={[styles.sendButton, sending && { opacity: 0.5 }]}
+                            onPress={sendMessage}
+                            disabled={sending || newMessage.trim() === ''}
+                        >
+                            {sending ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Ionicons name="send" size={20} color="#fff" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Enforcer Details Modal */}

@@ -56,9 +56,10 @@ const verificationUpload = multer({
 });
 
 const handleRegister = require("./handleRegister");
-const { handleRegisterWithVerification, verifyEmail } = require("./handleEmailVerification");
 const { handleGoogleLogin, handleGoogleLoginWithToken } = require("./handleGoogleAuth");
 const handleLogin = require("./handleLogin");
+const { handleVerifyEmail, handleResendVerification } = require("./handleEmailVerification");
+const { handleForgotPassword, handleVerifyResetToken, handleResetPassword } = require("./handlePasswordReset");
 const {
   testConnection,
   getUserById,
@@ -163,13 +164,114 @@ app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Serve uploaded files statically from evidence folder
-app.use('/evidence', express.static(path.join(__dirname, '../evidence')));
+// Import authentication helper
+const { getVerifiedUserRole } = require('./authMiddleware');
 
-// Serve uploaded files statically from verifications folder
-app.use('/verifications', express.static(path.join(__dirname, '../verifications')));
+// 🔐 Secure file serving with decryption (Admin/Police only)
+// Files are encrypted at rest and decrypted on-demand for authorized users
+const { decryptFile } = require('./encryptionService');
+const fs = require('fs');
 
-// Backward compatibility: serve old uploads from uploads/evidence folder
+// Decrypt and serve evidence files (Admin/Police only)
+app.get('/evidence/:filename', async (req, res) => {
+  // Set CORS headers explicitly for cross-origin requests
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Id');
+  
+  // 🔒 SECURITY: Verify role from database instead of trusting client
+  const requestingUserId = req.query.userId || req.headers['x-user-id'];
+  const userRole = await getVerifiedUserRole(requestingUserId);
+  
+  if (userRole !== 'admin' && userRole !== 'police') {
+    console.log(`🚫 Unauthorized access attempt to evidence by user ${requestingUserId} with role: ${userRole}`);
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Unauthorized: Only admin and police can access evidence files' 
+    });
+  }
+  
+  try {
+    const filePath = path.join(__dirname, '../evidence', req.params.filename);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+    
+    console.log(`🔓 Decrypting evidence file for ${userRole}:`, req.params.filename);
+    
+    // Read encrypted file
+    const encryptedBuffer = fs.readFileSync(filePath);
+    
+    // Decrypt the file
+    const decryptedBuffer = decryptFile(encryptedBuffer);
+    
+    // Determine content type
+    const ext = path.extname(req.params.filename).toLowerCase();
+    const contentTypes = {
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+      '.gif': 'image/gif', '.mp4': 'video/mp4', '.mov': 'video/quicktime',
+      '.avi': 'video/x-msvideo'
+    };
+    
+    res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache for 1 hour
+    res.send(decryptedBuffer);
+    
+    console.log('✅ File decrypted and served');
+  } catch (error) {
+    console.error('❌ Error serving evidence file:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve file' });
+  }
+});
+
+// Decrypt and serve verification files (Admin/Police only)
+app.get('/verifications/:filename', async (req, res) => {
+  // 🔒 SECURITY: Verify role from database instead of trusting client
+  const requestingUserId = req.query.userId || req.headers['x-user-id'];
+  const userRole = await getVerifiedUserRole(requestingUserId);
+  
+  if (userRole !== 'admin' && userRole !== 'police') {
+    console.log(`🚫 Unauthorized access attempt to verification by user ${requestingUserId} with role: ${userRole}`);
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Unauthorized: Only admin and police can access verification documents' 
+    });
+  }
+  
+  try {
+    const filePath = path.join(__dirname, '../verifications', req.params.filename);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+    
+    console.log(`🔓 Decrypting verification file for ${userRole}:`, req.params.filename);
+    
+    // Read encrypted file
+    const encryptedBuffer = fs.readFileSync(filePath);
+    
+    // Decrypt the file
+    const decryptedBuffer = decryptFile(encryptedBuffer);
+    
+    // Determine content type
+    const ext = path.extname(req.params.filename).toLowerCase();
+    const contentTypes = {
+      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+      '.gif': 'image/gif', '.pdf': 'application/pdf'
+    };
+    
+    res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
+    res.send(decryptedBuffer);
+    
+    console.log('✅ File decrypted and served');
+  } catch (error) {
+    console.error('❌ Error serving verification file:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve file' });
+  }
+});
+
+// Backward compatibility: serve old uploads from uploads/evidence folder (legacy - unencrypted)
 app.use('/uploads/evidence', express.static(path.join(__dirname, '../uploads/evidence')));
 
 // Debug logger - BEFORE multer processes the request
@@ -185,10 +287,17 @@ app.use((req, res, next) => {
 });
 
 // Authentication Routes
-app.post("/register", handleRegisterWithVerification); // ✅ Email verification required
-app.post("/register-direct", handleRegister); // Legacy direct registration (no email verification)
-app.get("/api/verify-email", verifyEmail); // Email verification endpoint
+app.post("/register", handleRegister); // Registration with email verification
 app.post("/login", handleLogin);
+
+// Email Verification Routes
+app.get("/verify-email/:token", handleVerifyEmail); // Verify email with token
+app.post("/resend-verification", handleResendVerification); // Resend verification email
+
+// Password Reset Routes
+app.post("/forgot-password", handleForgotPassword); // Request password reset
+app.get("/verify-reset-token/:token", handleVerifyResetToken); // Verify reset token validity
+app.post("/reset-password", handleResetPassword); // Reset password with token
 
 // OTP endpoints (phone verification / login OTP)
 const { sendOtp, verifyOtp } = require('./handleOtp');

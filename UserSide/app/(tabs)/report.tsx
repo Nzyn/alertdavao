@@ -23,6 +23,17 @@ import { Calendar, CalendarList, Agenda } from 'react-native-calendars';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Conditional WebView import for native platforms only
+let WebView: any = null;
+if (Platform.OS !== 'web') {
+    try {
+        const { WebView: RNWebView } = require('react-native-webview');
+        WebView = RNWebView;
+    } catch (e) {
+        console.log('WebView not available on this platform');
+    }
+}
+
 // reference to avoid unused import warnings for CalendarList and Agenda
 (() => { void CalendarList; void Agenda; })();
 import EnhancedLocationPicker from '../../components/EnhancedLocationPicker';
@@ -33,6 +44,7 @@ import { notificationService, type Notification } from '../../services/notificat
 import { useUser } from '../../contexts/UserContext';
 import { Link } from 'expo-router';
 import styles from './styles';
+import { validateDavaoLocation } from '../../utils/geofence';
 
 // Helper: get today's date string in Asia/Manila (UTC+8) as YYYY-MM-DD
 const manilaTodayStr = () => {
@@ -86,6 +98,7 @@ function CheckRow({ label, checked, onToggle }: CheckRowProps) {
 export default function ReportCrime() {
     const { user } = useUser();
     const [title, setTitle] = useState('');
+    const [titleError, setTitleError] = useState('');
     const [selectedCrimes, setSelectedCrimes] = useState<string[]>([]);
     const [location, setLocation] = useState('');
     const [barangay, setBarangay] = useState('');
@@ -146,6 +159,58 @@ export default function ReportCrime() {
         }, [])
     );
 
+    // Listen for messages from web iframe minimap
+    useEffect(() => {
+        if (Platform.OS === 'web') {
+            const handleMessage = (event: MessageEvent) => {
+                if (event.data && event.data.type === 'locationSelected') {
+                    const { latitude, longitude } = event.data;
+                    
+                    // Validate location is within Davao City
+                    const validation = validateDavaoLocation(latitude, longitude);
+                    if (!validation.isValid) {
+                        Alert.alert(
+                            'Location Outside Davao City',
+                            'We only accept reports within Davao City.\\n\\nThe selected location is outside Davao City boundaries. Please tap on the map within Davao City to proceed with your report.',
+                            [
+                                {
+                                    text: 'OK',
+                                    style: 'default'
+                                }
+                            ]
+                        );
+                        return; // Don't set invalid location
+                    }
+
+                    setLocationCoordinates({
+                        latitude,
+                        longitude
+                    });
+                    
+                    // Auto-reverse geocode to get address
+                    fetch(`http://localhost:3000/api/location/reverse?lat=${latitude}&lon=${longitude}`)
+                        .then(res => res.json())
+                        .then(addressData => {
+                            if (addressData.success) {
+                                setStreetAddress(addressData.address || '');
+                                setLocation(addressData.barangay || '');
+                                setBarangayId(addressData.barangay_id || null);
+                            }
+                        })
+                        .catch(err => console.error('Reverse geocode error:', err));
+                }
+            };
+
+            window.addEventListener('message', handleMessage);
+            return () => window.removeEventListener('message', handleMessage);
+        }
+    }, []);
+
+    // Debug: Log when showLocationPicker changes
+    useEffect(() => {
+        console.log('📍 showLocationPicker changed:', showLocationPicker);
+    }, [showLocationPicker]);
+
     // ✅ Toggle function with correct typing
     const toggleCrimeType = (crime: string) => {
         setSelectedCrimes((prev) =>
@@ -154,7 +219,9 @@ export default function ReportCrime() {
     };
 
     const handleUseLocation = () => {
+        console.log('🗺️ Opening location picker...');
         setShowLocationPicker(true);
+        console.log('✅ showLocationPicker set to true');
     };
 
     const handleLocationSelect = (data: {
@@ -165,7 +232,33 @@ export default function ReportCrime() {
         latitude: number;
         longitude: number;
     }) => {
-        console.log('✅ Location selected:', data);
+        console.log('📥 handleLocationSelect called in report.tsx');
+        console.log('✅ Location data received:', data);
+        console.log('📍 Coordinates:', {
+            latitude: data.latitude,
+            longitude: data.longitude
+        });
+
+        // Validate location is within Davao City
+        const validation = validateDavaoLocation(data.latitude, data.longitude);
+        if (!validation.isValid) {
+            Alert.alert(
+                'Location Outside Davao City',
+                'We only accept reports within Davao City.\n\nThe selected location is outside Davao City boundaries. Please select a different location within Davao City to proceed with your report.',
+                [
+                    {
+                        text: 'Select Different Location',
+                        onPress: () => {
+                            // Keep the location picker open or reopen it
+                            setShowLocationPicker(true);
+                        },
+                        style: 'default'
+                    }
+                ],
+                { cancelable: false }
+            );
+            return; // Don't proceed with invalid location
+        }
 
         // Set location display as full address
         setLocation(data.full_address);
@@ -176,7 +269,20 @@ export default function ReportCrime() {
             latitude: data.latitude,
             longitude: data.longitude
         });
+        
+        console.log('✅ State updated:', {
+            location: data.full_address,
+            barangay: data.barangay,
+            barangayId: data.barangay_id,
+            streetAddress: data.street_address,
+            coordinates: {
+                latitude: data.latitude,
+                longitude: data.longitude
+            }
+        });
+        
         setShowLocationPicker(false);
+        console.log('✅ Location picker closed');
     };
 
     const handleLocationPickerClose = () => {
@@ -302,16 +408,7 @@ export default function ReportCrime() {
         }
         console.log('✅ User authenticated');
 
-        // REQUIRE location - check barangay and street address
-        if (!barangay || !barangayId) {
-            console.log('❌ Validation failed: No barangay', { barangay, barangayId });
-            window.alert(
-                'Missing Information: Please select a barangay from the location picker.\n\nClick "Select Location" to choose your barangay.'
-            );
-            return;
-        }
-        console.log('✅ Barangay validated');
-
+        // Street address and coordinates are required, barangay is optional (will be determined server-side)
         if (!streetAddress.trim()) {
             console.log('❌ Validation failed: No street address');
             window.alert(
@@ -320,6 +417,12 @@ export default function ReportCrime() {
             return;
         }
         console.log('✅ Street address validated');
+        
+        if (barangay && barangayId) {
+            console.log('✅ Barangay selected:', barangay);
+        } else {
+            console.log('⚠️ No barangay selected - will be determined server-side from coordinates');
+        }
 
         if (!locationCoordinates) {
             console.log('❌ Validation failed: No coordinates');
@@ -339,6 +442,25 @@ export default function ReportCrime() {
             return;
         }
         console.log('✅ Coordinates validated');
+
+        // Final geofence check - ensure location is within Davao City
+        console.log('🚧 Final geofence check for coordinates:', locationCoordinates);
+        const geofenceValidation = validateDavaoLocation(
+            locationCoordinates.latitude,
+            locationCoordinates.longitude
+        );
+        
+        if (!geofenceValidation.isValid) {
+            console.log('❌ Final geofence check failed:', geofenceValidation.errorMessage);
+            window.alert(
+                'We Only Accept Reports Within Davao City\n\n' + 
+                (geofenceValidation.errorMessage || 
+                'The selected location is outside Davao City boundaries.\n\n' +
+                'Please go back and select a location within Davao City to proceed with your report.')
+            );
+            return;
+        }
+        console.log('✅ Final geofence check passed - location is within Davao City');
 
         console.log('✅ All validations passed');
         console.log('📢 About to show confirmation...');
@@ -421,7 +543,15 @@ export default function ReportCrime() {
     };
 
     return (
-        <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 48 }}>
+        <ScrollView
+            style={{ flex: 1, backgroundColor: '#fff' }}
+            contentContainerStyle={{ paddingBottom: 48 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
+            bounces={true}
+        >
             {/* Flag Notification Toast */}
             <FlagNotificationToast
                 notification={flagNotification}
@@ -445,11 +575,29 @@ export default function ReportCrime() {
 
             <Text style={styles.label}>Title *</Text>
             <TextInput
-                style={styles.input}
+                style={[styles.input, titleError && { borderColor: '#ef4444' }]}
                 placeholder="e.g., Wallet stolen near market"
                 value={title}
-                onChangeText={setTitle}
+                onChangeText={(text) => {
+                    if (text.length <= 255) {
+                        setTitle(text);
+                        setTitleError('');
+                    } else {
+                        setTitleError('The title is too long. Please provide a concise version.');
+                    }
+                }}
+                maxLength={255}
             />
+            {titleError ? (
+                <Text style={{ color: '#ef4444', fontSize: 12, marginTop: 4, marginBottom: 8 }}>
+                    ⚠️ {titleError}
+                </Text>
+            ) : null}
+            {title.length > 200 && !titleError ? (
+                <Text style={{ color: '#f59e0b', fontSize: 12, marginTop: 4, marginBottom: 8 }}>
+                    {255 - title.length} characters remaining
+                </Text>
+            ) : null}
 
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                 <Text style={styles.subheading}>Select the type of </Text>
@@ -531,12 +679,46 @@ export default function ReportCrime() {
             )}
 
             {locationCoordinates && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 }}>
-                    <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-                    <Text style={{ marginLeft: 6, color: '#4CAF50', fontSize: 12, fontWeight: '500' }}>
-                        Coordinates: {locationCoordinates.latitude.toFixed(6)}, {locationCoordinates.longitude.toFixed(6)}
-                    </Text>
-                </View>
+                <>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 4 }}>
+                        <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                        <Text style={{ marginLeft: 6, color: '#4CAF50', fontSize: 12, fontWeight: '500' }}>
+                            Coordinates: {locationCoordinates.latitude.toFixed(6)}, {locationCoordinates.longitude.toFixed(6)}
+                        </Text>
+                    </View>
+                    
+                    {/* Static Preview */}
+                    <View style={{
+                        width: '100%',
+                        height: 150,
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        marginBottom: 12,
+                        borderWidth: 1,
+                        borderColor: '#d0e7ff',
+                    }}>
+                        <Image
+                            source={{
+                                uri: `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-s+1D3557(${locationCoordinates.longitude},${locationCoordinates.latitude})/${locationCoordinates.longitude},${locationCoordinates.latitude},14,0/350x150@2x?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw`
+                            }}
+                            style={{ width: '100%', height: '100%' }}
+                            resizeMode="cover"
+                        />
+                        <View style={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 4,
+                        }}>
+                            <Text style={{ fontSize: 10, color: '#666', fontWeight: '600' }}>
+                                📍 Location Preview
+                            </Text>
+                        </View>
+                    </View>
+                </>
             )}
 
             <TouchableOpacity style={styles.locationButton} onPress={handleUseLocation}>
@@ -891,8 +1073,7 @@ export default function ReportCrime() {
                         <Text style={confirmStyles.title}>Confirm Submission</Text>
 
                         <Text style={confirmStyles.message}>
-                            Your <Text style={confirmStyles.highlight}>IP address</Text> and{' '}
-                            <Text style={confirmStyles.highlight}>location</Text> will be recorded for security and tracking purposes.
+                            Your <Text style={confirmStyles.highlight}>IP address</Text> will be recorded for security and tracking purposes.
                         </Text>
 
                         <Text style={confirmStyles.subMessage}>

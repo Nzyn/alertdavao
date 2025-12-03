@@ -542,7 +542,7 @@
                 <input 
                     type="text" 
                     class="user-search-input" 
-                    placeholder="Search users..." 
+                    placeholder="Search by ID number or email..." 
                     id="userSearchInput"
                     onkeyup="searchUsers()"
                 >
@@ -550,12 +550,12 @@
         </div>
         <div class="users-list" id="usersList">
             @forelse($users as $user)
-                <div class="user-item" data-user-id="{{ $user->id }}" data-user-name="{{ addslashes($user->firstname) }} {{ addslashes($user->lastname) }}">
+                <div class="user-item" data-user-id="{{ $user->id }}" data-user-name="{{ addslashes($user->firstname) }} {{ addslashes($user->lastname) }}" data-user-id-number="{{ $user->id_number }}">
                     <div class="user-avatar">
-                        {{ strtoupper(substr($user->firstname, 0, 1)) }}{{ strtoupper(substr($user->lastname, 0, 1)) }}
+                        {{ strtoupper(substr($user->id_number ?? 'U', 0, 1)) }}{{ strtoupper(substr($user->id_number ?? 'U', -1)) }}
                     </div>
                     <div class="user-info">
-                        <div class="user-name">{{ $user->firstname }} {{ $user->lastname }}</div>
+                        <div class="user-name">ID: {{ $user->id_number }}</div>
                         <div class="user-email">{{ $user->email }}</div>
                     </div>
                     <div class="user-unread-badge">0</div>
@@ -630,6 +630,12 @@
     let lastMessageTime = null;
     let typingTimeout = null;
     let isCurrentlyTyping = false;
+    
+    // User interaction tracking for auto-refresh buffer
+    let userScrollTimeout = null;
+    let isUserScrolling = false;
+    let lastScrollTop = 0;
+    let isAtBottom = true;
 
     // Get data from HTML attributes
     const appData = {
@@ -645,6 +651,31 @@
                 selectUser(userId, userName);
             });
         });
+
+        // Add scroll listener to chat messages to detect user interaction
+        const chatMessages = document.getElementById('chatMessages');
+        if (chatMessages) {
+            chatMessages.addEventListener('scroll', function() {
+                // Mark that user is actively scrolling
+                isUserScrolling = true;
+                
+                // Check if user is at the bottom
+                const scrollThreshold = 50; // pixels from bottom
+                isAtBottom = (this.scrollHeight - this.scrollTop - this.clientHeight) < scrollThreshold;
+                
+                // Clear previous timeout
+                if (userScrollTimeout) {
+                    clearTimeout(userScrollTimeout);
+                }
+                
+                // After 3 seconds of no scrolling, resume normal auto-refresh
+                userScrollTimeout = setTimeout(() => {
+                    isUserScrolling = false;
+                }, 3000);
+                
+                lastScrollTop = this.scrollTop;
+            });
+        }
 
         // Add submit event listener to message form
         document.getElementById('messageForm').addEventListener('submit', function(e) {
@@ -690,6 +721,13 @@
         currentUserId = userId;
         currentUserName = userName;
         lastMessageTime = null;
+        
+        // Reset scroll tracking when switching conversations
+        isUserScrolling = false;
+        isAtBottom = true;
+        if (userScrollTimeout) {
+            clearTimeout(userScrollTimeout);
+        }
 
         // Update active state
         document.querySelectorAll('.user-item').forEach(item => {
@@ -700,12 +738,15 @@
         userItem.classList.remove('has-unread');
         userItem.querySelector('.user-unread-badge').textContent = '0';
 
-        // Update chat header
-        const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase();
+        // Get id_number from data attribute
+        const userIdNumber = userItem.dataset.userIdNumber || 'Unknown';
+        const initials = userIdNumber.substring(0, 2).toUpperCase();
+        
+        // Update chat header to show ID number instead of name
         document.getElementById('chatHeader').innerHTML = `
             <div class="chat-header-avatar">${initials}</div>
             <div class="chat-header-info">
-                <h3>${escapeHtml(userName)}</h3>
+                <h3>ID: ${escapeHtml(userIdNumber)}</h3>
                 <p>Active now</p>
             </div>
         `;
@@ -730,6 +771,11 @@
     }
 
     function loadConversation(userId) {
+        // Skip refresh if user is actively scrolling through messages
+        if (isUserScrolling) {
+            return;
+        }
+        
         fetch(`/messages/conversation/${userId}`, {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
@@ -772,6 +818,10 @@
     function displayMessages(messages) {
         const chatMessages = document.getElementById('chatMessages');
         const currentAdminId = appData.currentAdminId;
+        
+        // Store current scroll position
+        const previousScrollTop = chatMessages.scrollTop;
+        const previousScrollHeight = chatMessages.scrollHeight;
 
         if (messages.length === 0) {
             chatMessages.innerHTML = `
@@ -819,8 +869,17 @@
             `;
         }).join('');
 
-        // Scroll to bottom
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Only auto-scroll if user was already at the bottom or not actively viewing
+        // This prevents interrupting the user while they're reading older messages
+        if (isAtBottom || !isUserScrolling) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        } else {
+            // Maintain scroll position relative to content
+            // Adjust scroll to account for new content at the bottom
+            const newScrollHeight = chatMessages.scrollHeight;
+            const heightDifference = newScrollHeight - previousScrollHeight;
+            chatMessages.scrollTop = previousScrollTop + heightDifference;
+        }
     }
 
     function displayTypingIndicator(isTyping) {
@@ -840,7 +899,11 @@
                 <div class="typing-text">typing...</div>
             `;
             chatMessages.appendChild(indicator);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Only auto-scroll if user is at the bottom
+            if (isAtBottom || !isUserScrolling) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
         } else if (!isTyping && existingIndicator) {
             // Remove typing indicator
             existingIndicator.remove();
@@ -933,6 +996,11 @@
             if (data.success) {
                 messageInput.value = '';
                 messageInput.style.height = 'auto';
+                
+                // When user sends a message, mark as at bottom and reload
+                isAtBottom = true;
+                isUserScrolling = false;
+                
                 loadConversation(currentUserId);
                 loadConversationsList();
             }
@@ -1008,15 +1076,28 @@
         const usersList = document.getElementById('usersList');
         const userItems = usersList.getElementsByClassName('user-item');
         
+        // Check if input is numeric (searching by ID number)
+        const isNumericSearch = /^[0-9]+$/.test(input.value.trim());
+        
         for (let i = 0; i < userItems.length; i++) {
             const userName = userItems[i].dataset.userName.toUpperCase();
+            const userIdNumber = userItems[i].dataset.userIdNumber ? userItems[i].dataset.userIdNumber.toUpperCase() : '';
             const userInfo = userItems[i].querySelector('.user-info');
             const userEmail = userInfo ? userInfo.querySelector('.user-email').textContent.toUpperCase() : '';
             
-            if (userName.indexOf(filter) > -1 || userEmail.indexOf(filter) > -1) {
-                userItems[i].style.display = '';
+            // If numeric search, prioritize id_number; otherwise search email
+            if (isNumericSearch) {
+                if (userIdNumber.indexOf(filter) > -1) {
+                    userItems[i].style.display = '';
+                } else {
+                    userItems[i].style.display = 'none';
+                }
             } else {
-                userItems[i].style.display = 'none';
+                if (userEmail.indexOf(filter) > -1 || userIdNumber.indexOf(filter) > -1) {
+                    userItems[i].style.display = '';
+                } else {
+                    userItems[i].style.display = 'none';
+                }
             }
         }
     }

@@ -9,9 +9,14 @@ const Terms = () => {
     };
     const [isChecked, setChecked] = useState(false);
   return (
-    <ScrollView 
-      style={styles.container}
+    <ScrollView
+      style={{ flex: 1, backgroundColor: '#fff' }}
       contentContainerStyle={{ paddingBottom: 50 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={true}
+      scrollEnabled={true}
+      nestedScrollEnabled={true}
+      bounces={true}
     >
     <View>
       {/* Title */}

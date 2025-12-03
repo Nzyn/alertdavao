@@ -5,6 +5,9 @@
 @section('styles')
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<!-- Leaflet MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
         <style>
             * {
                 box-sizing: border-box;
@@ -497,27 +500,33 @@
 @section('scripts')
 <!-- Leaflet JavaScript -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<!-- Leaflet MarkerCluster JavaScript -->
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
 <script>
     // Global variables for mini map
     let miniMap;
     let miniMarkers = [];
+    let miniMarkerClusterGroup; // Cluster group for performance
     let miniReports = [];
     let miniBarangays = [];
     let miniCrimeTypes = [];
     
     // Crime type to icon mapping
+    // Crime type to icon mapping (sorted by severity)
     const crimeIcons = {
-        'carnapping': '/legends/001-close.png',
-        'physical injury': '/legends/001-pointed-star.png',
-        'assault': '/legends/001-pointed-star.png', // Using physical injury icon
-        'motornapping': '/legends/002-plus.png',
-        'robbery': '/legends/002-rectangle.png',
-        'burglary': '/legends/002-rectangle.png', // Using robbery icon
-        'theft': '/legends/003-ellipse.png',
+        'murder': '/legends/squareMURDER.png',
         'homicide': '/legends/diamondHOMICIDE.png',
         'rape': '/legends/moonRAPE.png',
-        'murder': '/legends/squareMURDER.png'
+        'physical injury': '/legends/001-pointed-star.png',
+        'assault': '/legends/001-pointed-star.png',
+        'robbery': '/legends/002-rectangle.png',
+        'burglary': '/legends/002-rectangle.png',
+        'theft': '/legends/003-ellipse.png',
+        'carnapping': '/legends/001-close.png',
+        'motornapping': '/legends/002-plus.png',
+        'vehicle theft': '/legends/001-close.png',
+        'motorcycle theft': '/legends/002-plus.png'
     };
     
     // Davao City bounds (approximate)
@@ -544,6 +553,47 @@
                 attribution: '',
                 maxZoom: 18,
             }).addTo(miniMap);
+            
+            // Initialize marker cluster group
+            miniMarkerClusterGroup = L.markerClusterGroup({
+                showCoverageOnHover: false,
+                zoomToBoundsOnClick: true,
+                spiderfyOnMaxZoom: true,
+                removeOutsideVisibleBounds: true,
+                chunkedLoading: true,
+                maxClusterRadius: 60,
+                iconCreateFunction: function(cluster) {
+                    const childMarkers = cluster.getAllChildMarkers();
+                    const count = childMarkers.length;
+                    
+                    // Simplified cluster for dashboard mini map
+                    const clusterHtml = `
+                        <div style="
+                            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+                            width: ${30 + Math.min(count / 10, 15)}px;
+                            height: ${30 + Math.min(count / 10, 15)}px;
+                            border-radius: 50%;
+                            border: 2px solid white;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: white;
+                            font-weight: 700;
+                            font-size: 11px;
+                        ">${count}</div>
+                    `;
+                    
+                    return L.divIcon({
+                        html: clusterHtml,
+                        className: 'mini-cluster-icon',
+                        iconSize: L.point(30 + Math.min(count / 10, 15), 30 + Math.min(count / 10, 15))
+                    });
+                }
+            });
+            
+            // Add cluster group to map
+            miniMap.addLayer(miniMarkerClusterGroup);
             
             // Load initial data
             loadMiniMapReports();
@@ -723,43 +773,63 @@
     function updateMiniMapMarkers(reports) {
         console.log('Updating mini map markers with', reports.length, 'reports');
         
-        // Clear existing markers
-        miniMarkers.forEach(marker => {
-            miniMap.removeLayer(marker);
-        });
+        // Clear existing markers from cluster group
+        if (miniMarkerClusterGroup) {
+            miniMarkerClusterGroup.clearLayers();
+        }
         miniMarkers = [];
         
-        // Add new markers
+        // Add new markers to cluster group
         reports.forEach((report, index) => {
             console.log('Processing report', index, ':', report);
             
-            if (report.is_cluster) {
-                // Check if all crimes in cluster are the same type
-                const crimeTypes = report.crimes.map(c => c.crime_type);
-                const uniqueTypes = [...new Set(crimeTypes)];
+            if (report.is_cluster || report.is_dcpo_cluster) {
+                let uniqueTypes = [];
+                
+                // Handle DCPO cluster format (has crime_types array)
+                if (report.is_dcpo_cluster && report.crime_types) {
+                    uniqueTypes = report.crime_types.map(ct => ct.type);
+                } 
+                // Handle regular cluster format (has crimes array)
+                else if (report.crimes) {
+                    const crimeTypes = report.crimes.map(c => c.crime_type);
+                    uniqueTypes = [...new Set(crimeTypes)];
+                }
                 
                 // Create cluster icon showing legend icons instead of count
                 const icon = createMiniClusterIcon(uniqueTypes);
                 
-                // Build popup content showing all crimes
-                let popupContent = `<div style="max-height: 200px; overflow-y: auto;">
-                    <strong style="font-size: 0.875rem;">${report.count} Crimes at this location</strong><br>
-                    <strong>Location:</strong> ${report.location_name}<br><hr style="margin: 0.5rem 0;">`;
+                // Build popup content
+                let popupContent = `<div style="max-height: 250px; overflow-y: auto; min-width: 200px;">
+                    <strong style="font-size: 0.9rem;">${report.count} Crimes at ${report.location_name}</strong><br>
+                    <hr style="margin: 0.5rem 0;">`;
                 
-                report.crimes.forEach((crime, index) => {
-                    const cleanedCrimeType = cleanText(crime.crime_type || crime.title);
-                    popupContent += `
-                        <div style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; ${index < report.crimes.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
-                            <strong>${cleanedCrimeType}</strong><br>
-                            <span style="font-size: 0.75rem; color: #6b7280;">Status: ${crime.status}</span>
-                        </div>`;
-                });
+                if (report.is_dcpo_cluster && report.crime_types) {
+                    // DCPO cluster - show crime types with counts
+                    report.crime_types.forEach((crimeType, index) => {
+                        popupContent += `
+                            <div style="margin-bottom: 0.5rem; padding: 0.35rem; ${index < report.crime_types.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''} background: ${index % 2 === 0 ? '#f9fafb' : 'white'}; border-radius: 4px;">
+                                <strong style="font-size: 0.8rem;">${cleanText(crimeType.type)}</strong>
+                                <span style="float: right; background: #3b82f6; color: white; padding: 0.1rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">${crimeType.count}</span>
+                            </div>`;
+                    });
+                    popupContent += `<div style="margin-top: 0.5rem; font-size: 0.7rem; color: #6b7280; text-align: center;">Historical Data (2020-2025)</div>`;
+                } else if (report.crimes) {
+                    // Regular cluster - show individual crimes
+                    report.crimes.forEach((crime, index) => {
+                        const cleanedCrimeType = cleanText(crime.crime_type || crime.title);
+                        popupContent += `
+                            <div style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; ${index < report.crimes.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
+                                <strong>${cleanedCrimeType}</strong><br>
+                                <span style="font-size: 0.75rem; color: #6b7280;">Status: ${crime.status}</span>
+                            </div>`;
+                    });
+                }
                 
                 popupContent += '</div>';
                 
-                const marker = L.marker([report.latitude, report.longitude], { icon: icon })
-                    .addTo(miniMap)
-                    .bindPopup(popupContent);
+                const marker = L.marker([report.latitude, report.longitude], { icon: icon });
+                marker.bindPopup(popupContent);
                 
                 // Add tooltip on hover
                 if (uniqueTypes.length === 1) {
@@ -770,40 +840,45 @@
                         offset: [0, -14]
                     });
                 } else {
-                    marker.bindTooltip(`${report.count} different crimes here`, {
+                    marker.bindTooltip(`${report.count} crimes (${uniqueTypes.length} types)`, {
                         permanent: false,
                         direction: 'top',
                         offset: [0, -16]
                     });
                 }
                 
+                miniMarkerClusterGroup.addLayer(marker);
                 miniMarkers.push(marker);
             } else {
                 // Single crime
                 const cleanedCrimeType = cleanText(report.crime_type || report.title);
                 const icon = createCrimeMarker(report.crime_type, 1);
                 
-                const marker = L.marker([report.latitude, report.longitude], { icon: icon })
-                    .addTo(miniMap)
-                    .bindPopup(`
-                        <div style="font-size: 0.75rem;">
-                            <strong style="font-size: 0.875rem;">${cleanedCrimeType}</strong><br>
-                            <strong>Location:</strong> ${report.location_name}<br>
-                            <strong>Status:</strong> ${report.status}<br>
-                            <strong>Date:</strong> ${new Date(report.date_reported).toLocaleDateString()}
-                        </div>
-                    `);
+                const marker = L.marker([report.latitude, report.longitude], { icon: icon });
+                marker.bindPopup(`
+                    <div style="font-size: 0.75rem;">
+                        <strong style="font-size: 0.875rem;">${cleanedCrimeType}</strong><br>
+                        <strong>Location:</strong> ${report.location_name}<br>
+                        <strong>Status:</strong> ${report.status}<br>
+                        <strong>Date:</strong> ${new Date(report.date_reported).toLocaleDateString()}
+                    </div>
+                `);
                 
+                miniMarkerClusterGroup.addLayer(marker);
                 miniMarkers.push(marker);
             }
         });
         
+        console.log(`Added ${miniMarkers.length} markers to mini map cluster group`);
+        
         // Fit bounds if there are markers
         if (miniMarkers.length > 0) {
-            const group = L.featureGroup(miniMarkers);
-            miniMap.fitBounds(group.getBounds().pad(0.1), {
-                maxZoom: 14
-            });
+            const bounds = miniMarkerClusterGroup.getBounds();
+            if (bounds.isValid()) {
+                miniMap.fitBounds(bounds.pad(0.1), {
+                    maxZoom: 14
+                });
+            }
         }
     }
     
