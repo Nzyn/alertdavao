@@ -12,20 +12,34 @@ import {
   StyleSheet,
   TouchableOpacity
 } from "react-native";
+import Checkbox from 'expo-checkbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from "expo-router";
+import { useFocusEffect } from '@react-navigation/native';
 import { useUser } from '../../contexts/UserContext';
 import { BACKEND_URL } from '../../config/backend';
 import CaptchaObfuscated, { generateCaptchaWord } from '../../components/CaptchaObfuscated';
 import { useGoogleAuth, getGoogleUserInfo } from '../../config/googleAuth';
 import * as Google from 'expo-auth-session/providers/google';
+import PoliceStationLookup from '../../components/PoliceStationLookup';
+import { syncPoliceStations } from '../../services/policeStationService';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const isSmallScreen = SCREEN_WIDTH < 360;
 
 // Sanitization helpers
 const sanitizeEmail = (email: string): string => {
-  return email.trim().toLowerCase().slice(0, 100);
+  return email.trim().toLowerCase().replace(/\s+/g, '').slice(0, 100);
+};
+
+const sanitizeText = (text: string): string => {
+  // Remove invisible characters, zero-width spaces, and trim whitespace
+  return text
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width chars
+    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+    .trim()
+    .slice(0, 100);
 };
 
 const Login = () => {
@@ -39,14 +53,68 @@ const Login = () => {
   const [passwordError, setPasswordError] = useState("");
   const [captchaError, setCaptchaError] = useState("");
   const [captchaValid, setCaptchaValid] = useState(false);
+  const [showPoliceStationLookup, setShowPoliceStationLookup] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const { setUser } = useUser();
   const router = useRouter();
   const { request, response, promptAsync } = useGoogleAuth();
 
+  // Reset loading state whenever screen comes into focus (especially after logout)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 Login screen focused - resetting loading state');
+      setIsLoading(false);
+      
+      // Clear password and captcha fields when returning to login
+      setPassword("");
+      setCaptchaInput("");
+      setCaptchaValid(false);
+      refreshCaptcha();
+      
+      return () => {};
+    }, [])
+  );
+
   useEffect(() => {
     setCaptchaWord(generateCaptchaWord(6));
-    // Reset loading state when login screen is focused
-    setIsLoading(false);
+    
+    // Load saved email if remember me was checked
+    const loadSavedEmail = async () => {
+      try {
+        const savedEmail = await AsyncStorage.getItem('rememberedEmail');
+        if (savedEmail) {
+          setEmail(savedEmail);
+          setRememberMe(true);
+        }
+      } catch (error) {
+        console.error('Error loading saved email:', error);
+      }
+    };
+    loadSavedEmail();
+    
+    // Check if user was logged out due to inactivity
+    const checkInactivityLogout = async () => {
+      try {
+        const wasInactive = await AsyncStorage.getItem('inactivityLogout');
+        if (wasInactive === 'true') {
+          await AsyncStorage.removeItem('inactivityLogout');
+          Alert.alert(
+            'Session Expired',
+            'You have been logged out due to 5 minutes of inactivity. Please log in again.',
+            [{ text: 'OK' }]
+          );
+        }
+      } catch (err) {
+        console.error('Error checking inactivity logout:', err);
+      }
+    };
+    
+    checkInactivityLogout();
+    
+    // Sync police station data in the background (non-blocking)
+    syncPoliceStations().catch(err => {
+      console.warn('Background sync of police stations failed:', err);
+    });
   }, []);
 
   useEffect(() => {
@@ -111,7 +179,16 @@ const Login = () => {
       }
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);
-      Alert.alert('Network Error', err.message || 'Unknown error');
+      const errorMessage = err.message || 'Unknown error';
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network request failed')) {
+        Alert.alert(
+          'Connection Error',
+          'Cannot connect to server. Please check:\n\n1. Your internet connection\n2. Backend server is running\n3. Server URL is correct',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Network Error', errorMessage);
+      }
       setIsLoading(false);
     }
   };
@@ -173,6 +250,13 @@ const Login = () => {
         console.log('✅ Login successful for:', user.email);
         console.log('📦 Full user data received:', user);
         
+        // Handle remember me
+        if (rememberMe) {
+          await AsyncStorage.setItem('rememberedEmail', sanitizedEmail);
+        } else {
+          await AsyncStorage.removeItem('rememberedEmail');
+        }
+        
         // Store complete user data in AsyncStorage
         await AsyncStorage.setItem('userData', JSON.stringify(user));
         
@@ -196,7 +280,36 @@ const Login = () => {
         const errorMessage = data.message || 'Login failed';
         const lowerError = errorMessage.toLowerCase();
         
-        if (lowerError.includes('user') || lowerError.includes('email') || lowerError.includes('not found')) {
+        // Handle email not verified
+        if (data.emailNotVerified) {
+          Alert.alert(
+            'Email Not Verified',
+            'Please verify your email address before logging in. Check your inbox for the verification link.',
+            [
+              { text: 'OK', style: 'default' },
+              {
+                text: 'Resend Email',
+                onPress: async () => {
+                  try {
+                    const resendResponse = await fetch(`${BACKEND_URL}/resend-verification`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email: sanitizedEmail }),
+                    });
+                    const resendData = await resendResponse.json();
+                    if (resendResponse.ok) {
+                      Alert.alert('Success', 'Verification email has been sent! Please check your inbox.');
+                    } else {
+                      Alert.alert('Error', resendData.message || 'Failed to resend verification email');
+                    }
+                  } catch (err: any) {
+                    Alert.alert('Error', 'Failed to resend verification email');
+                  }
+                },
+              },
+            ]
+          );
+        } else if (lowerError.includes('user') || lowerError.includes('email') || lowerError.includes('not found')) {
           setEmailError(errorMessage);
         } else if (lowerError.includes('password') || lowerError.includes('incorrect') || lowerError.includes('invalid')) {
           setPasswordError(errorMessage);
@@ -206,13 +319,24 @@ const Login = () => {
         setIsLoading(false);
       }
     } catch (err: any) {
-      Alert.alert('Network Error', err.message || 'Unknown error');
+      console.error('Login Error:', err);
+      const errorMessage = err.message || 'Unknown error';
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network request failed')) {
+        Alert.alert(
+          'Connection Error',
+          'Cannot connect to server. Please check:\n\n1. Your internet connection\n2. Backend server is running on localhost:3000\n3. Server URL is correct in config',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Network Error', errorMessage);
+      }
       setIsLoading(false);
     }
   };
 
   const handleForgotPassword = () => {
     console.log("Forgot Password clicked!");
+    router.push('/(tabs)/forgot-password');
   };
 
   const handleSignUp = () => {
@@ -221,16 +345,33 @@ const Login = () => {
 
   return (
     <KeyboardAvoidingView 
-      style={localStyles.keyboardAvoid}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1, backgroundColor: '#fff' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <ScrollView
-        style={localStyles.container}
-        contentContainerStyle={localStyles.scrollContent}
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingTop: Platform.OS === 'ios' ? 60 : 40,
+          paddingBottom: 100,
+          paddingHorizontal: 20,
+          alignItems: 'center',
+        }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={true}
+        bounces={true}
+        scrollEnabled={true}
+        nestedScrollEnabled={true}
       >
-        <View style={localStyles.formContainer}>
+        <View style={{ width: '100%', maxWidth: 420 }} pointerEvents="box-none">
+          {/* Police Station Lookup Icon - Positioned at top right */}
+          <TouchableOpacity
+            style={localStyles.policeIconButton}
+            onPress={() => setShowPoliceStationLookup(true)}
+          >
+            <Ionicons name="ellipsis-horizontal-circle" size={28} color="#1D3557" />
+          </TouchableOpacity>
+
           {/* Title */}
           <Text style={localStyles.title}>
             <Text style={localStyles.alertText}>Alert</Text>
@@ -249,8 +390,12 @@ const Login = () => {
               placeholderTextColor="#9ca3af"
               value={email}
               onChangeText={(text) => {
-                setEmail(sanitizeEmail(text));
-                setEmailError("");
+                try {
+                  setEmail(sanitizeEmail(text));
+                  setEmailError("");
+                } catch (error) {
+                  console.error('Error sanitizing email:', error);
+                }
               }}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -272,8 +417,14 @@ const Login = () => {
                 placeholderTextColor="#9ca3af"
                 value={password}
                 onChangeText={(text) => {
-                  setPassword(text);
-                  setPasswordError("");
+                  try {
+                    // Sanitize password - remove invisible characters
+                    const sanitized = text.replace(/[\u200B-\u200D\uFEFF]/g, '');
+                    setPassword(sanitized);
+                    setPasswordError("");
+                  } catch (error) {
+                    console.error('Error setting password:', error);
+                  }
                 }}
                 secureTextEntry={!showPassword}
               />
@@ -312,10 +463,14 @@ const Login = () => {
               placeholderTextColor="#9ca3af"
               value={captchaInput}
               onChangeText={(text) => {
-                const limited = text.replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase();
-                setCaptchaInput(limited);
-                setCaptchaValid(limited === captchaWord.toUpperCase());
-                setCaptchaError("");
+                try {
+                  const limited = text.replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase();
+                  setCaptchaInput(limited);
+                  setCaptchaValid(limited === captchaWord.toUpperCase());
+                  setCaptchaError("");
+                } catch (error) {
+                  console.error('Error processing captcha input:', error);
+                }
               }}
               autoCapitalize="characters"
               maxLength={6}
@@ -328,6 +483,17 @@ const Login = () => {
             {captchaError ? (
               <Text style={localStyles.errorText}>⚠️ {captchaError}</Text>
             ) : null}
+          </View>
+
+          {/* Remember Me Checkbox */}
+          <View style={localStyles.rememberMeContainer}>
+            <Checkbox
+              value={rememberMe}
+              onValueChange={setRememberMe}
+              color={rememberMe ? '#1D3557' : undefined}
+              style={localStyles.checkbox}
+            />
+            <Text style={localStyles.rememberMeText}>Remember my email</Text>
           </View>
 
           {/* Login Button */}
@@ -372,8 +538,25 @@ const Login = () => {
               🔐 {isLoading ? 'Signing in...' : 'Sign in with Google'}
             </Text>
           </Pressable>
+
+          {/* Emergency Contact Info */}
+          <View style={localStyles.emergencyBox}>
+            <Text style={localStyles.emergencyIcon}>🚨</Text>
+            <View style={localStyles.emergencyContent}>
+              <Text style={localStyles.emergencyTitle}>Need Emergency Help?</Text>
+              <Text style={localStyles.emergencyText}>
+                Tap the options icon (⋯) above to find your nearest police station contact
+              </Text>
+            </View>
+          </View>
         </View>
       </ScrollView>
+
+      {/* Police Station Lookup Modal */}
+      <PoliceStationLookup
+        visible={showPoliceStationLookup}
+        onClose={() => setShowPoliceStationLookup(false)}
+      />
     </KeyboardAvoidingView>
   );
 };
@@ -391,13 +574,36 @@ const localStyles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 50,
+    paddingBottom: 100,
     paddingHorizontal: isSmallScreen ? 16 : 20,
     alignItems: 'center',
   },
   formContainer: {
     width: '100%',
     maxWidth: 420,
+    position: 'relative',
+  },
+  policeIconButton: {
+    position: 'absolute',
+    top: -10,
+    right: 0,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#1D3557',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10,
   },
   title: {
     fontSize: Math.min(32, SCREEN_WIDTH * 0.08),
@@ -510,6 +716,18 @@ const localStyles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500',
   },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  checkbox: {
+    marginRight: 8,
+  },
+  rememberMeText: {
+    fontSize: 14,
+    color: '#374151',
+  },
   loginButton: {
     backgroundColor: '#1D3557',
     paddingVertical: 14,
@@ -571,6 +789,34 @@ const localStyles = StyleSheet.create({
     fontSize: 15,
     color: '#374151',
     fontWeight: '500',
+  },
+  emergencyBox: {
+    flexDirection: 'row',
+    backgroundColor: '#fef3c7',
+    padding: 14,
+    borderRadius: 10,
+    marginTop: 20,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#fbbf24',
+  },
+  emergencyIcon: {
+    fontSize: 22,
+    marginTop: 2,
+  },
+  emergencyContent: {
+    flex: 1,
+  },
+  emergencyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400e',
+    marginBottom: 4,
+  },
+  emergencyText: {
+    fontSize: 12,
+    color: '#78350f',
+    lineHeight: 18,
   },
 });
 

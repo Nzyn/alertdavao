@@ -495,9 +495,17 @@ const App = () => {
           onConfirm={async () => {
             setShowLogoutDialog(false);
             try {
+              // Check if remember me was saved
+              const savedEmail = await AsyncStorage.getItem('rememberedEmail');
+              
               // Clear user data from AsyncStorage
               await AsyncStorage.removeItem('userData');
               console.log('✅ User logged out - AsyncStorage cleared');
+              
+              // If no remember me, clear the saved email too
+              if (!savedEmail) {
+                await AsyncStorage.removeItem('rememberedEmail');
+              }
               
               // Clear user context
               clearUser();

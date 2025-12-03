@@ -83,24 +83,192 @@
         position: relative;
     }
     
-    /* Weather-Forecast Style Hotspot Circles */
+    /* Weather-Forecast Style Hotspot Circles with Pulsing Animation */
     .hotspot-circle {
         transition: all 0.3s ease;
+        position: relative;
     }
     
+    /* High Risk - Pulsing Red with Urgency */
     .hotspot-circle-high {
-        background: radial-gradient(circle at 30% 30%, rgba(220, 38, 38, 0.8), rgba(220, 38, 38, 0.2));
-        box-shadow: 0 0 30px rgba(220, 38, 38, 0.5);
+        background: radial-gradient(circle at 30% 30%, rgba(220, 38, 38, 0.9), rgba(220, 38, 38, 0.3));
+        box-shadow: 
+            0 0 30px rgba(220, 38, 38, 0.6),
+            0 0 60px rgba(220, 38, 38, 0.4),
+            inset 0 0 20px rgba(255, 255, 255, 0.2);
+        animation: pulseDanger 2s ease-in-out infinite;
+        border: 2px solid rgba(220, 38, 38, 0.8);
     }
     
+    .hotspot-circle-high::before {
+        content: '';
+        position: absolute;
+        top: -10px;
+        left: -10px;
+        right: -10px;
+        bottom: -10px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(220, 38, 38, 0.3), transparent);
+        animation: ripple 3s ease-out infinite;
+        pointer-events: none;
+    }
+    
+    /* Medium Risk - Pulsing Orange/Amber */
     .hotspot-circle-medium {
-        background: radial-gradient(circle at 30% 30%, rgba(245, 158, 11, 0.8), rgba(245, 158, 11, 0.2));
-        box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+        background: radial-gradient(circle at 30% 30%, rgba(245, 158, 11, 0.85), rgba(245, 158, 11, 0.25));
+        box-shadow: 
+            0 0 25px rgba(245, 158, 11, 0.5),
+            0 0 50px rgba(245, 158, 11, 0.3),
+            inset 0 0 15px rgba(255, 255, 255, 0.15);
+        animation: pulseWarning 2.5s ease-in-out infinite;
+        border: 2px solid rgba(245, 158, 11, 0.7);
     }
     
+    .hotspot-circle-medium::before {
+        content: '';
+        position: absolute;
+        top: -8px;
+        left: -8px;
+        right: -8px;
+        bottom: -8px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(245, 158, 11, 0.25), transparent);
+        animation: ripple 3.5s ease-out infinite;
+        pointer-events: none;
+    }
+    
+    /* Low Risk - Subtle Green Glow */
     .hotspot-circle-low {
-        background: radial-gradient(circle at 30% 30%, rgba(16, 185, 129, 0.8), rgba(16, 185, 129, 0.2));
-        box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+        background: radial-gradient(circle at 30% 30%, rgba(16, 185, 129, 0.75), rgba(16, 185, 129, 0.2));
+        box-shadow: 
+            0 0 20px rgba(16, 185, 129, 0.4),
+            0 0 40px rgba(16, 185, 129, 0.2),
+            inset 0 0 10px rgba(255, 255, 255, 0.1);
+        animation: pulseSafe 3s ease-in-out infinite;
+        border: 2px solid rgba(16, 185, 129, 0.6);
+    }
+    
+    .hotspot-circle-low::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        left: -6px;
+        right: -6px;
+        bottom: -6px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(16, 185, 129, 0.2), transparent);
+        animation: ripple 4s ease-out infinite;
+        pointer-events: none;
+    }
+    
+    /* Pulsing Animations */
+    @keyframes pulseDanger {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 0.9;
+        }
+        50% {
+            transform: scale(1.08);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes pulseWarning {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 0.85;
+        }
+        50% {
+            transform: scale(1.05);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes pulseSafe {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 0.75;
+        }
+        50% {
+            transform: scale(1.03);
+            opacity: 0.9;
+        }
+    }
+    
+    /* Ripple Effect for Urgency */
+    @keyframes ripple {
+        0% {
+            transform: scale(0.8);
+            opacity: 0.8;
+        }
+        100% {
+            transform: scale(1.5);
+            opacity: 0;
+        }
+    }
+    
+    /* Map Legend Overlay */
+    .leaflet-control-legend {
+        background: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        min-width: 200px;
+    }
+    
+    .legend-control-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 10px;
+        border-bottom: 2px solid #e5e7eb;
+        padding-bottom: 8px;
+    }
+    
+    .legend-control-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 8px 0;
+        font-size: 13px;
+        color: #374151;
+    }
+    
+    .legend-control-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        border: 2px solid white;
+        box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    .legend-control-color.high {
+        background-color: #dc2626;
+    }
+    
+    .legend-control-color.medium {
+        background-color: #f59e0b;
+    }
+    
+    .legend-control-color.low {
+        background-color: #10b981;
+    }
+    
+    .legend-control-label {
+        flex: 1;
+    }
+    
+    .legend-control-label strong {
+        font-weight: 600;
+        display: block;
+        margin-bottom: 2px;
+    }
+    
+    .legend-control-label small {
+        font-size: 11px;
+        color: #6b7280;
     }
     
     .hotspot-legend {
@@ -599,6 +767,40 @@
                 maxZoom: 18,
             });
             
+            // Add Crime Intensity Legend
+            const legend = L.control({ position: 'topright' });
+            
+            legend.onAdd = function(map) {
+                const div = L.DomUtil.create('div', 'leaflet-control-legend');
+                div.innerHTML = `
+                    <div class="legend-control-title">Crime Intensity</div>
+                    <div class="legend-control-item">
+                        <div class="legend-control-color high"></div>
+                        <div class="legend-control-label">
+                            <strong>High</strong>
+                            <small>&gt; 8 per 1K</small>
+                        </div>
+                    </div>
+                    <div class="legend-control-item">
+                        <div class="legend-control-color medium"></div>
+                        <div class="legend-control-label">
+                            <strong>Medium</strong>
+                            <small>4 - 7 per 1K</small>
+                        </div>
+                    </div>
+                    <div class="legend-control-item">
+                        <div class="legend-control-color low"></div>
+                        <div class="legend-control-label">
+                            <strong>Low</strong>
+                            <small>&lt; 4 per 1K</small>
+                        </div>
+                    </div>
+                `;
+                return div;
+            };
+            
+            legend.addTo(map);
+            
             // Load hotspot data
             loadHotspotData();
         }, 100);
@@ -640,64 +842,119 @@
             
             // Determine marker color based on crime rate level
             const colors = {
-                high: { main: '#dc2626', light: '#fca5a5' },
-                medium: { main: '#f59e0b', light: '#fed7aa' },
-                low: { main: '#10b981', light: '#a7f3d0' }
+                high: { main: '#dc2626', light: '#fca5a5', pulse: '#fee2e2' },
+                medium: { main: '#f59e0b', light: '#fed7aa', pulse: '#fef3c7' },
+                low: { main: '#10b981', light: '#a7f3d0', pulse: '#dcfce7' }
             };
             
-            // Weather-forecast style icon with gradient
+            // Urgency indicators with animations
+            const urgencyIcons = {
+                high: '⚠️',
+                medium: '⚡',
+                low: '✓'
+            };
+            
+            // Weather-forecast style icon with gradient and pulsing effect
             const icon = L.divIcon({
                 className: 'custom-hotspot-marker',
                 html: `<div style="
                     background: radial-gradient(circle at 30% 30%, ${colors[level].light}, ${colors[level].main});
-                    width: 40px; 
-                    height: 40px; 
+                    width: 46px; 
+                    height: 46px; 
                     border-radius: 50%; 
                     border: 3px solid white; 
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 20px ${colors[level].main}80;
+                    box-shadow: 
+                        0 4px 12px rgba(0,0,0,0.3), 
+                        0 0 25px ${colors[level].main}99,
+                        0 0 40px ${colors[level].main}66;
                     display: flex; 
+                    flex-direction: column;
                     align-items: center; 
                     justify-content: center; 
                     font-weight: bold; 
                     color: white; 
-                    font-size: 13px;
+                    font-size: 11px;
                     transition: all 0.3s ease;
+                    animation: ${level === 'high' ? 'pulseDanger 2s ease-in-out infinite' : level === 'medium' ? 'pulseWarning 2.5s ease-in-out infinite' : 'pulseSafe 3s ease-in-out infinite'};
+                    position: relative;
+                    overflow: visible;
                 ">
-                    ${barangay.crime_rate.toFixed(1)}
+                    <div style="font-size: 16px; line-height: 1; margin-bottom: 2px;">${urgencyIcons[level]}</div>
+                    <div style="font-size: 12px; font-weight: 800; line-height: 1;">${barangay.crime_rate.toFixed(1)}</div>
                 </div>`,
-                iconSize: [40, 40],
-                iconAnchor: [20, 20],
-                popupAnchor: [0, -20],
+                iconSize: [46, 46],
+                iconAnchor: [23, 23],
+                popupAnchor: [0, -23],
                 className: `hotspot-marker-${level}`
             });
             
-            // Risk level badge
+            // Risk level badge with enhanced urgency styling
             const riskBadgeColors = {
-                high: { bg: '#fee2e2', text: '#991b1b', label: '🔴 CRITICAL' },
-                medium: { bg: '#fef3c7', text: '#92400e', label: '🟠 HIGH' },
-                low: { bg: '#dcfce7', text: '#166534', label: '🟢 LOW' }
+                high: { 
+                    bg: '#fee2e2', 
+                    text: '#991b1b', 
+                    label: '🔴 CRITICAL RISK',
+                    urgency: 'IMMEDIATE ATTENTION REQUIRED'
+                },
+                medium: { 
+                    bg: '#fef3c7', 
+                    text: '#92400e', 
+                    label: '🟠 HIGH ALERT',
+                    urgency: 'ELEVATED MONITORING NEEDED'
+                },
+                low: { 
+                    bg: '#dcfce7', 
+                    text: '#166534', 
+                    label: '🟢 MODERATE',
+                    urgency: 'ROUTINE SURVEILLANCE'
+                }
             };
             
             const badge = riskBadgeColors[level];
             
             const popupContent = `
-                <div class="popup-content">
-                    <div class="popup-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <span>${barangay.name}</span>
-                        <span style="background-color: ${badge.bg}; color: ${badge.text}; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; margin-left: 8px;">${badge.label}</span>
+                <div class="popup-content" style="min-width: 280px;">
+                    <div class="popup-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <span style="font-weight: 700; font-size: 1.1rem;">${barangay.name}</span>
+                        <span style="
+                            background: linear-gradient(135deg, ${badge.bg}, ${colors[level].light}); 
+                            color: ${badge.text}; 
+                            padding: 4px 10px; 
+                            border-radius: 12px; 
+                            font-size: 0.7rem; 
+                            font-weight: 800; 
+                            white-space: nowrap; 
+                            margin-left: 8px;
+                            border: 2px solid ${colors[level].main};
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        ">${badge.label}</span>
                     </div>
-                    <div style="margin-top: 0.75rem; border-top: 1px solid #e5e7eb; padding-top: 0.75rem;">
-                        <div class="popup-stat">
-                            <span class="popup-stat-label">📊 Total Incidents:</span>
-                            <span class="popup-stat-value">${barangay.incidents}</span>
+                    <div style="
+                        background: ${level === 'high' ? 'linear-gradient(135deg, #fee2e2, #fecaca)' : level === 'medium' ? 'linear-gradient(135deg, #fef3c7, #fde68a)' : 'linear-gradient(135deg, #dcfce7, #bbf7d0)'};
+                        padding: 0.5rem 0.75rem;
+                        border-radius: 8px;
+                        font-size: 0.7rem;
+                        font-weight: 600;
+                        color: ${badge.text};
+                        text-align: center;
+                        margin-bottom: 0.75rem;
+                        border: 2px solid ${colors[level].main}40;
+                        letter-spacing: 0.5px;
+                    ">
+                        ${badge.urgency}
+                    </div>
+                    <div style="border-top: 1px solid #e5e7eb; padding-top: 0.75rem;">
+                        <div class="popup-stat" style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6;">
+                            <span class="popup-stat-label" style="color: #6b7280; font-size: 0.85rem;">📊 Total Incidents:</span>
+                            <span class="popup-stat-value" style="font-weight: 700; color: ${colors[level].main}; font-size: 0.9rem;">${barangay.incidents}</span>
                         </div>
-                        <div class="popup-stat">
-                            <span class="popup-stat-label">👥 Population:</span>
-                            <span class="popup-stat-value">${barangay.population.toLocaleString()}</span>
+                        <div class="popup-stat" style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6;">
+                            <span class="popup-stat-label" style="color: #6b7280; font-size: 0.85rem;">👥 Population:</span>
+                            <span class="popup-stat-value" style="font-weight: 700; color: #1f2937; font-size: 0.9rem;">${barangay.population.toLocaleString()}</span>
                         </div>
-                        <div style="background-color: ${badge.bg}; border-left: 4px solid ${colors[level].main}; padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem;">
-                            <div style="color: ${badge.text}; font-weight: 700; font-size: 1.25rem;">${barangay.crime_rate.toFixed(2)}</div>
-                            <div style="color: ${badge.text}; font-size: 0.75rem;">per 1,000 residents</div>
+                        <div style="background: linear-gradient(135deg, ${badge.bg}, ${colors[level].pulse}); border-left: 4px solid ${colors[level].main}; padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+                            <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem; font-weight: 500;">Crime Rate per 1,000 residents</div>
+                            <div style="font-size: 1.75rem; font-weight: 800; color: ${colors[level].main}; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">${barangay.crime_rate.toFixed(2)}</div>
                         </div>
                     </div>
                 </div>
@@ -705,7 +962,7 @@
             
             const marker = L.marker([barangay.latitude, barangay.longitude], { icon: icon })
                 .addTo(map)
-                .bindPopup(popupContent, { maxWidth: 280 });
+                .bindPopup(popupContent, { maxWidth: 300 });
             
             // Enhanced tooltip with emoji and status
             const tooltipText = `
@@ -719,7 +976,7 @@
             marker.bindTooltip(tooltipText, {
                 permanent: false,
                 direction: 'top',
-                offset: [0, -25],
+                offset: [0, -28],
                 className: `leaflet-tooltip-${level}`
             });
             

@@ -202,10 +202,10 @@ const FAQScreen = () => {
 
     return (
         <KeyboardAvoidingView
-            style={{ flex: 1 }}
+            style={{ flex: 1, backgroundColor: '#fff' }}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            <View style={styles.container}>
+            <View style={{ flex: 1, backgroundColor: '#fff' }}>
                 {/* Header */}
                 <View style={styles.headerHistory}>
                     <TouchableOpacity onPress={() => router.push('/chatlist')}>
@@ -228,7 +228,9 @@ const FAQScreen = () => {
                     keyExtractor={(item) => item.id}
                     renderItem={renderMessage}
                     style={styles.chatArea}
-                    contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10 }}
+                    contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, paddingBottom: 50 }}
+                    showsVerticalScrollIndicator={true}
+                    bounces={true}
                     ListFooterComponent={renderAnswerWithTyping}
                     scrollEnabled={true}
                     nestedScrollEnabled={true}

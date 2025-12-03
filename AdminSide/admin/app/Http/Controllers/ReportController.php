@@ -84,18 +84,27 @@ class ReportController extends Controller
                     return;
                 }
 
-                // Find barangay by coordinates (using proximity search)
-                $barangay = Barangay::whereBetween('latitude', [$location->latitude - 0.01, $location->latitude + 0.01])
-                    ->whereBetween('longitude', [$location->longitude - 0.01, $location->longitude + 0.01])
-                    ->first();
+                // Use point-in-polygon detection to find the exact barangay
+                $stationId = \App\Models\Report::autoAssignPoliceStation(
+                    $location->latitude,
+                    $location->longitude
+                );
 
-                if ($barangay && $barangay->station_id) {
-                    $report->assigned_station_id = $barangay->station_id;
+                if ($stationId) {
+                    $report->assigned_station_id = $stationId;
                     $report->save();
-                    \Log::info('Report assigned to station', [
+                    
+                    $barangay = \App\Helpers\GeoHelper::findBarangayByCoordinates(
+                        $location->latitude,
+                        $location->longitude
+                    );
+                    
+                    \Log::info('Report assigned to station using boundary detection', [
                         'report_id' => $report->report_id,
-                        'station_id' => $barangay->station_id,
-                        'barangay' => $barangay->name ?? 'Unknown'
+                        'station_id' => $stationId,
+                        'barangay' => $barangay ? $barangay->barangay_name : 'Nearest match',
+                        'latitude' => $location->latitude,
+                        'longitude' => $location->longitude,
                     ]);
                 } else {
                     \Log::warning('No barangay found for coordinates', [
@@ -120,19 +129,29 @@ class ReportController extends Controller
         $query = Report::with(['user.verification', 'location', 'media', 'policeStation'])
             ->join('locations', 'reports.location_id', '=', 'locations.location_id');
         
-        // Exclude reports without a location - must have valid coordinates
-        $query->where('locations.latitude', '!=', 0)
-              ->where('locations.longitude', '!=', 0)
-              ->where('locations.latitude', '!=', null)
-              ->where('locations.longitude', '!=', null);
+        // Exclude reports without valid coordinates
+        $query->whereNotNull('locations.latitude')
+              ->whereNotNull('locations.longitude')
+              ->where('locations.latitude', '!=', 0)
+              ->where('locations.longitude', '!=', 0);
         
         // Filter by status if provided
         if ($request->has('status') && in_array($request->status, ['pending', 'investigating', 'resolved'])) {
             $query->where('reports.status', $request->status);
         }
 
-        // Filter by station if user is a police officer
-        if (auth()->user() && auth()->user()->role === 'police') {
+        // SUPER ADMIN CHECK: alertdavao.ph can see ALL reports (including unassigned)
+        $isSuperAdmin = auth()->user() && str_contains(auth()->user()->email, 'alertdavao.ph');
+        
+        if ($isSuperAdmin) {
+            // Super admin sees EVERYTHING - no filtering needed
+            \Log::info('Super admin accessing all reports', [
+                'user_id' => auth()->user()->id,
+                'email' => auth()->user()->email
+            ]);
+        }
+        // Filter by station if user is a police officer (not super admin)
+        elseif (auth()->user() && auth()->user()->role === 'police') {
             $userStationId = auth()->user()->station_id;
             if ($userStationId) {
                 // For police officers: show ONLY reports assigned to their station
@@ -149,11 +168,23 @@ class ReportController extends Controller
                 $query->whereRaw('1 = 0'); // Return empty result
             }
         }
-        // For admin users, show ALL reports (excluding those without valid location)
+        // For regular admin users (not super admin, not police), show ALL assigned reports
+        // They can see reports but not unassigned ones (only super admin sees those)
+        elseif (auth()->user() && auth()->user()->role === 'admin') {
+            // Regular admin sees only assigned reports
+            $query->whereNotNull('reports.assigned_station_id');
+        }
         
         $reports = $query->select('reports.*')
                          ->orderBy('reports.created_at', 'desc')
                          ->paginate(10);
+        
+        \Log::info('Reports query result', [
+            'total' => $reports->total(),
+            'count' => $reports->count(),
+            'is_super_admin' => $isSuperAdmin,
+            'user_email' => auth()->user() ? auth()->user()->email : 'not logged in'
+        ]);
         
         // Decrypt sensitive fields for admin and police roles
         $userRole = auth()->check() ? auth()->user()->role : null;
@@ -171,7 +202,55 @@ class ReportController extends Controller
             }
         }
         
-        return view('reports', compact('reports'));
+        // Load CSV reports for SUPER ADMIN only (alertdavao.ph)
+        // These will be displayed as unassigned reports that can be assigned to stations
+        $csvReports = [];
+        if ($isSuperAdmin) {
+            $csvPath = storage_path('app/CrimeReports.csv');
+            
+            if (file_exists($csvPath)) {
+                $file = fopen($csvPath, 'r');
+                $headers = fgetcsv($file); // Skip header: gu,typeOfPlace,dateCommitted,timeCommitted,offense,lat,lng,datetime,year,month,hour,incident_id
+                
+                $reportId = 1;
+                $limit = 100; // Limit to prevent overwhelming the page
+                
+                while (($row = fgetcsv($file)) !== false && count($csvReports) < $limit) {
+                    if (count($row) < 12) continue;
+                    
+                    $barangay = trim($row[0]);
+                    $offense = trim($row[4]);
+                    $date = $row[7]; // datetime column
+                    
+                    // Try to find matching barangay in database
+                    $matchedBarangay = \DB::table('barangays')
+                        ->whereRaw('UPPER(TRIM(barangay_name)) = ?', [strtoupper($barangay)])
+                        ->first();
+                    
+                    $stationId = $matchedBarangay ? $matchedBarangay->station_id : null;
+                    
+                    $csvReports[] = (object)[
+                        'report_id' => 'CSV-' . $row[11], // incident_id
+                        'user' => (object)['username' => 'Historical Crime Data'],
+                        'title' => $offense . ' - ' . $barangay,
+                        'report_type' => $offense,
+                        'user_status' => 'verified',
+                        'date_reported' => $date,
+                        'created_at' => $date,
+                        'status' => 'recorded',
+                        'is_valid' => 'valid',
+                        'barangay' => $barangay,
+                        'assigned_station_id' => $stationId,
+                        'from_csv' => true,
+                        'is_historical' => true
+                    ];
+                    $reportId++;
+                }
+                fclose($file);
+            }
+        }
+        
+        return view('reports', compact('reports', 'csvReports'));
     }
 
     /**
@@ -660,6 +739,33 @@ class ReportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to review request: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get report counts for notification polling
+     */
+    public function getReportCounts()
+    {
+        try {
+            $totalReports = Report::count();
+            $unassignedReports = Report::whereNull('assigned_station_id')->count();
+            $pendingReports = Report::where('status', 'pending')->count();
+
+            return response()->json([
+                'success' => true,
+                'total' => $totalReports,
+                'unassigned' => $unassignedReports,
+                'pending' => $pendingReports
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching report counts', [
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch report counts'
             ], 500);
         }
     }

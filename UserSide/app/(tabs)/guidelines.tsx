@@ -120,8 +120,13 @@ const Guidelines = () => {
     return (
         <ScrollView
             ref={scrollViewRef}
-            style={styles.container}
+            style={{ flex: 1, backgroundColor: '#fff' }}
             contentContainerStyle={{ paddingBottom: 50 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
+            bounces={true}
         >
             <View>
                 {/* Header with Back Button and Title */}

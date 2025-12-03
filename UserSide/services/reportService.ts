@@ -62,14 +62,14 @@ export const reportService = {
       // Add location data if available
       if (reportData.latitude !== undefined && reportData.latitude !== null && 
           reportData.longitude !== undefined && reportData.longitude !== null) {
-        console.log('Adding location to report:', {
+        console.log('📍 Adding GPS coordinates to report:', {
           latitude: reportData.latitude,
           longitude: reportData.longitude
         });
         formData.append('latitude', reportData.latitude.toString());
         formData.append('longitude', reportData.longitude.toString());
       } else {
-        console.warn('No valid location coordinates found:', {
+        console.warn('⚠️ No valid GPS coordinates found:', {
           latitude: reportData.latitude,
           longitude: reportData.longitude
         });

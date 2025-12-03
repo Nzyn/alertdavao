@@ -332,14 +332,15 @@
                              name="contact" 
                              class="form-input @error('contact') error @enderror" 
                              value="{{ old('contact') }}"
-                             pattern="^[0-9\+\-\s()]{7,20}$"
+                             pattern="^[0-9\+]{10,15}$"
                              placeholder="e.g., +639123456789 or 09123456789"
-                             maxlength="20"
-                             title="Valid phone number (7-20 characters, digits only with optional +, -, spaces, parentheses)"
+                             maxlength="15"
+                             inputmode="numeric"
+                             title="Valid phone number (10-15 digits, numbers only with optional + prefix)"
                              required
                          >
                          <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">
-                             Philippine mobile: 09XX XXX XXXX or +639XX XXX XXXX
+                             Philippine mobile: 09XXXXXXXXX or +639XXXXXXXXX
                          </small>
                          @error('contact')
                              <span class="error-message">{{ $message }}</span>
@@ -424,8 +425,8 @@
         }
 
         function sanitizePhone(phone) {
-            // Keep only digits, +, -, spaces, parentheses
-            return phone.replace(/[^0-9\+\-\s()]/g, '').trim();
+            // Keep only digits and + symbol for international format
+            return phone.replace(/[^0-9\+]/g, '').trim();
         }
 
         function sanitizePassword(password) {
@@ -560,6 +561,20 @@
                 const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
                 if (!emailRegex.test(emailValue)) {
                     alert('❌ Invalid Email Address\n\nPlease enter a valid email.\nExamples:\n• user@gmail.com\n• admin@yahoo.com\n• police@outlook.com');
+                    emailInput.focus();
+                    return false;
+                }
+
+                // Validate email domain - block disposable/fake email providers
+                const emailDomain = emailValue.toLowerCase().split('@')[1];
+                const disposableEmailDomains = [
+                    'anymail.com', '10minutemail.com', 'guerrillamail.com', 'mailinator.com',
+                    'tempmail.com', 'throwaway.email', 'getnada.com', 'trashmail.com',
+                    'fakeinbox.com', 'temp-mail.org', 'dispostable.com', 'yopmail.com',
+                    'maildrop.cc', 'emailondeck.com', 'sharklasers.com'
+                ];
+                if (emailDomain && disposableEmailDomains.includes(emailDomain)) {
+                    alert('❌ Invalid Email Domain\n\nPlease use a valid email address.\nTemporary or disposable email addresses are not allowed.\n\nAccepted providers: Gmail, Yahoo, Outlook, etc.');
                     emailInput.focus();
                     return false;
                 }

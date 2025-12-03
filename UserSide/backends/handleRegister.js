@@ -1,5 +1,7 @@
 const bcrypt = require("bcryptjs");
 const db = require("./db");
+const { sendVerificationEmail } = require("./emailService");
+const { generateToken, getVerificationTokenExpiry, formatForMySQL } = require("./tokenUtils");
 
 const handleRegister = async (req, res) => {
   const { firstname, lastname, email, contact, password } = req.body;
@@ -34,12 +36,35 @@ const handleRegister = async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10); // ✅ hash password
 
-    // Include NULL values for latitude and longitude
-    const sql =
-      "INSERT INTO users (firstname, lastname, email, contact, password, latitude, longitude) VALUES (?, ?, ?, ?, ?, NULL, NULL)";
-    await db.query(sql, [firstname, lastname, email, contact, hashedPassword]);
+    // Generate verification token
+    const verificationToken = generateToken();
+    const tokenExpiresAt = formatForMySQL(getVerificationTokenExpiry());
 
-    res.status(201).json({ message: "✅ User registered successfully!" });
+    // Include NULL values for latitude and longitude, and add verification fields
+    const sql =
+      "INSERT INTO users (firstname, lastname, email, contact, password, latitude, longitude, verification_token, token_expires_at, email_verified_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL)";
+    await db.query(sql, [firstname, lastname, email, contact, hashedPassword, verificationToken, tokenExpiresAt]);
+
+    console.log('📧 Sending verification email to:', email);
+    // Send verification email
+    const emailResult = await sendVerificationEmail(email, verificationToken, firstname);
+    console.log('📧 Email result:', emailResult);
+    
+    if (!emailResult.success) {
+      console.log('❌ Email failed, deleting user...');
+      // If email fails, delete the user and return error
+      await db.query("DELETE FROM users WHERE email = ?", [email]);
+      return res.status(500).json({ 
+        message: "Failed to send verification email. Please check your email address and try again.",
+        error: emailResult.error
+      });
+    }
+
+    console.log('✅ User registered and email sent successfully');
+    res.status(201).json({ 
+      message: "Registration successful! Please check your email for a verification link to activate your account. The link will expire in 24 hours.",
+      email: email
+    });
   } catch (err) {
     console.error("❌ Registration error:", err);
     

@@ -292,6 +292,10 @@ const submitVerification = async (req, res) => {
 
 // Handle file upload for verification documents
 const uploadVerificationDocument = async (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const { encryptFile } = require('./encryptionService');
+  
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -300,11 +304,28 @@ const uploadVerificationDocument = async (req, res) => {
       });
     }
     
+    console.log("🔐 Encrypting verification document file...");
+    
+    // Read the uploaded file
+    const filePath = req.file.path;
+    const fileBuffer = fs.readFileSync(filePath);
+    
+    // Encrypt the file content
+    const encryptedBuffer = encryptFile(fileBuffer);
+    
+    // Write encrypted file back (overwrite original)
+    fs.writeFileSync(filePath, encryptedBuffer);
+    
+    console.log("✅ Verification document encrypted and saved");
+    console.log("   File:", req.file.filename);
+    console.log("   Original size:", fileBuffer.length, "bytes");
+    console.log("   Encrypted size:", encryptedBuffer.length, "bytes");
+    
     // Return the file path for verifications
     res.json({
       success: true,
       filePath: `/verifications/${req.file.filename}`,
-      message: "File uploaded successfully"
+      message: "File uploaded and encrypted successfully"
     });
   } catch (error) {
     console.error("Error uploading verification document:", error);
@@ -319,9 +340,22 @@ const uploadVerificationDocument = async (req, res) => {
 // Get verification status
 const getVerificationStatus = async (req, res) => {
   const { userId } = req.params;
-  const userRole = req.query.role || req.body.role || 'user';
+  // 🔒 SECURITY: Get verified role from database, NOT from client input
+  const requestingUserId = req.query.requestingUserId || req.body.requestingUserId;
   
   try {
+    // Get the role of the user making the request from database
+    let userRole = 'user';
+    if (requestingUserId) {
+      const [requestingUsers] = await db.query(
+        "SELECT role FROM users WHERE id = ?",
+        [requestingUserId]
+      );
+      if (requestingUsers.length > 0) {
+        userRole = requestingUsers[0].role || 'user';
+      }
+    }
+    
     const [verifications] = await db.query(
       "SELECT * FROM verifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
       [userId]

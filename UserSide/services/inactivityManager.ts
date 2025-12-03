@@ -95,6 +95,9 @@ class InactivityManager {
       await AsyncStorage.removeItem('userData');
       await AsyncStorage.removeItem('userToken');
       
+      // Set flag to show logout notification
+      await AsyncStorage.setItem('inactivityLogout', 'true');
+      
       // Stop the inactivity manager
       this.stop();
       

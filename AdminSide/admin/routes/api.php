@@ -31,6 +31,7 @@ Route::put('/users/{id}', [UserController::class, 'update']);
 Route::post('/reports', [ReportController::class, 'store']);
 Route::get('/reports', [ReportController::class, 'index']);
 Route::get('/reports/user/{userId}', [ReportController::class, 'getUserReports']);
+Route::get('/reports/count', [ReportController::class, 'getReportCounts']);
 
 // Barangay management routes (commented out - controller missing)
 // Route::get('/barangays', [BarangayController::class, 'getAll']);

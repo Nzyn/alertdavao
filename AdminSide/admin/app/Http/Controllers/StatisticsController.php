@@ -75,213 +75,138 @@ class StatisticsController extends Controller
     }
 
     /**
-     * Get crime forecast from SARIMA API and store in database
-     * Only includes VALID reports (as set by police/admin)
+     * Get crime forecast from pre-generated SARIMA CSV file
+     * Uses sarima_forecast.csv (12 months forecast from CrimeDAta.csv)
      */
     public function getForecast(Request $request)
     {
         $horizon = $request->input('horizon', 12);
         
         try {
-            // First, get live data from database (ONLY VALID reports) and train the model
-            $liveData = DB::table('reports')
-                ->select(
-                    DB::raw('YEAR(created_at) as year'),
-                    DB::raw('MONTH(created_at) as month'),
-                    DB::raw('COUNT(*) as count')
-                )
-                ->where('created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 36 MONTH)'))
-                ->where('is_valid', 'valid')  // Only include reports marked as VALID by police/admin
-                ->groupBy('year', 'month')
-                ->orderBy('year', 'asc')
-                ->orderBy('month', 'asc')
-                ->get();
+            // Load sarima_forecast.csv
+            $forecastPath = storage_path('app/sarima_forecast.csv');
             
-            // Prepare data for SARIMA training
-            $trainingData = $liveData->map(function($row) {
-                return [
-                    'year' => (int)$row->year,
-                    'month' => (int)$row->month,
-                    'count' => (int)$row->count
-                ];
-            })->values()->toArray();
-            
-            // Train the model with live data
-            if (count($trainingData) >= 24) {
-                try {
-                    $trainResponse = Http::timeout(30)->post("{$this->sarimaApiUrl}/train", [
-                        'data' => $trainingData
-                    ]);
-                    
-                    if ($trainResponse->successful()) {
-                        \Log::info('SARIMA model trained with ' . count($trainingData) . ' data points');
-                    }
-                } catch (\Exception $e) {
-                    \Log::warning('Failed to train SARIMA model: ' . $e->getMessage());
-                }
+            if (!file_exists($forecastPath)) {
+                throw new \Exception('SARIMA forecast file not found');
             }
             
-            // Now get the forecast
-            $response = Http::timeout(10)->get("{$this->sarimaApiUrl}/forecast", [
-                'horizon' => $horizon
+            $forecastData = [];
+            $file = fopen($forecastPath, 'r');
+            fgetcsv($file); // Skip header: Date,Forecast_Crimes,Lower_CI,Upper_CI
+            
+            $count = 0;
+            while (($row = fgetcsv($file)) !== false && $count < $horizon) {
+                if (count($row) >= 4) {
+                    $forecastData[] = [
+                        'date' => $row[0],
+                        'forecast' => round(floatval($row[1]), 2),
+                        'lower_ci' => round(floatval($row[2]), 2),
+                        'upper_ci' => round(floatval($row[3]), 2)
+                    ];
+                    $count++;
+                }
+            }
+            fclose($file);
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => $forecastData,
+                'horizon' => $horizon,
+                'model' => 'SARIMA(1,1,1)(1,1,1)[12]',
+                'source' => 'Pre-generated from CrimeDAta.csv'
             ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                
-                // Store forecasts in database (using location_id = 1 for city-wide)
-                if (isset($data['data']) && is_array($data['data'])) {
-                    foreach ($data['data'] as $forecast) {
-                        CrimeForecast::updateOrCreate(
-                            [
-                                'location_id' => 1, // City-wide forecast
-                                'forecast_date' => $forecast['date']
-                            ],
-                            [
-                                'predicted_count' => round($forecast['forecast']),
-                                'model_used' => 'SARIMA(1,1,1)(1,1,1)[12]',
-                                'confidence_score' => 0.95,
-                                'lower_ci' => $forecast['lower_ci'],
-                                'upper_ci' => $forecast['upper_ci']
-                            ]
-                        );
-                    }
-                }
-                
-                return response()->json($data);
-            }
-
-            // If API fails, try to get from database
-            $savedForecasts = CrimeForecast::where('location_id', 1)
-                ->where('forecast_date', '>=', now())
-                ->orderBy('forecast_date')
-                ->limit($horizon)
-                ->get();
             
-            if ($savedForecasts->isNotEmpty()) {
-                return response()->json([
-                    'status' => 'success',
-                    'source' => 'database',
-                    'horizon' => $savedForecasts->count(),
-                    'data' => $savedForecasts->map(function($f) {
-                        return [
-                            'date' => $f->forecast_date->format('Y-m-d'),
-                            'forecast' => (float)$f->predicted_count,
-                            'lower_ci' => (float)$f->lower_ci,
-                            'upper_ci' => (float)$f->upper_ci
-                        ];
-                    })
-                ]);
-            }
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to fetch forecast from SARIMA API'
-            ], 500);
         } catch (\Exception $e) {
-            // Try to return saved forecasts from database
-            $savedForecasts = CrimeForecast::where('location_id', 1)
-                ->where('forecast_date', '>=', now())
-                ->orderBy('forecast_date')
-                ->limit($horizon)
-                ->get();
-            
-            if ($savedForecasts->isNotEmpty()) {
-                return response()->json([
-                    'status' => 'success',
-                    'source' => 'database',
-                    'message' => 'SARIMA API offline, showing cached forecasts',
-                    'horizon' => $savedForecasts->count(),
-                    'data' => $savedForecasts->map(function($f) {
-                        return [
-                            'date' => $f->forecast_date->format('Y-m-d'),
-                            'forecast' => (float)$f->predicted_count,
-                            'lower_ci' => (float)$f->lower_ci,
-                            'upper_ci' => (float)$f->upper_ci
-                        ];
-                    })
-                ]);
-            }
-            
             return response()->json([
                 'status' => 'error',
-                'message' => 'SARIMA API is not running and no cached forecasts available.',
+                'message' => 'Failed to load SARIMA forecast data',
                 'details' => $e->getMessage()
             ], 503);
         }
     }
 
     /**
-     * Get crime statistics from database
-     * Note: Stats show all reports, but forecasting only uses VALID reports
+     * Get crime statistics from CSV files
+     * Uses CrimeDAta.csv and DCPO_5years_monthly.csv
      */
     public function getCrimeStats()
     {
         try {
-            // Get monthly crime counts from reports table (all reports for context)
-            $monthlyStats = DB::table('reports')
-                ->select(
-                    DB::raw('YEAR(created_at) as year'),
-                    DB::raw('MONTH(created_at) as month'),
-                    DB::raw('COUNT(*) as count')
-                )
-                ->where('created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 24 MONTH)'))
-                ->groupBy('year', 'month')
-                ->orderBy('year', 'asc')
-                ->orderBy('month', 'asc')
-                ->get();
-
-            // Save to crime_analytics table for each month
-            foreach ($monthlyStats as $stat) {
-                CrimeAnalytics::updateOrCreate(
-                    [
-                        'location_id' => 1, // City-wide
-                        'year' => $stat->year,
-                        'month' => $stat->month
-                    ],
-                    [
-                        'total_reports' => $stat->count,
-                        'crime_rate' => 0, // Calculate based on population if needed
-                        'last_updated' => now()
-                    ]
-                );
+            // Load CrimeDAta.csv for monthly trends (Year, Month, Count, Date)
+            $monthlyCsvPath = storage_path('app/CrimeDAta.csv');
+            $monthlyStats = [];
+            
+            if (file_exists($monthlyCsvPath)) {
+                $file = fopen($monthlyCsvPath, 'r');
+                fgetcsv($file); // Skip header
+                
+                while (($row = fgetcsv($file)) !== false) {
+                    if (count($row) >= 4) {
+                        $monthlyStats[] = (object)[
+                            'year' => intval($row[0]),
+                            'month' => intval($row[1]),
+                            'count' => intval($row[2])
+                        ];
+                    }
+                }
+                fclose($file);
             }
 
-            // Get crime by type
-            $crimeByType = DB::table('reports')
-                ->select('report_type as type', DB::raw('COUNT(*) as count'))
-                ->where('created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 12 MONTH)'))
-                ->groupBy('report_type')
-                ->orderBy('count', 'desc')
-                ->get();
+            // Load DCPO_5years_monthly.csv for detailed crime breakdown
+            $dcpoPath = storage_path('app/DCPO_5years_monthly.csv');
+            $crimesByType = [];
+            $crimesByLocation = [];
+            
+            if (file_exists($dcpoPath)) {
+                $file = fopen($dcpoPath, 'r');
+                fgetcsv($file); // Skip header: gu,Date,offense,Count
+                
+                while (($row = fgetcsv($file)) !== false) {
+                    if (count($row) >= 4) {
+                        $barangay = trim($row[0]);
+                        $offense = trim($row[2]);
+                        $count = intval($row[3]);
+                        
+                        // Aggregate by crime type
+                        if (!isset($crimesByType[$offense])) {
+                            $crimesByType[$offense] = 0;
+                        }
+                        $crimesByType[$offense] += $count;
+                        
+                        // Aggregate by location
+                        if (!isset($crimesByLocation[$barangay])) {
+                            $crimesByLocation[$barangay] = 0;
+                        }
+                        $crimesByLocation[$barangay] += $count;
+                    }
+                }
+                fclose($file);
+            }
+            
+            // Transform to expected format
+            $crimeByType = collect($crimesByType)
+                ->map(function($count, $type) {
+                    return (object)['type' => $type, 'count' => $count];
+                })
+                ->sortByDesc('count')
+                ->values()
+                ->take(15);
+            
+            $crimeByLocation = collect($crimesByLocation)
+                ->map(function($count, $location) {
+                    return (object)['location' => $location, 'count' => $count];
+                })
+                ->sortByDesc('count')
+                ->values()
+                ->take(10);
 
-            // Get crime by status
-            $crimeByStatus = DB::table('reports')
-                ->select('status', DB::raw('COUNT(*) as count'))
-                ->where('created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 12 MONTH)'))
-                ->groupBy('status')
-                ->get();
-
-            // Get crime by location (top 10 barangays)
-            $crimeByLocation = DB::table('reports')
-                ->join('locations', 'reports.location_id', '=', 'locations.location_id')
-                ->select('locations.barangay as location', DB::raw('COUNT(*) as count'))
-                ->where('reports.created_at', '>=', DB::raw('DATE_SUB(NOW(), INTERVAL 12 MONTH)'))
-                ->groupBy('locations.barangay')
-                ->orderBy('count', 'desc')
-                ->limit(10)
-                ->get();
-
-            // Overall statistics
-            $totalCrimes = DB::table('reports')->count();
-            $totalThisMonth = DB::table('reports')
-                ->whereMonth('created_at', date('m'))
-                ->whereYear('created_at', date('Y'))
-                ->count();
-            $totalLastMonth = DB::table('reports')
-                ->whereMonth('created_at', date('m', strtotime('-1 month')))
-                ->whereYear('created_at', date('Y', strtotime('-1 month')))
-                ->count();
+            // Calculate overview stats
+            $totalCrimes = array_sum($crimesByType);
+            $latestMonthData = collect($monthlyStats)->last();
+            $secondLatestMonthData = collect($monthlyStats)->slice(-2, 1)->first();
+            
+            $totalThisMonth = $latestMonthData ? $latestMonthData->count : 0;
+            $totalLastMonth = $secondLatestMonthData ? $secondLatestMonthData->count : 0;
             
             $percentChange = $totalLastMonth > 0 
                 ? round((($totalThisMonth - $totalLastMonth) / $totalLastMonth) * 100, 2)
@@ -292,7 +217,7 @@ class StatisticsController extends Controller
                 'data' => [
                     'monthly' => $monthlyStats,
                     'byType' => $crimeByType,
-                    'byStatus' => $crimeByStatus,
+                    'byStatus' => [], // Not available in CSV
                     'byLocation' => $crimeByLocation,
                     'overview' => [
                         'total' => $totalCrimes,
@@ -347,4 +272,68 @@ class StatisticsController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get barangay-level crime statistics from CrimeReports.csv
+     */
+    public function getBarangayCrimeStats()
+    {
+        try {
+            $csvPath = storage_path('app/CrimeReports.csv');
+            
+            if (!file_exists($csvPath)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'CrimeReports.csv file not found'
+                ], 404);
+            }
+
+            // Read and parse CSV
+            $file = fopen($csvPath, 'r');
+            $header = fgetcsv($file); // Skip header: gu,typeOfPlace,dateCommitted,timeCommitted,offense,lat,lng
+            
+            $barangayData = [];
+            
+            while (($row = fgetcsv($file)) !== false) {
+                $barangay = trim($row[0]); // 'gu' column
+                
+                // Aggregate by barangay
+                if (!isset($barangayData[$barangay])) {
+                    $barangayData[$barangay] = 0;
+                }
+                $barangayData[$barangay]++;
+            }
+            
+            fclose($file);
+            
+            // Convert to array format for frontend
+            $result = [];
+            foreach ($barangayData as $barangay => $totalCrimes) {
+                $result[] = [
+                    'barangay' => $barangay,
+                    'total_crimes' => $totalCrimes
+                ];
+            }
+            
+            // Sort by total crimes (descending)
+            usort($result, function($a, $b) {
+                return $b['total_crimes'] - $a['total_crimes'];
+            });
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => $result,
+                'total_barangays' => count($result),
+                'total_crimes' => array_sum($barangayData)
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to load barangay crime statistics',
+                'details' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
+

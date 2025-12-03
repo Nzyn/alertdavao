@@ -68,4 +68,54 @@ class Report extends Model
     {
         return $this->hasMany(ReportMedia::class, 'report_id', 'report_id');
     }
+
+    /**
+     * Auto-assign police station based on report location coordinates
+     * 
+     * @param float $latitude
+     * @param float $longitude
+     * @return int|null The assigned station ID
+     */
+    public static function autoAssignPoliceStation(float $latitude, float $longitude): ?int
+    {
+        // First, try to find which barangay this point falls into
+        $barangay = \App\Helpers\GeoHelper::findBarangayByCoordinates($latitude, $longitude);
+
+        if ($barangay && $barangay->station_id) {
+            return $barangay->station_id;
+        }
+
+        // Fallback: find nearest barangay
+        $nearestBarangay = \App\Helpers\GeoHelper::findNearestBarangay($latitude, $longitude);
+
+        if ($nearestBarangay && $nearestBarangay->station_id) {
+            return $nearestBarangay->station_id;
+        }
+
+        return null;
+    }
+
+    /**
+     * Assign this report to a police station based on location
+     * 
+     * @return bool True if assignment was successful
+     */
+    public function assignToStation(): bool
+    {
+        if (!$this->location) {
+            return false;
+        }
+
+        $stationId = self::autoAssignPoliceStation(
+            $this->location->latitude,
+            $this->location->longitude
+        );
+
+        if ($stationId) {
+            $this->assigned_station_id = $stationId;
+            return $this->save();
+        }
+
+        return false;
+    }
 }

@@ -218,8 +218,8 @@
         }
 
         .verified-badge.pending {
-            background-color: #fef3c7;
-            color: #92400e;
+            background-color: #e0e7ff;
+            color: #3730a3;
         }
 
         .status-badge {
@@ -232,8 +232,8 @@
         }
 
         .status-badge.pending {
-            background-color: #fef3c7;
-            color: #92400e;
+            background-color: #e0e7ff;
+            color: #3730a3;
         }
 
         .status-badge.investigating {
@@ -266,8 +266,8 @@
         }
 
         .validity-badge.checking_for_report_validity {
-            background-color: #fef3c7;
-            color: #92400e;
+            background-color: #e0e7ff;
+            color: #3730a3;
         }
 
         .validity-select {
@@ -335,6 +335,14 @@
             margin-right: 0.25rem;
             width: 36px;
             height: 36px;
+        }
+
+        .action-btn svg {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         .action-btn:hover {
@@ -422,10 +430,10 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            max-width: 90%;
+            max-width: 95%;
             max-height: 90vh;
             overflow-y: auto;
-            width: 800px;
+            width: 1000px;
             transform: translateY(20px);
             transition: transform 0.3s ease;
         }
@@ -438,12 +446,12 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1.5rem;
+            padding: 1rem 1.25rem;
             border-bottom: 1px solid #e5e7eb;
         }
 
         .modal-title {
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             font-weight: 600;
             color: #1f2937;
         }
@@ -469,49 +477,50 @@
         }
 
         .modal-body {
-            padding: 1.5rem;
+            padding: 1rem 1.25rem;
         }
 
         .report-details-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .detail-item {
+            gap: 1rem;
             margin-bottom: 1rem;
         }
 
+        .detail-item {
+            margin-bottom: 0.75rem;
+        }
+
         .detail-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 600;
             color: #6b7280;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin-bottom: 0.25rem;
+            margin-bottom: 0.2rem;
         }
 
         .detail-value {
-            font-size: 0.875rem;
+            font-size: 0.8rem;
             color: #1f2937;
+            line-height: 1.4;
         }
 
         .media-container {
-            margin-top: 1.5rem;
+            margin-top: 1rem;
         }
 
         .media-title {
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 600;
             color: #1f2937;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
         }
 
         .media-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 0.75rem;
         }
 
         .media-item {
@@ -524,7 +533,7 @@
 
         .media-item img {
             width: 100%;
-            height: 150px;
+            height: 120px;
             object-fit: cover;
             transition: transform 0.2s ease;
         }
@@ -558,12 +567,12 @@
             align-items: center;
             justify-content: center;
             background: #f3f4f6;
-            height: 150px;
+            height: 120px;
         }
 
         .media-placeholder {
             width: 100%;
-            height: 150px;
+            height: 120px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -634,7 +643,7 @@
 
         /* Map Container Styles */
         .report-map-container {
-            margin-top: 1.5rem;
+            margin-top: 1rem;
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid #e5e7eb;
@@ -642,12 +651,12 @@
 
         .report-map-header {
             background: #f9fafb;
-            padding: 0.75rem 1rem;
+            padding: 0.5rem 0.75rem;
             border-bottom: 1px solid #e5e7eb;
         }
 
         .report-map-title {
-            font-size: 0.875rem;
+            font-size: 0.8rem;
             font-weight: 600;
             color: #1f2937;
             margin: 0;
@@ -655,7 +664,7 @@
 
         #reportDetailMap {
             width: 100%;
-            height: 300px;
+            height: 250px;
             background: #f3f4f6;
         }
 
@@ -673,8 +682,8 @@
         /* Action Buttons Section */
         .actions-section {
             display: flex;
-            gap: 0.75rem;
-            padding: 1.5rem;
+            gap: 0.5rem;
+            padding: 1rem;
             padding-left: 0;
             border-top: 1px solid #e5e7eb;
             background: #f9fafb;
@@ -683,9 +692,9 @@
         }
 
         .btn {
-            padding: 0.625rem 1.25rem;
+            padding: 0.5rem 1rem;
             border-radius: 6px;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
             font-weight: 500;
             border: none;
             cursor: pointer;
@@ -775,6 +784,148 @@
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
+        /* Enhanced Modal Styles */
+        .report-info-section {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .report-info-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .report-info-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #1f2937;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .report-id-badge {
+            background: #3b82f6;
+            color: white;
+            padding: 0.375rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .map-container {
+            margin: 1.5rem 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e5e7eb;
+        }
+
+        .map-header {
+            background: #1f2937;
+            color: white;
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        #reportDetailMap {
+            height: 400px;
+            width: 100%;
+        }
+
+        .attachments-section {
+            margin-top: 1.5rem;
+        }
+
+        .attachments-header {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .media-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e5e7eb;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .media-item:hover {
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .media-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .media-item video {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .media-type-badge {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .no-media-message {
+            text-align: center;
+            padding: 2rem;
+            color: #6b7280;
+            font-size: 0.875rem;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 2px dashed #d1d5db;
+        }
+
+        .info-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .info-item-full {
+            grid-column: 1 / -1;
+        }
+
         @media (max-width: 768px) {
             .reports-header {
                 flex-direction: column;
@@ -795,6 +946,20 @@
 
             .report-details-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .info-row {
+                grid-template-columns: 1fr;
+            }
+
+            .media-grid {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+
+            .modal-content {
+                width: 100%;
+                max-width: 100%;
+                max-height: 95vh;
             }
         }
 
@@ -821,6 +986,35 @@
 @endsection
 
 @section('content')
+    @if(!empty($csvReports) && auth()->user() && auth()->user()->email === 'alertdavao.ph')
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem;">
+            <span style="font-size: 2rem;">📊</span>
+            <h3 style="margin: 0; font-size: 1.25rem; font-weight: 600;">DCPO Historical Data Import</h3>
+        </div>
+        <p style="margin: 0 0 1rem 0; opacity: 0.95; font-size: 0.875rem;">
+            Displaying {{ count($csvReports) }} DCPO historical crime records from CSV file.
+        </p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <div style="background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px; backdrop-filter: blur(10px);">
+                <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.25rem;">Assigned to Stations</div>
+                <div style="font-size: 1.5rem; font-weight: 700;">{{ collect($csvReports)->whereNotNull('assigned_station_id')->count() }}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px; backdrop-filter: blur(10px);">
+                <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.25rem;">Unassigned</div>
+                <div style="font-size: 1.5rem; font-weight: 700;">{{ collect($csvReports)->whereNull('assigned_station_id')->count() }}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px; backdrop-filter: blur(10px);">
+                <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.25rem;">Color Legend</div>
+                <div style="font-size: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
+                    <span style="display: inline-block; width: 12px; height: 12px; background: #e0f2fe; border-radius: 3px;"></span> Assigned
+                    <span style="display: inline-block; width: 12px; height: 12px; background: #fef3c7; border-radius: 3px; margin-left: 0.5rem;"></span> Unassigned
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <div class="reports-header">
         <div class="reports-title-section">
             <h1>Reports</h1>
@@ -932,15 +1126,10 @@
                                             <path d="m9 18 6-6-6-6" />
                                         </svg>
                                     </button>
-                                    <button class="action-btn" title="Download Report"
-                                        onclick="downloadReport(<?php    echo $reportId; ?>)">
-                                        <svg class="action-icon" viewBox="0 0 24 24" width="18" height="18">
-                                            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-                                        </svg>
-                                    </button>
                                 </td>
                             </tr>
                 @empty
+                    @if(empty($csvReports))
                     <tr>
                         <td colspan="9" class="no-results">
                             <svg style="width: 48px; height: 48px; margin: 0 auto 1rem; opacity: 0.3;" viewBox="0 0 24 24"
@@ -950,7 +1139,46 @@
                             <p>No reports found</p>
                         </td>
                     </tr>
+                    @endif
                 @endforelse
+                
+                @if(!empty($csvReports) && auth()->user() && auth()->user()->email === 'alertdavao.ph')
+                    @foreach($csvReports as $csvReport)
+                    <tr style="background-color: {{ $csvReport->assigned_station_id ? '#e0f2fe' : '#fef3c7' }};">
+                        <td class="report-id">{{ $csvReport->report_id }}</td>
+                        <td>{{ $csvReport->user->username }}</td>
+                        <td>{{ $csvReport->report_type }}</td>
+                        <td>{{ \Illuminate\Support\Str::limit($csvReport->title, 30) }}</td>
+                        <td>
+                            <span class="verified-badge {{ $csvReport->user_status }}">
+                                {{ ucfirst($csvReport->user_status) }}
+                            </span>
+                        </td>
+                        <td>{{ \Carbon\Carbon::parse($csvReport->date_reported)->format('m/d/Y') }}</td>
+                        <td>{{ \Carbon\Carbon::parse($csvReport->created_at)->format('m/d/Y') }}</td>
+                        <td>
+                            <span class="status-badge {{ $csvReport->status }}">{{ ucfirst($csvReport->status) }}</span>
+                        </td>
+                        <td>
+                            <span class="validity-badge {{ $csvReport->is_valid }}">{{ ucfirst(str_replace('_', ' ', $csvReport->is_valid)) }}</span>
+                        </td>
+                        <td>
+                            @if($csvReport->assigned_station_id)
+                                <span class="badge" style="background-color: #3b82f6; color: white; padding: 0.25rem 0.5rem; border-radius: 0.375rem; font-size: 0.75rem;">
+                                    Station {{ $csvReport->assigned_station_id }}
+                                </span>
+                            @else
+                                <span class="badge" style="background-color: #f59e0b; color: white; padding: 0.25rem 0.5rem; border-radius: 0.375rem; font-size: 0.75rem;">
+                                    Unassigned
+                                </span>
+                            @endif
+                        </td>
+                        <td>
+                            <span style="font-size: 0.75rem; color: #6b7280;">{{ $csvReport->barangay }}</span>
+                        </td>
+                    </tr>
+                    @endforeach
+                @endif
             </tbody>
         </table>
     </div>
@@ -960,7 +1188,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Report Details</h2>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="action-btn" title="Download as PDF" onclick="downloadModalAsPDF()" style="padding: 8px 16px; background: #3b82f6; color: white; border-radius: 6px; font-size: 14px; font-weight: 500;">
+                        <svg style="display: inline-block; vertical-align: middle; margin-right: 6px;" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                        </svg>
+                        Download PDF
+                    </button>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
             </div>
             <div class="modal-body" id="modalBody">
                 <!-- Content will be loaded dynamically -->
@@ -1104,6 +1340,17 @@
 </div>
 @endif
 
+<script>
+// Define onclick functions immediately in the body so they're available when HTML loads
+window.showReportDetails = function(reportId) {
+    console.log('Loading report details for ID:', reportId);
+};
+window.updateStatus = function(reportId, status) {};
+window.updateValidity = function(reportId, isValid) {};
+window.closeModal = function() {};
+window.downloadModalAsPDF = function() {};
+</script>
+
 @endsection
 
 @section('scripts')
@@ -1112,17 +1359,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
-        // Global variables for lightbox
+        // ========== GLOBAL VARIABLES ==========
         let currentImages = [];
         let currentImageIndex = 0;
-        let reportDetailMap = null; // Global variable for the report detail map
+        let reportDetailMap = null;
+        let autoRefreshInterval = null;
+        let lastReportCount = {{ $reports->total() ?? 0 }};
 
         // Initialize jsPDF
         const { jsPDF } = window.jspdf;
-
-        // Auto-refresh reports every 10 seconds for live updates
-        let autoRefreshInterval = null;
-        let lastReportCount = {{ $reports->total() ?? 0 }};
 
         function checkForNewReports() {
             // Get current URL with all query parameters
@@ -1267,6 +1512,16 @@
             const filter = input.value.toUpperCase();
             const table = document.getElementById('reportsTable');
             const tr = table.getElementsByTagName('tr');
+            const pagination = document.querySelector('.pagination');
+
+            // Show/hide pagination based on search
+            if (filter.length > 0) {
+                // Hide pagination during search
+                if (pagination) pagination.style.display = 'none';
+            } else {
+                // Show pagination when no search
+                if (pagination) pagination.style.display = 'flex';
+            }
 
             for (let i = 1; i < tr.length; i++) {
                 let txtValue = tr[i].textContent || tr[i].innerText;
@@ -1330,7 +1585,7 @@
             rows.forEach(row => tbody.appendChild(row));
         }
 
-        function updateStatus(reportId, status) {
+        window.updateStatus = function(reportId, status) {
              // Store reference to the select element before the fetch call
              const selectElement = event.target;
 
@@ -1367,7 +1622,7 @@
                  });
          }
 
-         function updateValidity(reportId, isValid) {
+         window.updateValidity = function(reportId, isValid) {
              // Store reference to the select element before the fetch call
              const selectElement = event.target;
 
@@ -1404,7 +1659,13 @@
                  });
          }
 
-        function showReportDetails(reportId) {
+        // Make function globally accessible
+        window.showReportDetails = function(reportId) {
+            console.log('🔍 View Details clicked for report ID:', reportId);
+            
+            // Get current logged-in user ID from Laravel session
+            const userId = '{{ auth()->id() }}';
+            
             fetch(`/reports/${reportId}/details`)
                 .then(response => response.json())
                 .then(data => {
@@ -1412,36 +1673,140 @@
                         const report = data.data;
                         const modalBody = document.getElementById('modalBody');
 
-                        // Format the content for the modal
+                        // Helper function to get media URLs with userId for decryption
+                        const getMediaUrl = (media) => {
+                            if (!media) return null;
+                            if (media.display_url) {
+                                // Add userId parameter for authentication
+                                const url = new URL(media.display_url, window.location.origin);
+                                url.searchParams.append('userId', userId);
+                                return url.toString();
+                            }
+                            if (!media.media_url) return null;
+                            
+                            // For evidence files from Node backend, add userId for decryption
+                            if (media.media_url.startsWith('/evidence/')) {
+                                const nodeBackendUrl = '{{ config("app.node_backend_url", "http://localhost:3000") }}';
+                                return `${nodeBackendUrl}${media.media_url}?userId=${userId}`;
+                            }
+                            
+                            if (media.media_url.startsWith('http')) return media.media_url;
+                            const url = media.media_url.startsWith('/storage/') 
+                                ? media.media_url 
+                                : `/storage/${media.media_url}`;
+                            console.log('Media URL generated:', url, 'from:', media.media_url);
+                            return url;
+                        };
+
+                        // Build comprehensive report info
+                        const reportInfo = `
+                            <div class="report-info-section">
+                                <div class="report-info-header">
+                                    <h3 class="report-info-title">🚨 Crime Report Details</h3>
+                                    <span class="report-id-badge">ID: ${report.report_id.toString().padStart(5, '0')}</span>
+                                </div>
+                                
+                                <div class="info-row">
+                                    <div class="detail-item">
+                                        <div class="detail-label">📋 Title</div>
+                                        <div class="detail-value">${report.title || 'No title provided'}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">🏷️ Report Type</div>
+                                        <div class="detail-value">${Array.isArray(report.report_type) ? report.report_type.join(', ') : (report.report_type || 'N/A')}</div>
+                                    </div>
+                                </div>
+
+                                <div class="info-row">
+                                    <div class="detail-item">
+                                        <div class="detail-label">📅 Date Reported</div>
+                                        <div class="detail-value">${new Date(report.date_reported || report.created_at).toLocaleString('en-US', { 
+                                            timeZone: 'Asia/Manila',
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">🔄 Last Updated</div>
+                                        <div class="detail-value">${new Date(report.updated_at).toLocaleString('en-US', { 
+                                            timeZone: 'Asia/Manila',
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}</div>
+                                    </div>
+                                </div>
+
+                                <div class="info-row">
+                                    <div class="detail-item">
+                                        <div class="detail-label">👤 Reported By</div>
+                                        <div class="detail-value">
+                                            ${report.is_anonymous ? '🕵️ Anonymous' : (report.user ? (report.user.firstname + ' ' + report.user.lastname) : 'Unknown User')}
+                                            ${getVerificationBadge(report)}
+                                        </div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">📊 Status</div>
+                                        <div class="detail-value">
+                                            <span class="status-badge ${report.status}">${report.status.charAt(0).toUpperCase() + report.status.slice(1)}</span>
+                                            <span class="status-badge ${report.is_valid}" style="margin-left: 0.5rem;">${report.is_valid === 'valid' ? '✓ Valid' : report.is_valid === 'invalid' ? '✗ Invalid' : '⏳ Checking'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="info-row">
+                                    <div class="detail-item">
+                                        <div class="detail-label">📍 Location Address</div>
+                                        <div class="detail-value">${getLocationDisplay(report)}</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">🎯 Coordinates</div>
+                                        <div class="detail-value">
+                                            ${report.location ? `${parseFloat(report.location.latitude).toFixed(6)}, ${parseFloat(report.location.longitude).toFixed(6)}` : 'Not available'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                ${report.assigned_station_id && report.police_station ? `
+                                <div class="info-row">
+                                    <div class="detail-item">
+                                        <div class="detail-label">🚓 Assigned Station</div>
+                                        <div class="detail-value">
+                                            <strong>${report.police_station.station_name || 'Station ' + report.assigned_station_id}</strong>
+                                            ${report.police_station.address ? `<br><small style="color: #6b7280;">${report.police_station.address}</small>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                                ` : ''}
+
+                                <div class="detail-item info-item-full">
+                                    <div class="detail-label">📝 Description</div>
+                                    <div class="detail-value" style="white-space: pre-wrap;">${report.description || 'No description provided'}</div>
+                                </div>
+                            </div>
+                        `;
+
+                        // Build map container
+                        const mapContainer = `
+                            <div class="map-container">
+                                <div class="map-header">
+                                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display: inline-block; vertical-align: middle;">
+                                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                                    </svg>
+                                    Location Map - Crime Scene & Police Stations
+                                </div>
+                                <div id="reportDetailMap"></div>
+                            </div>
+                        `;
+
+                        // Build media/attachments section
                         let mediaContent = '';
                         if (report.media && report.media.length > 0) {
-                            mediaContent = `
-                         <div class="media-container">
-                             <h3 class="media-title">Media Files</h3>
-                             <div class="media-grid">
-                     `;
-
-                            // Use the properly formatted display_url from the backend
-                             const getMediaUrl = (media) => {
-                                  if (!media) return null;
-                                  // Prefer display_url which is generated by the backend
-                                  if (media.display_url) {
-                                      return media.display_url;
-                                  }
-                                  // Fallback to media_url if display_url not available
-                                  if (!media.media_url) return null;
-                                  // If already a full URL (starts with http), use as is
-                                  if (media.media_url.startsWith('http')) {
-                                      return media.media_url;
-                                  }
-                                  // If relative path, construct the full storage URL
-                                  const url = media.media_url.startsWith('/storage/') 
-                                      ? media.media_url 
-                                      : `/storage/${media.media_url}`;
-                                  return url;
-                              };
-
-                            // Filter only images for the lightbox
                             const imageUrls = report.media
                                 .filter(media => {
                                     const ext = (media.media_type || '').toLowerCase();
@@ -1450,150 +1815,120 @@
                                 .map(media => getMediaUrl(media))
                                 .filter(url => url !== null);
 
+                            mediaContent = `
+                                <div class="attachments-section">
+                                    <h3 class="attachments-header">
+                                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                            <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+                                        </svg>
+                                        Evidence Attachments (${report.media.length})
+                                    </h3>
+                                    <div class="media-grid">
+                            `;
+
                             report.media.forEach((media, index) => {
                                 const mediaUrl = getMediaUrl(media);
                                 const mediaType = (media.media_type || '').toLowerCase();
-
-                                // Determine file type
                                 const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(mediaType);
                                 const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(mediaType);
 
                                 if (isImage) {
-                                    // Find the index of this image in the imageUrls array
                                     const imageIndex = imageUrls.indexOf(mediaUrl);
-                                    // Escape quotes in the JSON string for the onclick handler
                                     const imageUrlsJson = JSON.stringify(imageUrls).replace(/"/g, '&quot;');
                                     mediaContent += `
-                                 <div class="media-item" onclick="openLightbox(${imageIndex}, '${imageUrlsJson}')">
-                                     <img src="${mediaUrl}" alt="Report media" onerror="this.src='https://placehold.co/200x150?text=Image+Not+Found'" loading="lazy">
-                                     <div class="enlarge-icon">
-                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                                             <path d="M15 3l2.3 2.3-2.89 2.87 1.42 1.42L18.7 6.7 21 9V3zM3 9l2.3-2.3 2.87 2.89 1.42-1.42L6.7 5.3 9 3H3zm6 12l-2.3-2.3 2.89-2.87-1.42-1.42L5.3 17.3 3 15v6zm12-6l-2.3 2.3-2.87-2.89-1.42 1.42 2.89 2.87L15 21h6z"/>
-                                         </svg>
-                                     </div>
-                                 </div>
-                             `;
+                                        <div class="media-item" onclick="openLightbox(${imageIndex}, '${imageUrlsJson}')">
+                                            <img src="${mediaUrl}" alt="Evidence ${index + 1}" onerror="this.src='https://placehold.co/200x150?text=Image+Not+Found'" loading="lazy">
+                                            <span class="media-type-badge">📷 Photo</span>
+                                        </div>
+                                    `;
                                 } else if (isVideo) {
                                     mediaContent += `
-                                 <div class="media-item video">
-                                     <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor">
-                                         <path d="M8 5v14l11-7z"/>
-                                     </svg>
-                                     <span>Video File</span>
-                                 </div>
-                             `;
+                                        <div class="media-item">
+                                            <video src="${mediaUrl}" style="width: 100%; height: 150px; object-fit: cover;" controls></video>
+                                            <span class="media-type-badge">🎥 Video</span>
+                                        </div>
+                                    `;
                                 } else {
                                     mediaContent += `
-                                 <div class="media-item">
-                                     <div class="media-placeholder">
-                                         <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
-                                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
-                                         </svg>
-                                     </div>
-                                 </div>
-                             `;
+                                        <div class="media-item">
+                                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 150px; background: #f3f4f6;">
+                                                <svg viewBox="0 0 24 24" width="40" height="40" fill="#9ca3af">
+                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
+                                                </svg>
+                                                <span style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem;">${mediaType.toUpperCase()}</span>
+                                            </div>
+                                            <span class="media-type-badge">📄 File</span>
+                                        </div>
+                                    `;
                                 }
                             });
 
                             mediaContent += `
-                             </div>
-                         </div>
-                     `;
+                                    </div>
+                                </div>
+                            `;
                         } else {
-                            mediaContent = '<p>No media files available for this report.</p>';
+                            mediaContent = `
+                                <div class="attachments-section">
+                                    <h3 class="attachments-header">
+                                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                            <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+                                        </svg>
+                                        Evidence Attachments
+                                    </h3>
+                                    <div class="no-media-message">
+                                        <svg viewBox="0 0 24 24" width="48" height="48" fill="#d1d5db" style="margin-bottom: 0.5rem;">
+                                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5-7l-3 3.72L9 13l-3 4h12l-4-5z"/>
+                                        </svg>
+                                        <p>No evidence attachments for this report</p>
+                                    </div>
+                                </div>
+                            `;
                         }
 
-                        // Create map container HTML
-                        const mapContainer = `
-                    <div class="report-map-container">
-                        <div class="report-map-header">
-                            <h3 class="report-map-title">Report Location</h3>
-                        </div>
-                        <div id="reportDetailMap"></div>
-                    </div>
-                `;
-
-                        modalBody.innerHTML = `
-                    <div class="report-details-grid">
-                        <div>
-                            <div class="detail-item">
-                                <div class="detail-label">Title</div>
-                                <div class="detail-value">${report.title || 'No title provided'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Location</div>
-                                <div class="detail-value">${getLocationDisplay(report)}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Description</div>
-                                <div class="detail-value">${report.description || 'No description provided'}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Report ID</div>
-                                <div class="detail-value">${report.report_id.toString().padStart(5, '0')}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Report Type</div>
-                                <div class="detail-value">${Array.isArray(report.report_type) ? report.report_type.join(', ') : (report.report_type || 'N/A')}</div>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="detail-item">
-                                <div class="detail-label">Date Reported</div>
-                                <div class="detail-value">${new Date(report.created_at).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Last Updated</div>
-                                <div class="detail-value">${new Date(report.updated_at).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">User</div>
-                                <div class="detail-value">
-                                    ${report.is_anonymous ? 'Anonymous' : (report.user ? report.user.firstname + ' ' + report.user.lastname : 'Unknown User')}
-                                    ${getVerificationBadge(report)}
-                                </div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Status</div>
-                                <div class="detail-value">
-                                    <span class="status-badge ${report.status}">${report.status}</span>
-                                </div>
-                            </div>
-                            ${getActionButtons(report)}
-                        </div>
-                    </div>
-                </div>
-                ${mapContainer}
-                ${mediaContent}
-            `;
-            
-            // Store current report ID globally for modal actions
-            window.currentReportId = reportId;
-            
-            // Show the modal
-            document.getElementById('reportModal').classList.add('active');
-            
-            // Initialize map after modal is shown and DOM is updated
-            setTimeout(() => {
-                initializeReportMap(report);
-            }, 100);
-        } else {
-            alert('Failed to load report details: ' + (data.message || 'Unknown error'));
+                        // Combine all sections
+                        modalBody.innerHTML = reportInfo + mapContainer + mediaContent + (getActionButtons(report) || '');
+                        
+                        // Store current report ID and data globally
+                        window.currentReportId = reportId;
+                        window.currentReportData = report;
+                        
+                        // Show the modal
+                        document.getElementById('reportModal').classList.add('active');
+                        
+                        // Initialize map after modal is shown
+                        setTimeout(() => {
+                            initializeReportMap(report, data.policeStations);
+                        }, 100);
+                    } else {
+                        alert('Failed to load report details: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while loading report details: ' + error.message);
+                });
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred while loading report details: ' + error.message);
-    });
-}
 
 function getLocationDisplay(report) {
-     // Check if location object exists with barangay name
-     if (report.location && report.location.barangay) {
+     // Check if location object exists
+     if (report.location) {
          const barangay = report.location.barangay;
-         // Only show barangay if it's not just coordinates
+         const address = report.location.reporters_address;
+         
+         // Build display with address and barangay
+         let display = '';
+         
+         if (address && address.trim()) {
+             display = address.trim();
+         }
+         
          if (barangay && barangay !== 'Unknown' && !barangay.startsWith('Lat:') && !barangay.includes(',')) {
-             return barangay;
+             display = display ? `${display}, ${barangay}` : barangay;
+         }
+         
+         if (display) {
+             return display;
          }
      }
      
@@ -1778,7 +2113,7 @@ function getVerificationBadge(report) {
      });
  }
  
- function initializeReportMap(report) {
+ function initializeReportMap(report, policeStations) {
      // Remove existing map if it exists
      if (reportDetailMap) {
          reportDetailMap.remove();
@@ -1816,7 +2151,7 @@ function getVerificationBadge(report) {
          maxZoom: 18,
      }).addTo(reportDetailMap);
      
-     // Add a RED marker for the crime location if coordinates are valid
+     // Add a RED person marker for the crime location if coordinates are valid
      if (hasValidCoordinates) {
          // Create custom red person icon for crime location
          const redIcon = L.divIcon({
@@ -1836,11 +2171,13 @@ function getVerificationBadge(report) {
          
          // Add popup with location info
          const locationName = getLocationDisplay(report);
+         const streetAddress = report.location?.reporters_address || '';
          const popupContent = `
-             <div style="text-align: center; min-width: 150px;">
+             <div style="text-align: center; min-width: 180px;">
                  <strong style="color: #EF4444; font-size: 14px;">📍 Crime Location</strong><br>
                  <strong style="font-size: 13px; margin-top: 8px; display: block;">${report.title || 'Incident Report'}</strong><br>
-                 <span style="font-size: 12px; color: #666;">${locationName}</span><br>
+                 ${streetAddress ? `<span style="font-size: 12px; color: #444; margin-top: 4px; display: block;">${streetAddress}</span>` : ''}
+                 <span style="font-size: 12px; color: #666; margin-top: 4px; display: block;">${locationName}</span><br>
                  <span style="font-size: 11px; color: #999; margin-top: 4px; display: block;">
                      ${latitude.toFixed(6)}, ${longitude.toFixed(6)}
                  </span>
@@ -1849,57 +2186,50 @@ function getVerificationBadge(report) {
          crimeMarker.bindPopup(popupContent).openPopup();
      }
      
-     // Fetch and add police station markers (BLUE pins)
-     fetch(`/reports/${report.report_id}/details`)
-         .then(response => response.json())
-         .then(data => {
-             if (data.success && data.policeStations) {
-                 console.log('Police stations loaded:', data.policeStations.length);
-                 
-                 // Create custom blue shield/officer icon for police stations
-                 const blueIcon = L.divIcon({
-                     className: 'custom-marker-icon',
-                     html: `<div style="position: relative; width: 40px; height: 40px;">
-                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
-                             <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" fill="#3B82F6" stroke="white" stroke-width="1"/>
-                             <circle cx="12" cy="10" r="2.5" fill="white"/>
-                             <path d="M12 13c-2 0-3.5 1-3.5 2v1.5h7V15c0-1-1.5-2-3.5-2z" fill="white"/>
-                         </svg>
-                     </div>`,
-                     iconSize: [40, 40],
-                     iconAnchor: [20, 40],
-                     popupAnchor: [0, -40]
-                 });
-                 
-                 let stationsAdded = 0;
-                 data.policeStations.forEach(station => {
-                     // Only add stations with valid, non-zero coordinates
-                     if (station.latitude && station.longitude && 
-                         parseFloat(station.latitude) !== 0 && 
-                         parseFloat(station.longitude) !== 0) {
-                         
-                         const stationMarker = L.marker(
-                             [parseFloat(station.latitude), parseFloat(station.longitude)], 
-                             { icon: blueIcon }
-                         ).addTo(reportDetailMap);
-                         
-                         const stationPopup = `
-                             <div style="text-align: center; min-width: 150px;">
-                                 <strong style="color: #3B82F6; font-size: 14px;">🚔 Police Station</strong><br>
-                                 <strong style="font-size: 13px; margin-top: 8px; display: block;">${station.station_name}</strong><br>
-                                 <span style="font-size: 11px; color: #666; margin-top: 4px; display: block;">${station.address || 'N/A'}</span>
-                             </div>
-                         `;
-                         stationMarker.bindPopup(stationPopup);
-                         stationsAdded++;
-                     }
-                 });
-                 console.log('Police station markers added:', stationsAdded);
-             }
-         })
-         .catch(error => {
-             console.error('Error loading police stations:', error);
+     // Add police station markers (BLUE shield icons) if provided
+     if (policeStations && policeStations.length > 0) {
+         console.log('Adding police station markers:', policeStations.length);
+         
+         // Create custom blue shield/badge icon for police stations
+         const blueIcon = L.divIcon({
+             className: 'custom-marker-icon',
+             html: `<div style="position: relative; width: 40px; height: 40px;">
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                     <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" fill="#3B82F6" stroke="white" stroke-width="1"/>
+                     <circle cx="12" cy="10" r="2.5" fill="white"/>
+                     <path d="M12 13c-2 0-3.5 1-3.5 2v1.5h7V15c0-1-1.5-2-3.5-2z" fill="white"/>
+                 </svg>
+             </div>`,
+             iconSize: [40, 40],
+             iconAnchor: [20, 40],
+             popupAnchor: [0, -40]
          });
+         
+         let stationsAdded = 0;
+         policeStations.forEach(station => {
+             // Only add stations with valid, non-zero coordinates
+             if (station.latitude && station.longitude && 
+                 parseFloat(station.latitude) !== 0 && 
+                 parseFloat(station.longitude) !== 0) {
+                 
+                 const stationMarker = L.marker(
+                     [parseFloat(station.latitude), parseFloat(station.longitude)], 
+                     { icon: blueIcon }
+                 ).addTo(reportDetailMap);
+                 
+                 const stationPopup = `
+                     <div style="text-align: center; min-width: 150px;">
+                         <strong style="color: #3B82F6; font-size: 14px;">🚔 Police Station</strong><br>
+                         <strong style="font-size: 13px; margin-top: 8px; display: block;">${station.station_name}</strong><br>
+                         <span style="font-size: 11px; color: #666; margin-top: 4px; display: block;">${station.address || 'N/A'}</span>
+                     </div>
+                 `;
+                 stationMarker.bindPopup(stationPopup);
+                 stationsAdded++;
+             }
+         });
+         console.log('Police station markers added:', stationsAdded);
+     }
      
      // Invalidate size to ensure proper rendering
      setTimeout(() => {
@@ -1909,7 +2239,7 @@ function getVerificationBadge(report) {
      }, 200);
  }
  
- function closeModal() {
+ window.closeModal = function() {
     // Remove the map when closing modal
     if (reportDetailMap) {
         reportDetailMap.remove();
@@ -1918,12 +2248,127 @@ function getVerificationBadge(report) {
     document.getElementById('reportModal').classList.remove('active');
 }
 
+window.downloadModalAsPDF = function() {
+    console.log('📥 Starting PDF generation from modal screenshot...');
+    
+    // Initialize jsPDF
+    const { jsPDF } = window.jspdf;
+    
+    // Get the modal content element
+    const modalContent = document.querySelector('#reportModal .modal-content');
+    if (!modalContent) {
+        alert('Modal content not found. Please open a report first.');
+        return;
+    }
+    
+    // Get current report ID from the global variable
+    const reportId = window.currentReportId;
+    if (!reportId) {
+        alert('No report loaded. Please open a report first.');
+        return;
+    }
+    
+    console.log('📸 Capturing modal content for report:', reportId);
+    
+    // Show loading indicator
+    const loadingDiv = document.createElement('div');
+    loadingDiv.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 20px 40px; border-radius: 8px; z-index: 10001; font-size: 16px; font-weight: 600;';
+    loadingDiv.innerHTML = '📄 Generating PDF...<br><small style="font-size: 14px; font-weight: 400; margin-top: 8px; display: block;">Please wait...</small>';
+    document.body.appendChild(loadingDiv);
+    
+    // Wait a moment for any images/maps to finish rendering
+    setTimeout(() => {
+        html2canvas(modalContent, {
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+            scale: 2,
+            imageTimeout: 0,
+            removeContainer: false,
+            scrollY: -window.scrollY,
+            scrollX: -window.scrollX,
+            windowWidth: modalContent.scrollWidth,
+            windowHeight: modalContent.scrollHeight
+        }).then(canvas => {
+            console.log('✅ Modal captured, canvas size:', canvas.width, 'x', canvas.height);
+            
+            // Convert canvas to image
+            const imgData = canvas.toDataURL('image/png');
+            
+            // Calculate PDF dimensions
+            const imgWidth = 210; // A4 width in mm
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            
+            // Create PDF
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+            
+            let position = 0;
+            const pageHeight = 297; // A4 height in mm
+            
+            // Add image to PDF, split into pages if needed
+            while (position < imgHeight) {
+                if (position > 0) {
+                    pdf.addPage();
+                }
+                
+                pdf.addImage(
+                    imgData,
+                    'PNG',
+                    0,
+                    -position,
+                    imgWidth,
+                    imgHeight
+                );
+                
+                position += pageHeight;
+            }
+            
+            // Download the PDF
+            const fileName = `crime_report_${reportId.toString().padStart(5, '0')}.pdf`;
+            pdf.save(fileName);
+            
+            console.log('✅ PDF saved as:', fileName);
+            
+            // Remove loading indicator
+            document.body.removeChild(loadingDiv);
+            
+            // Show success message
+            const successDiv = document.createElement('div');
+            successDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 16px 24px; border-radius: 8px; z-index: 10001; font-size: 14px; font-weight: 500; box-shadow: 0 4px 6px rgba(0,0,0,0.1);';
+            successDiv.innerHTML = '✅ PDF downloaded successfully!';
+            document.body.appendChild(successDiv);
+            setTimeout(() => {
+                document.body.removeChild(successDiv);
+            }, 3000);
+        }).catch(error => {
+            console.error('❌ Error capturing modal:', error);
+            document.body.removeChild(loadingDiv);
+            alert('Failed to generate PDF: ' + error.message);
+        });
+    }, 500);
+}
+
+// OLD IMPLEMENTATION - Kept for reference
+// This function is no longer used. PDF is now generated from modal screenshot.
+/*
 function downloadReport(reportId) {
+    console.log('📥 Download PDF requested for report:', reportId);
+    console.log('📍 Map status:', {
+        mapExists: !!reportDetailMap,
+        mapElement: !!document.getElementById('reportDetailMap')
+    });
+    
     fetch(`/reports/${reportId}/details`)
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             const report = data.data;
+            console.log('📄 Starting PDF generation for report:', report.report_id);
             generatePDF(report);
         } else {
             alert('Failed to load report details: ' + (data.message || 'Unknown error'));
@@ -1936,6 +2381,7 @@ function downloadReport(reportId) {
 }
 
 function generatePDF(report) {
+    console.log('🎨 Creating PDF template...');
     // Create a temporary HTML element for rendering
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
@@ -1996,7 +2442,7 @@ function generatePDF(report) {
                 <div style="margin-bottom: 15px; padding-left: 10px;">
                     ${userDisplay} 
                     <span style="display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; 
-                        ${verificationStatus === 'Verified' ? 'background-color: #d1fae5; color: #065f46;' : verificationStatus === 'Pending' ? 'background-color: #fef3c7; color: #92400e;' : 'background-color: #fee2e2; color: #991b1b;'}">
+                        ${verificationStatus === 'Verified' ? 'background-color: #d1fae5; color: #065f46;' : verificationStatus === 'Pending' ? 'background-color: #e0e7ff; color: #3730a3;' : 'background-color: #fee2e2; color: #991b1b;'}">
                         ${verificationStatus}
                     </span>
                 </div>
@@ -2004,7 +2450,7 @@ function generatePDF(report) {
                 <div style="font-weight: bold; margin-bottom: 5px; color: #1D3557;">Status</div>
                 <div style="margin-bottom: 15px; padding-left: 10px;">
                     <span style="display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; text-transform: capitalize;
-                        ${report.status === 'pending' ? 'background-color: #fef3c7; color: #92400e;' : 
+                        ${report.status === 'pending' ? 'background-color: #e0e7ff; color: #3730a3;' : 
                           report.status === 'investigating' ? 'background-color: #dbeafe; color: #1e40af;' : 
                           report.status === 'resolved' ? 'background-color: #d1fae5; color: #065f46;' : 
                           'background-color: #fee2e2; color: #991b1b;'}">
@@ -2014,8 +2460,26 @@ function generatePDF(report) {
             </div>
         </div>
 
+        <div id="map-container" style="margin-top: 20px;"></div>
         <div id="images-container" style="margin-top: 20px;"></div>
     `;
+
+            // Add map container
+            const mapContainer = tempContainer.querySelector('#map-container');
+            if (reportDetailMap) {
+                const mapTitle = document.createElement('div');
+                mapTitle.style.fontWeight = 'bold';
+                mapTitle.style.marginBottom = '15px';
+                mapTitle.style.color = '#1D3557';
+                mapTitle.textContent = 'Report Location Map';
+                mapContainer.appendChild(mapTitle);
+
+                // Add placeholder for map image
+                const mapPlaceholder = document.createElement('div');
+                mapPlaceholder.id = 'pdf-map';
+                mapPlaceholder.style.marginBottom = '20px';
+                mapContainer.appendChild(mapPlaceholder);
+            }
 
             // Add images container
             const imagesContainer = tempContainer.querySelector('#images-container');
@@ -2038,8 +2502,70 @@ function generatePDF(report) {
 
             document.body.appendChild(tempContainer);
 
+            // Capture map as image first
+            const mapPromise = new Promise((resolve) => {
+                if (reportDetailMap) {
+                    console.log('📍 Starting map capture for PDF...');
+                    // Wait for map tiles to load - increased timeout
+                    setTimeout(() => {
+                        // Get the map container from the modal
+                        const mapElement = document.getElementById('reportDetailMap');
+                        if (mapElement) {
+                            console.log('📍 Map element found, capturing with html2canvas...');
+                            html2canvas(mapElement, {
+                                useCORS: true,
+                                allowTaint: true,
+                                logging: true,
+                                backgroundColor: '#f3f4f6',
+                                scale: 2, // Higher quality
+                                imageTimeout: 0, // Don't timeout on images
+                                removeContainer: false
+                            }).then(canvas => {
+                                console.log('📍 Map canvas created successfully');
+                                const mapPlaceholder = tempContainer.querySelector('#pdf-map');
+                                if (mapPlaceholder) {
+                                    const mapImg = document.createElement('img');
+                                    mapImg.src = canvas.toDataURL('image/png');
+                                    mapImg.style.width = '100%';
+                                    mapImg.style.maxWidth = '700px';
+                                    mapImg.style.height = 'auto';
+                                    mapImg.style.border = '1px solid #ccc';
+                                    mapImg.style.borderRadius = '4px';
+                                    mapPlaceholder.appendChild(mapImg);
+                                    console.log('✅ Map image added to PDF template');
+                                } else {
+                                    console.warn('⚠️ Map placeholder not found in template');
+                                }
+                                resolve();
+                            }).catch(error => {
+                                console.error('❌ Error capturing map:', error);
+                                // Add error message to PDF instead
+                                const mapPlaceholder = tempContainer.querySelector('#pdf-map');
+                                if (mapPlaceholder) {
+                                    const errorDiv = document.createElement('div');
+                                    errorDiv.style.padding = '20px';
+                                    errorDiv.style.backgroundColor = '#fee';
+                                    errorDiv.style.border = '1px solid #fcc';
+                                    errorDiv.style.borderRadius = '4px';
+                                    errorDiv.style.color = '#c00';
+                                    errorDiv.textContent = 'Map could not be captured for PDF';
+                                    mapPlaceholder.appendChild(errorDiv);
+                                }
+                                resolve(); // Continue even if map capture fails
+                            });
+                        } else {
+                            console.warn('⚠️ Map element not found in DOM');
+                            resolve();
+                        }
+                    }, 1000); // Increased wait time for map tiles to load
+                } else {
+                    console.log('ℹ️ No map initialized, skipping map capture');
+                    resolve();
+                }
+            });
+
             // Load and insert images before capturing
-            const imagePromises = [];
+            const imagePromises = [mapPromise];
             if (report.media && report.media.length > 0) {
                 const imagesPlaceholder = tempContainer.querySelector('#pdf-images');
 
@@ -2101,7 +2627,11 @@ function generatePDF(report) {
             }
 
             // Wait for all images to load before generating PDF
-            Promise.allSettled(imagePromises).then(() => {
+            console.log(`⏳ Waiting for ${imagePromises.length} promise(s) to complete (map + images)...`);
+            Promise.allSettled(imagePromises).then((results) => {
+                console.log('✅ All promises settled:', results);
+                console.log('🎨 Rendering final PDF content with html2canvas...');
+                
                 // Use html2canvas to capture the content
                 html2canvas(tempContainer, {
                     scale: 2, // Higher quality
@@ -2109,6 +2639,8 @@ function generatePDF(report) {
                     logging: false,
                     allowTaint: true
                 }).then(canvas => {
+                    console.log('✅ Canvas created, size:', canvas.width, 'x', canvas.height);
+                    
                     // Create PDF
                     const imgData = canvas.toDataURL('image/png');
                     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -2118,6 +2650,8 @@ function generatePDF(report) {
                     let heightLeft = imgHeight;
                     let position = 0;
 
+                    console.log('📄 Adding content to PDF, estimated pages:', Math.ceil(imgHeight / pageHeight));
+                    
                     pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
                     heightLeft -= pageHeight;
 
@@ -2131,17 +2665,22 @@ function generatePDF(report) {
 
                     // Save the PDF
                     const fileName = `report_${report.report_id.toString().padStart(5, '0')}.pdf`;
+                    console.log('💾 Saving PDF as:', fileName);
                     pdf.save(fileName);
+                    console.log('✅ PDF download complete!');
 
                     // Clean up
                     document.body.removeChild(tempContainer);
+                    console.log('🧹 Cleaned up temporary elements');
                 }).catch(error => {
-                    console.error('Error generating PDF:', error);
+                    console.error('❌ Error generating PDF:', error);
                     alert('Error generating PDF: ' + error.message);
                     document.body.removeChild(tempContainer);
                 });
             });
         }
+*/
+// END OF OLD IMPLEMENTATION
 
         // Lightbox functions
         function openLightbox(index, imagesJson) {
@@ -2209,5 +2748,135 @@ function generatePDF(report) {
                 }
             }
         });
+
+        // ========== NEW REPORT NOTIFICATION SYSTEM ==========
+        // lastReportCount already declared above, just reset if needed
+        lastReportCount = lastReportCount || 0;
+        let lastUnassignedCount = 0;
+        
+        // Function to check for new reports
+        async function checkForNewReports() {
+            try {
+                const response = await fetch('/api/reports/count', {
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                
+                // Check for new unassigned reports
+                if (data.unassigned > lastUnassignedCount && lastUnassignedCount > 0) {
+                    const newCount = data.unassigned - lastUnassignedCount;
+                    showNewReportNotification(newCount, true);
+                    
+                    // Play notification sound (optional)
+                    // playNotificationSound();
+                }
+                
+                // Update counts
+                lastUnassignedCount = data.unassigned;
+                lastReportCount = data.total;
+                
+            } catch (error) {
+                console.error('Error checking for new reports:', error);
+            }
+        }
+        
+        // Function to show notification
+        function showNewReportNotification(count, isUnassigned = false) {
+            const message = isUnassigned 
+                ? `${count} new unassigned report${count > 1 ? 's' : ''} submitted!`
+                : `${count} new report${count > 1 ? 's' : ''} submitted!`;
+            
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #1D3557;
+                color: white;
+                padding: 16px 24px;
+                border-radius: 8px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+                z-index: 10000;
+                font-size: 14px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                cursor: pointer;
+                animation: slideInRight 0.3s ease-out;
+            `;
+            
+            notification.innerHTML = `
+                <svg width="24" height="24" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+                </svg>
+                <span>${message}</span>
+                <button style="background: transparent; border: none; color: white; cursor: pointer; font-size: 18px; padding: 0; margin-left: 8px;">×</button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Click notification to go to reports
+            notification.onclick = function() {
+                window.location.reload(); // Reload to show new reports
+            };
+            
+            // Close button
+            notification.querySelector('button').onclick = function(e) {
+                e.stopPropagation();
+                notification.remove();
+            };
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.style.animation = 'slideOutRight 0.3s ease-out';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, 5000);
+        }
+        
+        // Add CSS animations
+        if (!document.getElementById('report-animations-style')) {
+            const style = document.createElement('style');
+            style.id = 'report-animations-style';
+            style.textContent = `
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+            @keyframes slideOutRight {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+            }
+        `;
+            document.head.appendChild(style);
+        }
+        
+        // Initialize polling (check every 10 seconds)
+        setInterval(checkForNewReports, 10000);
+        
+        // Initial check to set baseline
+        checkForNewReports();
+        // ========== END NEW REPORT NOTIFICATION SYSTEM ==========
     </script>
 @endsection

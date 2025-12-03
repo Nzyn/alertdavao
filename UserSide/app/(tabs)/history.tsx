@@ -10,7 +10,7 @@ import { BACKEND_URL } from '../../config/backend';
 interface Report {
   report_id: number;
   title: string;
-  report_type: string; // 'crime' or 'cybercrime'
+  report_type: string | string[]; // Array of crime types or single string (for backward compatibility)
   description: string;
   status: string;
   is_anonymous: boolean;
@@ -21,6 +21,7 @@ interface Report {
     latitude: number;
     longitude: number;
     barangay: string;
+    reporters_address?: string;
   };
   media: Array<{
     media_id: number;
@@ -37,6 +38,7 @@ const history = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [showReportDetail, setShowReportDetail] = useState(false);
+  const [decodedAddress, setDecodedAddress] = useState<string>('Loading address...');
 
   const fetchReports = async () => {
     if (!user || !user.id) {
@@ -95,11 +97,29 @@ const history = () => {
   const handleReportClick = (report: Report) => {
     setSelectedReport(report);
     setShowReportDetail(true);
+    setDecodedAddress('Loading address...');
+    
+    // Reverse geocode the coordinates to get human-readable address
+    if (report.location.latitude !== 0 || report.location.longitude !== 0) {
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${report.location.latitude}&lon=${report.location.longitude}&zoom=18&addressdetails=1`)
+        .then(response => response.json())
+        .then(data => {
+          console.log('🗺️ Reverse geocoded address:', data);
+          setDecodedAddress(data.display_name || `${report.location.latitude.toFixed(6)}, ${report.location.longitude.toFixed(6)}`);
+        })
+        .catch(error => {
+          console.error('❌ Reverse geocoding failed:', error);
+          setDecodedAddress(`${report.location.latitude.toFixed(6)}, ${report.location.longitude.toFixed(6)}`);
+        });
+    } else {
+      setDecodedAddress('No coordinates available');
+    }
   };
 
   const closeReportDetail = () => {
     setShowReportDetail(false);
     setSelectedReport(null);
+    setDecodedAddress('Loading address...');
   };
 
   const getStatusColor = (status: string) => {
@@ -132,7 +152,7 @@ const history = () => {
             {item.title}
           </Text>
           <Text style={[styles.subtitleHistory, { fontSize: 14, color: '#666', marginBottom: 8 }]}>
-            {item.report_type}
+            {Array.isArray(item.report_type) ? item.report_type.join(', ') : item.report_type}
           </Text>
           
           {/* Location/Address */}
@@ -174,7 +194,7 @@ const history = () => {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#1D3557" />
         <Text style={{ marginTop: 12, color: '#666' }}>Loading your reports...</Text>
       </View>
@@ -182,7 +202,7 @@ const history = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {/* Header with Back Button and Title */}
       <View style={styles.headerHistory}>
         <TouchableOpacity onPress={() => router.push('/')}>
@@ -237,6 +257,10 @@ const history = () => {
           keyExtractor={(item) => item.report_id.toString()}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 20 }}
+          showsVerticalScrollIndicator={true}
+          scrollEnabled={true}
+          nestedScrollEnabled={true}
+          bounces={true}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1D3557']} />
           }
@@ -269,12 +293,6 @@ const history = () => {
                     <Text style={{ fontSize: 16, color: '#333', fontWeight: '600' }}>{selectedReport.title}</Text>
                   </View>
 
-                  {/* Crime Type */}
-                  <View style={{ marginBottom: 16 }}>
-                    <Text style={{ fontSize: 14, color: '#666', fontWeight: '600', marginBottom: 4 }}>Crime Type</Text>
-                    <Text style={{ fontSize: 16, color: '#333' }}>{selectedReport.report_type}</Text>
-                  </View>
-
                   {/* Status */}
                   <View style={{ marginBottom: 16 }}>
                     <Text style={{ fontSize: 14, color: '#666', fontWeight: '600', marginBottom: 4 }}>Status</Text>
@@ -302,11 +320,33 @@ const history = () => {
 
                   {/* Location */}
                   <View style={{ marginBottom: 16 }}>
-                    <Text style={{ fontSize: 14, color: '#666', fontWeight: '600', marginBottom: 4 }}>Location</Text>
-                    <Text style={{ fontSize: 15, color: '#333', lineHeight: 22 }}>{selectedReport.location.barangay}</Text>
+                    <Text style={{ fontSize: 14, color: '#666', fontWeight: '600', marginBottom: 4 }}>📍 Crime Location</Text>
+                    
+                    {/* Crime Type */}
+                    <Text style={{ fontSize: 16, color: '#333', fontWeight: '600', marginBottom: 8 }}>
+                      {Array.isArray(selectedReport.report_type) ? selectedReport.report_type.join(', ') : selectedReport.report_type}
+                    </Text>
+                    
+                    {/* Street Address - Only show the first part (street name) */}
+                    {selectedReport.location.reporters_address && (
+                      <Text style={{ fontSize: 15, color: '#333', marginBottom: 4 }}>
+                        {selectedReport.location.reporters_address.split(',')[0].trim()}
+                      </Text>
+                    )}
+                    
+                    {/* Barangay Name Only */}
+                    {selectedReport.location.barangay && 
+                     !selectedReport.location.barangay.startsWith('Lat:') && 
+                     selectedReport.location.barangay !== selectedReport.location.reporters_address?.split(',')[0].trim() && (
+                      <Text style={{ fontSize: 15, color: '#333', marginBottom: 6 }}>
+                        {selectedReport.location.barangay.split(',')[0].trim()}
+                      </Text>
+                    )}
+                    
+                    {/* Decoded Address from Coordinates */}
                     {(selectedReport.location.latitude !== 0 || selectedReport.location.longitude !== 0) && (
-                      <Text style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
-                        Coordinates: {selectedReport.location.latitude.toFixed(6)}, {selectedReport.location.longitude.toFixed(6)}
+                      <Text style={{ fontSize: 13, color: '#3B82F6', marginTop: 4, fontStyle: 'italic', lineHeight: 18 }}>
+                        {decodedAddress}
                       </Text>
                     )}
                   </View>

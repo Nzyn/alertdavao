@@ -125,12 +125,28 @@ async function listAllReportsWithStations(req, res) {
        LIMIT 50`
     );
 
+    // Parse report_type from JSON string to array
+    const formattedReports = reports.map((report) => {
+      let parsedReportType;
+      try {
+        parsedReportType = typeof report.report_type === 'string' 
+          ? JSON.parse(report.report_type) 
+          : report.report_type;
+      } catch (e) {
+        parsedReportType = [report.report_type];
+      }
+      return {
+        ...report,
+        report_type: parsedReportType
+      };
+    });
+
     console.log(`✅ Found ${reports.length} reports`);
 
     res.json({
       success: true,
       count: reports.length,
-      reports: reports
+      reports: formattedReports
     });
   } catch (error) {
     console.error("❌ Failed to list reports:", error);

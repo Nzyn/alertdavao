@@ -6,16 +6,20 @@
 const db = require("./db");
 
 /**
- * Get all barangays
+ * Get all barangays (Davao City only - citymunCode = 112402)
  * GET /api/barangays
  */
 const getAllBarangays = async (req, res) => {
   try {
+    // Filter to only Davao City barangays (citymunCode = 112402)
     const [barangays] = await db.query(
       `SELECT barangay_id, barangay_name, latitude, longitude, station_id 
        FROM barangays 
+       WHERE citymunCode = '112402'
        ORDER BY barangay_name ASC`
     );
+
+    console.log(`📍 Fetched ${barangays.length} Davao City barangays`);
 
     res.json({
       success: true,

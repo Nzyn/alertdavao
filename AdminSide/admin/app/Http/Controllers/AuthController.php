@@ -119,6 +119,21 @@ class AuthController extends Controller
             ])->withInput($request->except('password'));
         }
 
+        // Check if account is locked
+        if ($user->lockout_until && Carbon::now()->lessThan($user->lockout_until)) {
+            $remainingMinutes = Carbon::now()->diffInMinutes($user->lockout_until) + 1;
+            return back()->withErrors([
+                'email' => "Account temporarily locked due to too many failed login attempts. Please try again in {$remainingMinutes} minute(s).",
+            ])->withInput($request->except('password'));
+        }
+
+        // Reset lockout if expired
+        if ($user->lockout_until && Carbon::now()->greaterThanOrEqualTo($user->lockout_until)) {
+            $user->failed_login_attempts = 0;
+            $user->lockout_until = null;
+            $user->save();
+        }
+
         // Check if email is verified
         if (is_null($user->email_verified_at)) {
             return back()->withErrors([
@@ -129,6 +144,12 @@ class AuthController extends Controller
         // Only use email and password for authentication
         if (Auth::attempt($credentials, $request->filled('remember'))) {
             $request->session()->regenerate();
+            
+            // Reset failed login attempts on successful login
+            $user->failed_login_attempts = 0;
+            $user->lockout_until = null;
+            $user->last_failed_login = null;
+            $user->save();
             
             // Get the authenticated user
             $user = Auth::user();
@@ -163,9 +184,51 @@ class AuthController extends Controller
             ])->withInput($request->except('password'));
         }
 
-        return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
-        ])->withInput($request->except('password'));
+        // Failed login - increment attempt counter
+        $user->failed_login_attempts += 1;
+        $user->last_failed_login = Carbon::now();
+
+        // Apply lockout based on attempt count
+        if ($user->failed_login_attempts >= 15) {
+            // 15+ attempts: 15 minute lockout + email alert
+            $user->lockout_until = Carbon::now()->addMinutes(15);
+            $user->save();
+            
+            // Send email notification
+            try {
+                $user->notify(new \App\Notifications\AccountLockoutNotification($user->failed_login_attempts));
+            } catch (\Exception $e) {
+                \Log::error('Failed to send lockout email: ' . $e->getMessage());
+            }
+            
+            return back()->withErrors([
+                'email' => 'Account locked for 15 minutes due to 15 failed login attempts. A security alert has been sent to your email.',
+            ])->withInput($request->except('password'));
+        } else if ($user->failed_login_attempts >= 10) {
+            // 10-14 attempts: 10 minute lockout
+            $user->lockout_until = Carbon::now()->addMinutes(10);
+            $user->save();
+            
+            return back()->withErrors([
+                'email' => 'Account locked for 10 minutes due to multiple failed login attempts.',
+            ])->withInput($request->except('password'));
+        } else if ($user->failed_login_attempts >= 5) {
+            // 5-9 attempts: 5 minute lockout
+            $user->lockout_until = Carbon::now()->addMinutes(5);
+            $user->save();
+            
+            return back()->withErrors([
+                'email' => 'Account locked for 5 minutes due to multiple failed login attempts.',
+            ])->withInput($request->except('password'));
+        } else {
+            // Less than 5 attempts: just save the counter
+            $user->save();
+            
+            $remainingAttempts = 5 - $user->failed_login_attempts;
+            return back()->withErrors([
+                'email' => "The provided credentials do not match our records. {$remainingAttempts} attempt(s) remaining before account lockout.",
+            ])->withInput($request->except('password'));
+        }
     }
 
 

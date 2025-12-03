@@ -191,7 +191,7 @@ export default function ChatList({ navigation }: any) {
 
     if (loading) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={{ flex: 1, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}>
                 <ActivityIndicator size="large" color="#1D3557" />
                 <Text style={{ marginTop: 12, color: '#666' }}>Loading conversations...</Text>
             </View>
@@ -199,7 +199,7 @@ export default function ChatList({ navigation }: any) {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={{ flex: 1, backgroundColor: '#fff' }}>
             {/* Header with Back Button and Title */}
             <View style={styles.headerHistory}>
                 <TouchableOpacity onPress={() => router.push('/')}>
@@ -228,7 +228,11 @@ export default function ChatList({ navigation }: any) {
                     data={conversations}
                     keyExtractor={(item) => item.user_id.toString()}
                     renderItem={renderItem}
-                    contentContainerStyle={{ paddingVertical: 15, paddingHorizontal: 10 }}
+                    contentContainerStyle={{ paddingVertical: 15, paddingHorizontal: 10, paddingBottom: 50 }}
+                    showsVerticalScrollIndicator={true}
+                    scrollEnabled={true}
+                    nestedScrollEnabled={true}
+                    bounces={true}
                     ListHeaderComponent={renderFAQProfile}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1D3557']} />

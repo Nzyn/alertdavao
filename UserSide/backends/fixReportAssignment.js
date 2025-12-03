@@ -38,6 +38,22 @@ async function checkReportAssignment(req, res) {
     console.log(`✅ Reports with station_id: ${withStationReports[0].count}`);
     console.log(`🔐 Cybercrime Division station:`, cybercrimeStation[0]);
 
+    // Parse report_type for sample reports
+    const formattedSampleReports = sampleReports.map((report) => {
+      let parsedReportType;
+      try {
+        parsedReportType = typeof report.report_type === 'string' 
+          ? JSON.parse(report.report_type) 
+          : report.report_type;
+      } catch (e) {
+        parsedReportType = [report.report_type];
+      }
+      return {
+        ...report,
+        report_type: parsedReportType
+      };
+    });
+
     res.json({
       success: true,
       stats: {
@@ -46,7 +62,7 @@ async function checkReportAssignment(req, res) {
         total_reports: nullStationReports[0].count + withStationReports[0].count
       },
       cybercrime_station: cybercrimeStation[0],
-      sample_reports_without_station: sampleReports
+      sample_reports_without_station: formattedSampleReports
     });
   } catch (error) {
     console.error("❌ Check failed:", error);

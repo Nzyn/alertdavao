@@ -1,32 +1,82 @@
-
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Dict
 import pandas as pd
 import numpy as np
+import uvicorn
+import warnings
+from pathlib import Path
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-import os
-from datetime import datetime
+from statsmodels.tools.sm_exceptions import ConvergenceWarning
+
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # =========================================================
-# FastAPI app
+# INITIALIZE APP
 # =========================================================
 app = FastAPI(
     title="SARIMA Crime Forecast API",
-    description="Serves monthly crime forecasts from SARIMA(1,1,1)(1,1,1)[12] with live data support",
-    version="2.0.0",
+    description="Provides crime forecasting using SARIMA (Seasonal AutoRegressive Integrated Moving Average) model",
+    version="2.0"
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # =========================================================
-# Pydantic models (for clean JSON responses)
+# LOAD DATA FROM CrimeDAta.csv
 # =========================================================
-class MonthlyDataPoint(BaseModel):
-    year: int
-    month: int
-    count: int
 
-class TrainRequest(BaseModel):
-    data: List[MonthlyDataPoint]
+# Load the simple CrimeDAta.csv (Year, Month, Count, Date)
+DATA_PATH = Path(__file__).parent / "data" / "CrimeDAta.csv"
+
+if not DATA_PATH.exists():
+    raise FileNotFoundError(f"CrimeDAta.csv not found at: {DATA_PATH}")
+
+print(f"✅ Loading data from: {DATA_PATH}")
+df_raw = pd.read_csv(DATA_PATH)
+
+# Clean column names
+df = df_raw.copy()
+df.columns = df.columns.str.strip()
+
+# Ensure we have the expected columns: Year, Month, Count, Date
+required_cols = ['Year', 'Month', 'Count', 'Date']
+if not all(col in df.columns for col in required_cols):
+    raise ValueError(f"Missing required columns. Expected: {required_cols}, Got: {df.columns.tolist()}")
+
+# Convert to proper types
+df['Year'] = pd.to_numeric(df['Year'], errors='coerce').astype(int)
+df['Month'] = pd.to_numeric(df['Month'], errors='coerce').astype(int)
+df['Count'] = pd.to_numeric(df['Count'], errors='coerce').astype(int)
+df['Date'] = pd.to_datetime(df['Date'])
+
+# Remove any rows with NaN values
+df = df.dropna()
+
+# Sort by date
+df = df.sort_values('Date').reset_index(drop=True)
+
+print(f"📊 Loaded {len(df)} monthly crime records")
+print(f"📅 Date range: {df['Date'].min()} to {df['Date'].max()}")
+print(f"🔢 Total crimes in dataset: {df['Count'].sum()}")
+print(f"📈 Average crimes per month: {df['Count'].mean():.1f}")
+
+# Create time series for SARIMA
+crime_series = df.set_index('Date')['Count']
+crime_series = crime_series.asfreq('MS')  # Monthly start frequency
+
+# =========================================================
+# RESPONSE MODELS
+# =========================================================
 
 class ForecastItem(BaseModel):
     date: str
@@ -37,210 +87,155 @@ class ForecastItem(BaseModel):
 class ForecastResponse(BaseModel):
     status: str
     horizon: int
-    data: List[ForecastItem]
-    trained_on_points: Optional[int] = None
-    last_training: Optional[str] = None
+    model: str
+    results: List[ForecastItem]
 
-
-ts = None              
-sarima_model = None
-last_training_time = None
-
-def train_from_dataframe(df: pd.DataFrame):
-    """Train SARIMA model from a pandas DataFrame with Year, Month, Count columns"""
-    global ts, sarima_model, last_training_time
-
-    # Create date column from Year and Month
-    df['Date'] = pd.to_datetime(df[['Year', 'Month']].assign(day=1))
-    df = df.sort_values('Date')
-    
-    # Create time series
-    series = df.set_index('Date')['Count'].astype(float).sort_index()
-    series = series.asfreq("MS")
-    series = series.fillna(method="ffill")
-    
-    ts = series
-    
-    # Train SARIMA(1,1,1)(1,1,1)[12]
-    model = SARIMAX(
-        ts,
-        order=(1, 1, 1),
-        seasonal_order=(1, 1, 1, 12),
-        enforce_stationarity=False,
-        enforce_invertibility=False,
-    )
-    sarima_model = model.fit(disp=False)
-    last_training_time = datetime.now().isoformat()
-    
-    print(f"✅ SARIMA model trained on {len(ts)} observations at {last_training_time}")
-    return len(ts)   
-def load_and_train():
-    """Load data from CSV file and train model (fallback/initial training)"""
-    global ts, sarima_model
-
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_path = os.path.join(base_dir, "data", "CrimeDAta.csv")
-    csv_path = os.path.abspath(csv_path)
-
-    if not os.path.exists(csv_path):
-        print(f"⚠️ CrimeDAta.csv not found at: {csv_path}")
-        print("⚠️ Model will be trained when data is received via API")
-        return
-
-    df = pd.read_csv(csv_path)
-
-    cols_lower = [c.lower() for c in df.columns]
-
-    # Detect date column
-    if "date" in cols_lower:
-        date_col = df.columns[cols_lower.index("date")]
-    elif "_date" in cols_lower:
-        date_col = df.columns[cols_lower.index("_date")]
-    else:
-        date_col = df.columns[-1]
-
-    # Detect count column
-    if "count" in cols_lower:
-        count_col = df.columns[cols_lower.index("count")]
-    else:
-        if df.shape[1] >= 3:
-            count_col = df.columns[2]
-        else:
-            raise ValueError("Cannot find 'Count' column in CrimeDAta.csv")
-
-    # Detect year and month columns
-    if "year" in cols_lower and "month" in cols_lower:
-        year_col = df.columns[cols_lower.index("year")]
-        month_col = df.columns[cols_lower.index("month")]
-        
-        # Use Year, Month, Count format
-        df_clean = pd.DataFrame({
-            'Year': pd.to_numeric(df[year_col], errors='coerce'),
-            'Month': pd.to_numeric(df[month_col], errors='coerce'),
-            'Count': pd.to_numeric(df[count_col], errors='coerce').fillna(0)
-        })
-    else:
-        # Parse date column
-        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-        df = df.dropna(subset=[date_col]).sort_values(date_col)
-        df[count_col] = pd.to_numeric(df[count_col], errors="coerce").fillna(0)
-        
-        df_clean = pd.DataFrame({
-            'Year': df[date_col].dt.year,
-            'Month': df[date_col].dt.month,
-            'Count': df[count_col]
-        })
-    
-    df_clean = df_clean.dropna()
-    train_from_dataframe(df_clean)
-
+class SummaryResponse(BaseModel):
+    status: str
+    data: Dict
 
 # =========================================================
-# Run training once when the API starts
+# SARIMA FORECASTING FUNCTION
 # =========================================================
-@app.on_event("startup")
-def startup_event():
+
+def run_sarima_forecast(series: pd.Series, horizon: int = 12) -> List[Dict]:
+    """
+    Run SARIMA(1,1,1)(1,1,1)[12] forecast
+    
+    Args:
+        series: Time series data (monthly frequency)
+        horizon: Number of months to forecast
+    
+    Returns:
+        List of forecast dictionaries with date, forecast, lower_ci, upper_ci
+    """
+    # Ensure monthly frequency
+    s = series.asfreq('MS').fillna(0)
+    
+    # Check if we have enough data
+    if len(s) < 24:  # Need at least 2 years of data
+        print(f"⚠️ Warning: Only {len(s)} data points. SARIMA needs at least 24 months.")
+        return []
+    
     try:
-        load_and_train()
+        # SARIMA(1,1,1)(1,1,1)[12] model
+        # (p,d,q) = (1,1,1) - non-seasonal parameters
+        # (P,D,Q,s) = (1,1,1,12) - seasonal parameters with 12-month cycle
+        model = SARIMAX(
+            s,
+            order=(1, 1, 1),           # (p, d, q)
+            seasonal_order=(1, 1, 1, 12),  # (P, D, Q, s)
+            enforce_stationarity=False,
+            enforce_invertibility=False
+        )
+        
+        print(f"🔧 Fitting SARIMA(1,1,1)(1,1,1)[12] model...")
+        result = model.fit(disp=False)
+        print(f"✅ Model fitted successfully!")
+        
+        # Generate forecast
+        forecast = result.get_forecast(steps=horizon)
+        mean = forecast.predicted_mean.clip(lower=0)  # No negative crimes
+        ci = forecast.conf_int(alpha=0.05).clip(lower=0)  # 95% confidence interval
+        
+        # Format output
+        output = []
+        for i in range(len(mean)):
+            output.append({
+                'date': mean.index[i].strftime('%Y-%m-%d'),
+                'forecast': float(mean.iloc[i]),
+                'lower_ci': float(ci.iloc[i, 0]),
+                'upper_ci': float(ci.iloc[i, 1]),
+            })
+        
+        print(f"📈 Generated {len(output)} forecast points")
+        return output
+        
     except Exception as e:
-        # Log error to console; API will return 500 if not trained
-        print("❌ Error during startup training:", e)
-
+        print(f"❌ SARIMA model failed: {str(e)}")
+        return []
 
 # =========================================================
-# Routes
+# API ROUTES
 # =========================================================
-@app.get("/", tags=["health"])
-def health_check():
-    """
-    Simple health check endpoint.
-    """
-    trained = ts is not None and sarima_model is not None
+
+@app.get("/")
+def root():
+    """API health check and information"""
     return {
-        "status": "ok", 
-        "message": "SARIMA API is running.",
-        "model_trained": trained,
-        "observations": len(ts) if ts is not None else 0,
-        "last_training": last_training_time
+        'status': 'running',
+        'message': 'SARIMA Crime Forecast API is active',
+        'version': '2.0',
+        'model': 'SARIMA(1,1,1)(1,1,1)[12]',
+        'data_source': 'data/CrimeDAta.csv',
+        'endpoints': {
+            '/': 'API information',
+            '/forecast': 'Get crime forecast (specify ?horizon=12)',
+            '/summary': 'Get dataset summary statistics'
+        }
     }
 
-
-@app.post("/train", tags=["training"])
-def train_model(request: TrainRequest):
-    """
-    Train or retrain the SARIMA model with live data from the database.
-    Expects JSON: {"data": [{"year": 2024, "month": 1, "count": 45}, ...]}
-    """
-    try:
-        if not request.data or len(request.data) < 24:
-            raise HTTPException(
-                status_code=400, 
-                detail="Need at least 24 months of data for SARIMA training"
-            )
-        
-        # Convert to DataFrame
-        df = pd.DataFrame([{
-            'Year': point.year,
-            'Month': point.month,
-            'Count': point.count
-        } for point in request.data])
-        
-        # Train model
-        num_points = train_from_dataframe(df)
-        
-        return {
-            "status": "success",
-            "message": f"Model trained successfully on {num_points} data points",
-            "trained_on": num_points,
-            "last_training": last_training_time
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
-
-
-@app.get("/forecast", response_model=ForecastResponse, tags=["forecast"])
+@app.get("/forecast", response_model=ForecastResponse)
 def get_forecast(horizon: int = 12):
     """
-    Get next N months crime forecast.
-    Default horizon = 12 months.
+    Get SARIMA crime forecast
+    
+    Args:
+        horizon: Number of months to forecast (default: 12)
+    
+    Returns:
+        ForecastResponse with predicted values and confidence intervals
     """
-    global ts, sarima_model
-
-    if ts is None or sarima_model is None:
-        raise HTTPException(
-            status_code=500, 
-            detail="Model not trained. Please send training data to /train endpoint first."
+    if horizon < 1 or horizon > 36:
+        raise HTTPException(400, detail="Horizon must be between 1 and 36 months")
+    
+    print(f"\n🔮 Generating {horizon}-month forecast...")
+    
+    # Run SARIMA forecast
+    forecast_data = run_sarima_forecast(crime_series, horizon)
+    
+    if not forecast_data:
+        raise HTTPException(500, detail="SARIMA forecast failed. Check if you have enough historical data (minimum 24 months).")
+    
+    results = [
+        ForecastItem(
+            date=item['date'],
+            forecast=item['forecast'],
+            lower_ci=item['lower_ci'],
+            upper_ci=item['upper_ci']
         )
-
-    if horizon <= 0 or horizon > 60:
-        raise HTTPException(status_code=400, detail="horizon must be between 1 and 60 months.")
-
-    # Forecast
-    forecast_res = sarima_model.get_forecast(steps=horizon)
-    mean = forecast_res.predicted_mean
-    ci = forecast_res.conf_int()
-
-    future_dates = pd.date_range(
-        start=ts.index[-1] + pd.DateOffset(months=1),
-        periods=horizon,
-        freq="MS",
-    )
-
-    items: List[ForecastItem] = []
-    for i in range(horizon):
-        items.append(
-            ForecastItem(
-                date=str(future_dates[i].date()),
-                forecast=float(mean.iloc[i]),
-                lower_ci=float(ci.iloc[i, 0]),
-                upper_ci=float(ci.iloc[i, 1]),
-            )
-        )
-
+        for item in forecast_data
+    ]
+    
     return ForecastResponse(
-        status="success", 
-        horizon=horizon, 
-        data=items,
-        trained_on_points=len(ts),
-        last_training=last_training_time
+        status='success',
+        horizon=horizon,
+        model='SARIMA(1,1,1)(1,1,1)[12]',
+        results=results
     )
+
+@app.get("/summary", response_model=SummaryResponse)
+def get_summary():
+    """Get summary statistics of the dataset"""
+    return SummaryResponse(
+        status='success',
+        data={
+            'total_records': len(df),
+            'date_range': {
+                'start': df['Date'].min().strftime('%Y-%m-%d'),
+                'end': df['Date'].max().strftime('%Y-%m-%d')
+            },
+            'total_crimes': int(df['Count'].sum()),
+            'average_crimes_per_month': float(df['Count'].mean()),
+            'min_crimes_in_month': int(df['Count'].min()),
+            'max_crimes_in_month': int(df['Count'].max()),
+            'data_source': 'CrimeDAta.csv',
+            'model': 'SARIMA(1,1,1)(1,1,1)[12]'
+        }
+    )
+
+# =========================================================
+# RUN SERVER (for local dev)
+# =========================================================
+if __name__ == '__main__':
+    uvicorn.run('main:app', host='0.0.0.0', port=8001, reload=True)

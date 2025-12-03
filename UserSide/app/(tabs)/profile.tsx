@@ -9,6 +9,7 @@ import { useUser } from '../../contexts/UserContext';
 import { dbTest } from '../../utils/dbTest';
 import { verificationService, VerificationStatus } from '../../services/verificationService';
 import { notificationService } from '../../services/notificationService';
+import { BACKEND_URL } from '../../config/backend';
 
 export default function ProfileScreen() {
   const { user, refreshProfile } = useUser();
@@ -259,7 +260,15 @@ export default function ProfileScreen() {
   const canSubmitVerification = !isUserVerified && !hasPendingVerification;
   
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: '#fff' }}
+      contentContainerStyle={{ paddingBottom: 40 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={true}
+      bounces={true}
+      scrollEnabled={true}
+      nestedScrollEnabled={true}
+    >
       {/* Header with Back Button and Title */}
       <View style={styles.headerHistory}>
         <TouchableOpacity onPress={() => router.push('/')}>

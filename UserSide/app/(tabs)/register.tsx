@@ -4,11 +4,28 @@ import Checkbox from "expo-checkbox";
 import CaptchaObfuscated, { generateCaptchaWord } from '../../components/CaptchaObfuscated';
 import styles from "./styles";
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { PhoneInput, validatePhoneNumber } from '../../components/PhoneInput';
 import { BACKEND_URL } from '../../config/backend';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useUser } from '../../contexts/UserContext';
+import TermsAndConditionsModal from '../../components/TermsAndConditionsModal';
 // import CaptchaWebView from '../../components/CaptchaWebView';
 import Constants from 'expo-constants';
 // OTP package is installed; we'll use a simple TextInput for the code entry here.
+
+// Sanitization helpers
+const sanitizeEmail = (email: string): string => {
+  return email.trim().toLowerCase().replace(/\s+/g, '').slice(0, 100);
+};
+
+const sanitizeText = (text: string): string => {
+  // Remove invisible characters, zero-width spaces, and trim whitespace
+  return text
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width chars
+    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+    .trim();
+};
 
 const Register = () => {
   const [email, setEmail] = useState("");
@@ -27,9 +44,41 @@ const Register = () => {
   const [registrationError, setRegistrationError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const router = useRouter();
+  const { setUser } = useUser();
+
+  // Reset loading state whenever screen comes into focus (especially after logout)
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🔄 Register screen focused - resetting loading state');
+      setIsLoading(false);
+      
+      // Clear all form fields when switching back to register screen (no drafts)
+      setFirstname('');
+      setLastname('');
+      setEmail('');
+      setContact('');
+      setPassword('');
+      setConfirmpassword('');
+      setIsChecked(false);
+      setCaptchaAnswer('');
+      setCaptchaValid(false);
+      setRegistrationError('');
+      setPasswordMatchError('');
+      
+      // Generate new captcha
+      const newWord = generateCaptchaWord(6);
+      setCaptchaWord(newWord);
+      
+      return () => {};
+    }, [])
+  );
 
   const handleRegister = async () => {
+    console.log('🚀 Register button clicked!');
+    console.log('📋 Validation state:', { isChecked, captchaValid, captchaAnswer, captchaWord });
+    
     setRegistrationError("");
     
     if (!isChecked) {
@@ -37,9 +86,34 @@ const Register = () => {
       return;
     }
 
+    // Sanitize inputs
+    const sanitizedFirstname = sanitizeText(firstname);
+    const sanitizedLastname = sanitizeText(lastname);
+    const sanitizedEmail = sanitizeEmail(email);
+    const sanitizedContact = contact.trim().replace(/\s+/g, '');
+
     // Validate required fields
-    if (!firstname || !lastname || !email || !contact || !password || !confirmpassword) {
+    if (!sanitizedFirstname || !sanitizedLastname || !sanitizedEmail || !sanitizedContact || !password || !confirmpassword) {
       Alert.alert('Missing Fields', 'Please fill in all required fields marked with *');
+      return;
+    }
+
+    // Validate email format
+    if (!sanitizedEmail.includes('@') || !sanitizedEmail.includes('.')) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address');
+      return;
+    }
+
+    // Validate email domain - block disposable/fake email providers
+    const emailDomain = sanitizedEmail.toLowerCase().split('@')[1];
+    const disposableEmailDomains = [
+      'anymail.com', '10minutemail.com', 'guerrillamail.com', 'mailinator.com',
+      'tempmail.com', 'throwaway.email', 'getnada.com', 'trashmail.com',
+      'fakeinbox.com', 'temp-mail.org', 'dispostable.com', 'yopmail.com',
+      'maildrop.cc', 'emailondeck.com', 'sharklasers.com'
+    ];
+    if (emailDomain && disposableEmailDomains.includes(emailDomain)) {
+      Alert.alert('Invalid Email', 'Please use a valid email address. Temporary or disposable email addresses are not allowed.');
       return;
     }
 
@@ -61,7 +135,7 @@ const Register = () => {
 
     try {
       // Validate phone number
-      if (!validatePhoneNumber(contact)) {
+      if (!validatePhoneNumber(sanitizedContact)) {
         Alert.alert('Invalid Phone', 'Please enter a valid Philippine mobile number (e.g., +639123456789)');
         return;
       }
@@ -74,7 +148,7 @@ const Register = () => {
       setIsLoading(true);
       
       // Normalize phone number to match backend format
-      let normalizedPhone = contact.trim().replace(/\s+/g, '');
+      let normalizedPhone = sanitizedContact;
       if (normalizedPhone.startsWith('0')) {
         normalizedPhone = '+63' + normalizedPhone.slice(1);
       }
@@ -83,7 +157,13 @@ const Register = () => {
       const regResp = await fetch(`${BACKEND_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstname, lastname, email, contact: normalizedPhone, password }),
+        body: JSON.stringify({ 
+          firstname: sanitizedFirstname, 
+          lastname: sanitizedLastname, 
+          email: sanitizedEmail, 
+          contact: normalizedPhone, 
+          password 
+        }),
       });
       const regData = await regResp.json();
       console.log('📥 Registration response:', regData);
@@ -91,23 +171,75 @@ const Register = () => {
       setIsLoading(false);
       
       if (regResp.ok) {
-        // Clean up state
-        setShowOtpModal(false);
-        setOtpCode('');
-        
-        Alert.alert('Registration Successful', 'Your account has been created. Please login with your credentials', [
-          { text: 'OK', onPress: () => {
-            console.log('🚀 Navigating to login...');
-            router.replace('/login');
-          }}
-        ]);
+        // Check if the user needs email verification or can login directly
+        if (regData.user) {
+          // Auto-login after successful registration
+          const user = regData.user;
+          console.log('✅ Auto-login after registration for:', user.email);
+          
+          // Store user data in AsyncStorage
+          await AsyncStorage.setItem('userData', JSON.stringify(user));
+          
+          // Set user in context
+          setUser({
+            id: user.id?.toString() || '0',
+            firstName: user.firstname || user.firstName || '',
+            lastName: user.lastname || user.lastName || '',
+            email: user.email || '',
+            phone: user.contact || user.phone || '',
+            address: user.address || '',
+            isVerified: Boolean(user.is_verified || user.isVerified),
+            profileImage: user.profile_image || user.profileImage || '',
+            createdAt: user.createdAt || user.created_at || '',
+            updatedAt: user.updatedAt || user.updated_at || '',
+          });
+          
+          Alert.alert(
+            'Registration Successful!',
+            'Welcome to AlertDavao! You are now logged in.',
+            [
+              { 
+                text: 'OK', 
+                onPress: () => {
+                  console.log('🚀 Auto-redirecting to main app...');
+                  router.replace('/(tabs)');
+                }
+              }
+            ]
+          );
+        } else {
+          // Email verification required
+          Alert.alert(
+            'Registration Successful!', 
+            `Please check your email (${sanitizedEmail}) for a verification link to activate your account. The link will expire in 24 hours.`,
+            [
+              { 
+                text: 'OK', 
+                onPress: () => {
+                  console.log('🚀 Navigating to login...');
+                  router.replace('/(tabs)/login');
+                }
+              }
+            ]
+          );
+        }
       } else {
         const errorMessage = regData.message || 'Failed to register';
         setRegistrationError(errorMessage);
+        Alert.alert('Registration Failed', errorMessage);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Register flow error:', error);
-      Alert.alert('Error', 'Failed to register.');
+      const errorMessage = error.message || 'Unknown error';
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('Network request failed')) {
+        Alert.alert(
+          'Connection Error',
+          'Cannot connect to server. Please check:\n\n1. Your internet connection\n2. Backend server is running on localhost:3000\n3. Server URL is correct in config',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to register: ' + errorMessage);
+      }
       setIsLoading(false);
     }
   };
@@ -116,11 +248,15 @@ const Register = () => {
 
   return (
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingTop: 20, paddingBottom: 200, alignItems: 'center' }}
+      style={{ flex: 1, backgroundColor: '#fff' }}
+      contentContainerStyle={{ paddingTop: 20, paddingBottom: 150, paddingHorizontal: 20, alignItems: 'center' }}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={true}
+      bounces={true}
+      scrollEnabled={true}
+      nestedScrollEnabled={true}
     >
-      <View style={{ width: '100%', maxWidth: 440, paddingHorizontal: 20 }}>
+      <View style={{ width: '100%', maxWidth: 440 }} pointerEvents="box-none">
       {/* Title */}
       <Text style={styles.textTitle}>
         <Text style={styles.alertWelcome}>Alert</Text>
@@ -144,7 +280,7 @@ const Register = () => {
         style={styles.input}
         placeholder="Enter your first name"
         value={firstname}
-        onChangeText={(text) => setFirstname(text.replace(/[^a-zA-Z\s]/g, ''))}
+        onChangeText={(text) => setFirstname(sanitizeText(text).replace(/[^a-zA-Z\s]/g, ''))}
         maxLength={50}
       />
 
@@ -154,7 +290,7 @@ const Register = () => {
         style={styles.input}
         placeholder="Enter your last name"
         value={lastname}
-        onChangeText={(text) => setLastname(text.replace(/[^a-zA-Z\s]/g, ''))}
+        onChangeText={(text) => setLastname(sanitizeText(text).replace(/[^a-zA-Z\s]/g, ''))}
         maxLength={50}
       />
 
@@ -164,7 +300,7 @@ const Register = () => {
         style={styles.input}
         placeholder="Enter your email"
         value={email}
-        onChangeText={(text) => setEmail(text.trim().toLowerCase())}
+        onChangeText={(text) => setEmail(sanitizeEmail(text))}
         keyboardType="email-address"
         autoCapitalize="none"
         maxLength={100}
@@ -189,11 +325,13 @@ const Register = () => {
           placeholder="Enter your password"
           value={password}
           onChangeText={(text) => {
-            setPassword(text);
+            // Sanitize password - remove invisible characters
+            const sanitized = text.replace(/[\u200B-\u200D\uFEFF]/g, '');
+            setPassword(sanitized);
             setPasswordMatchError("");
             // Check if passwords match when typing
             if (confirmpassword) {
-              if (text === confirmpassword) {
+              if (sanitized === confirmpassword) {
                 setPasswordsMatch(true);
               } else {
                 setPasswordsMatch(false);
@@ -226,11 +364,13 @@ const Register = () => {
           placeholder="Re-enter your password"
           value={confirmpassword}
           onChangeText={(text) => {
-            setConfirmPassword(text);
+            // Sanitize confirm password - remove invisible characters
+            const sanitized = text.replace(/[\u200B-\u200D\uFEFF]/g, '');
+            setConfirmPassword(sanitized);
             setPasswordMatchError("");
             // Check if passwords match when typing
             if (password) {
-              if (text === password) {
+              if (sanitized === password) {
                 setPasswordsMatch(true);
               } else {
                 setPasswordsMatch(false);
@@ -290,12 +430,21 @@ const Register = () => {
           }}
         >
           By clicking you agree to accept our{" "}
-          <Text style={{ color: "#1D3557", fontWeight: "bold" }}>
+          <Text 
+            style={{ color: "#1D3557", fontWeight: "bold", textDecorationLine: "underline" }}
+            onPress={() => setShowTermsModal(true)}
+          >
             Terms & Conditions
           </Text>
           {", that you are over 18 and aware of our reporting policies!"}
         </Text>
       </View>
+
+      {/* Terms and Conditions Modal */}
+      <TermsAndConditionsModal
+        visible={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+      />
 
       {/* Obfuscated text captcha */}
       <View style={{ marginTop: 12, marginBottom: 12 }}>

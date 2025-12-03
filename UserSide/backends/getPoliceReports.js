@@ -73,11 +73,37 @@ async function getReportsByStation(req, res) {
          });
        }
 
+       // Parse report_type from JSON string to array
+       let parsedReportType;
+       try {
+         parsedReportType = typeof report.report_type === 'string' 
+           ? JSON.parse(report.report_type) 
+           : report.report_type;
+       } catch (e) {
+         parsedReportType = [report.report_type];
+       }
+
+       // 🔓 Decrypt sensitive data before sending to client
+       const decryptedDescription = decrypt(report.description);
+       console.log(`🔓 Decrypting report ${report.report_id}:`);
+       console.log(`   Encrypted Description (base64): ${report.description ? report.description.substring(0, 50) + '...' : 'null'}`);
+       console.log(`   Decrypted Description Preview: ${decryptedDescription ? decryptedDescription.substring(0, 50) + '...' : 'null'}`);
+
+       const decryptedBarangay = report.barangay ? decrypt(report.barangay) : null;
+       const decryptedAddress = report.reporters_address ? decrypt(report.reporters_address) : null;
+       
+       if (decryptedBarangay) {
+         console.log(`   Decrypted Barangay: ${decryptedBarangay}`);
+       }
+       if (decryptedAddress) {
+         console.log(`   Decrypted Address: ${decryptedAddress}`);
+       }
+
        return {
          report_id: report.report_id,
          title: report.title,
-         report_type: report.report_type,
-         description: decrypt(report.description),
+         report_type: parsedReportType,
+         description: decryptedDescription,
          status: report.status,
          is_anonymous: Boolean(report.is_anonymous),
          date_reported: report.date_reported,
@@ -92,8 +118,8 @@ async function getReportsByStation(req, res) {
          location: {
            latitude: report.latitude,
            longitude: report.longitude,
-           barangay: report.barangay ? decrypt(report.barangay) : null,
-           reporters_address: report.reporters_address ? decrypt(report.reporters_address) : null,
+           barangay: decryptedBarangay,
+           reporters_address: decryptedAddress,
          },
          station: report.station_id ? {
            station_id: report.station_id,
@@ -197,11 +223,37 @@ async function getReportsByStationAndStatus(req, res) {
          });
        }
 
+       // Parse report_type from JSON string to array
+       let parsedReportType;
+       try {
+         parsedReportType = typeof report.report_type === 'string' 
+           ? JSON.parse(report.report_type) 
+           : report.report_type;
+       } catch (e) {
+         parsedReportType = [report.report_type];
+       }
+
+       // 🔓 Decrypt sensitive data before sending to client  
+       const decryptedDescription = decrypt(report.description);
+       console.log(`🔓 Decrypting report ${report.report_id} (status: ${status}):`);
+       console.log(`   Encrypted Description (base64): ${report.description ? report.description.substring(0, 50) + '...' : 'null'}`);
+       console.log(`   Decrypted Description Preview: ${decryptedDescription ? decryptedDescription.substring(0, 50) + '...' : 'null'}`);
+
+       const decryptedBarangay = report.barangay ? decrypt(report.barangay) : null;
+       const decryptedAddress = report.reporters_address ? decrypt(report.reporters_address) : null;
+       
+       if (decryptedBarangay) {
+         console.log(`   Decrypted Barangay: ${decryptedBarangay}`);
+       }
+       if (decryptedAddress) {
+         console.log(`   Decrypted Address: ${decryptedAddress}`);
+       }
+
        return {
          report_id: report.report_id,
          title: report.title,
-         report_type: report.report_type,
-         description: decrypt(report.description),
+         report_type: parsedReportType,
+         description: decryptedDescription,
          status: report.status,
          is_anonymous: Boolean(report.is_anonymous),
          date_reported: report.date_reported,
@@ -216,8 +268,8 @@ async function getReportsByStationAndStatus(req, res) {
          location: {
            latitude: report.latitude,
            longitude: report.longitude,
-           barangay: report.barangay ? decrypt(report.barangay) : null,
-           reporters_address: report.reporters_address ? decrypt(report.reporters_address) : null,
+           barangay: decryptedBarangay,
+           reporters_address: decryptedAddress,
          },
          station: report.station_id ? {
            station_id: report.station_id,
@@ -290,6 +342,22 @@ async function getStationDashboardStats(req, res) {
       [stationId]
     );
 
+    // Parse report_type for top crimes
+    const formattedTopCrimes = topCrimes.map((crime) => {
+      let parsedReportType;
+      try {
+        parsedReportType = typeof crime.report_type === 'string' 
+          ? JSON.parse(crime.report_type) 
+          : crime.report_type;
+      } catch (e) {
+        parsedReportType = [crime.report_type];
+      }
+      return {
+        ...crime,
+        report_type: parsedReportType
+      };
+    });
+
     // Get recent reports
     const [recentReports] = await db.query(
       `SELECT 
@@ -311,14 +379,31 @@ async function getStationDashboardStats(req, res) {
       [stationId]
     );
 
+    // Parse report_type for recent reports
+    const formattedRecentReports = recentReports.map((report) => {
+      let parsedReportType;
+      try {
+        parsedReportType = typeof report.report_type === 'string' 
+          ? JSON.parse(report.report_type) 
+          : report.report_type;
+      } catch (e) {
+        parsedReportType = [report.report_type];
+      }
+      return {
+        ...report,
+        report_type: parsedReportType,
+        barangay: report.barangay ? decrypt(report.barangay) : null
+      };
+    });
+
     console.log(`✅ Got dashboard stats for station ${stationId}`);
 
     res.json({
       success: true,
       station_id: stationId,
       stats: stats[0],
-      top_crime_types: topCrimes,
-      recent_reports: recentReports,
+      top_crime_types: formattedTopCrimes,
+      recent_reports: formattedRecentReports,
     });
   } catch (error) {
     console.error("❌ Error fetching dashboard stats:", error);

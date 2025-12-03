@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOptimalBackendUrl } from '../config/backend';
 import { useLoading } from '../contexts/LoadingContext';
 import { sendSupabaseOtp, verifySupabaseOtp, normalizePhoneNumber } from '../services/supabaseOtp';
+import { useUser } from '../contexts/UserContext';
 import { 
   validateName, 
   validateEmail, 
@@ -66,6 +67,7 @@ const Register = () => {
   const [canResend, setCanResend] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(60);
   const { showLoading, hideLoading } = useLoading();
+  const { setUser } = useUser();
   const router = useRouter();
   
   // Validation helper functions
@@ -205,14 +207,38 @@ const Register = () => {
         hideLoading();
         
         if (response.ok) {
+          // Registration successful - now auto-login the user
+          const user = data.user || data;
+          
+          console.log('✅ Registration successful, auto-logging in user:', user.email);
+          console.log('📦 User data received:', user);
+          
+          // Store user data in AsyncStorage
+          await AsyncStorage.setItem('userData', JSON.stringify(user));
+          
+          // Set user in context
+          setUser({
+            id: user.id?.toString() || '0',
+            firstName: user.firstname || user.firstName || '',
+            lastName: user.lastname || user.lastName || '',
+            email: user.email || '',
+            phone: user.contact || user.phone || '',
+            address: user.address || '',
+            isVerified: Boolean(user.is_verified || user.isVerified),
+            profileImage: user.profile_image || user.profileImage || '',
+            createdAt: user.createdAt || user.created_at || '',
+            updatedAt: user.updatedAt || user.updated_at || '',
+          });
+          
           Alert.alert(
             '✅ Registration Successful',
-            'Your account has been created. Please log in.',
+            'Your account has been created and you are now logged in!',
             [
               {
                 text: 'OK',
                 onPress: () => {
-                  router.replace('/(tabs)/login');
+                  // Redirect to main app
+                  router.replace('/(tabs)');
                 }
               }
             ]
@@ -380,9 +406,13 @@ const Register = () => {
                   placeholderTextColor="#9ca3af"
                   value={firstname}
                   onChangeText={(text) => {
-                    const sanitized = sanitizeTextInput(text);
-                    setFirstname(sanitized);
-                    validateField('firstname', sanitized);
+                    try {
+                      const sanitized = sanitizeTextInput(text);
+                      setFirstname(sanitized);
+                      validateField('firstname', sanitized);
+                    } catch (error) {
+                      console.error('Error processing firstname:', error);
+                    }
                   }}
                   onBlur={() => handleFieldBlur('firstname')}
                   autoCapitalize="words"
@@ -413,9 +443,13 @@ const Register = () => {
                   placeholderTextColor="#9ca3af"
                   value={lastname}
                   onChangeText={(text) => {
-                    const sanitized = sanitizeTextInput(text);
-                    setLastname(sanitized);
-                    validateField('lastname', sanitized);
+                    try {
+                      const sanitized = sanitizeTextInput(text);
+                      setLastname(sanitized);
+                      validateField('lastname', sanitized);
+                    } catch (error) {
+                      console.error('Error processing lastname:', error);
+                    }
                   }}
                   onBlur={() => handleFieldBlur('lastname')}
                   autoCapitalize="words"
@@ -447,9 +481,13 @@ const Register = () => {
                 placeholderTextColor="#9ca3af"
                 value={email}
                 onChangeText={(text) => {
-                  const sanitized = sanitizeEmail(text);
-                  setEmail(sanitized);
-                  validateField('email', sanitized);
+                  try {
+                    const sanitized = sanitizeEmail(text);
+                    setEmail(sanitized);
+                    validateField('email', sanitized);
+                  } catch (error) {
+                    console.error('Error processing email:', error);
+                  }
                 }}
                 onBlur={() => handleFieldBlur('email')}
                 keyboardType="email-address"
@@ -482,9 +520,13 @@ const Register = () => {
                 placeholderTextColor="#9ca3af"
                 value={contact}
                 onChangeText={(text) => {
-                  const sanitized = sanitizePhone(text);
-                  setContact(sanitized);
-                  validateField('contact', sanitized);
+                  try {
+                    const sanitized = sanitizePhone(text);
+                    setContact(sanitized);
+                    validateField('contact', sanitized);
+                  } catch (error) {
+                    console.error('Error processing contact:', error);
+                  }
                 }}
                 onBlur={() => handleFieldBlur('contact')}
                 keyboardType="phone-pad"
@@ -516,8 +558,12 @@ const Register = () => {
                 placeholderTextColor="#9ca3af"
                 value={password}
                 onChangeText={(text) => {
-                  setPassword(text);
-                  validateField('password', text);
+                  try {
+                    setPassword(text);
+                    validateField('password', text);
+                  } catch (error) {
+                    console.error('Error processing password:', error);
+                  }
                 }}
                 onBlur={() => handleFieldBlur('password')}
                 secureTextEntry={!showPassword}
@@ -575,8 +621,12 @@ const Register = () => {
                 placeholderTextColor="#9ca3af"
                 value={confirmpassword}
                 onChangeText={(text) => {
-                  setConfirmPassword(text);
-                  validateField('confirmpassword', text);
+                  try {
+                    setConfirmPassword(text);
+                    validateField('confirmpassword', text);
+                  } catch (error) {
+                    console.error('Error processing confirm password:', error);
+                  }
                 }}
                 onBlur={() => handleFieldBlur('confirmpassword')}
                 secureTextEntry={!showConfirmPassword}

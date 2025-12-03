@@ -5,6 +5,9 @@
 @section('styles')
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<!-- Leaflet MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
 <style>
     .map-container {
@@ -215,10 +218,26 @@
         font-size: 0.85rem;
         display: none;
         min-width: 220px;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
     }
     
     .hotspot-intensity-legend.active {
         display: block;
+        animation: fadeInSlide 0.4s ease-out;
+        border-color: #3b82f6;
+        box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+    }
+    
+    @keyframes fadeInSlide {
+        from {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
     }
     
     .intensity-title {
@@ -226,6 +245,26 @@
         color: #1f2937;
         margin-bottom: 0.75rem;
         font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .intensity-title::before {
+        content: '🎯';
+        font-size: 1.1rem;
+        animation: subtlePulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes subtlePulse {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.7;
+            transform: scale(1.1);
+        }
     }
     
     .intensity-item {
@@ -244,6 +283,39 @@
         height: 20px;
         border-radius: 3px;
         border: 1px solid rgba(0, 0, 0, 0.1);
+        box-shadow: 0 0 8px currentColor;
+        animation: glowPulse 3s ease-in-out infinite;
+    }
+    
+    @keyframes glowPulse {
+        0%, 100% {
+            box-shadow: 0 0 8px currentColor;
+        }
+        50% {
+            box-shadow: 0 0 16px currentColor;
+        }
+    }
+    
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(100px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        to {
+            opacity: 0;
+            transform: translateX(100px);
+        }
     }
     
     .intensity-label {
@@ -569,6 +641,86 @@
         to { transform: rotate(360deg); }
     }
     
+    /* Custom cluster icon styles */
+    .custom-cluster-icon {
+        background: transparent !important;
+        border: none !important;
+    }
+    
+    .custom-cluster-icon div {
+        text-align: center;
+    }
+    
+    /* Marker cluster group overrides */
+    .marker-cluster-small,
+    .marker-cluster-medium,
+    .marker-cluster-large {
+        background: transparent !important;
+    }
+    
+    .marker-cluster-small div,
+    .marker-cluster-medium div,
+    .marker-cluster-large div {
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    
+    /* Hotspot Overlay Circle Animations for SVG */
+    .hotspot-circle-high path {
+        animation: pulseHotspotHigh 2s ease-in-out infinite !important;
+        filter: drop-shadow(0 0 15px rgba(220, 38, 38, 0.8)) drop-shadow(0 0 30px rgba(220, 38, 38, 0.5));
+    }
+    
+    .hotspot-circle-medium path {
+        animation: pulseHotspotMedium 2.5s ease-in-out infinite !important;
+        filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.7)) drop-shadow(0 0 25px rgba(245, 158, 11, 0.4));
+    }
+    
+    .hotspot-circle-low path {
+        animation: pulseHotspotLow 3s ease-in-out infinite !important;
+        filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.6)) drop-shadow(0 0 20px rgba(16, 185, 129, 0.3));
+    }
+    
+    /* Pulsing animations for hotspot circles */
+    @keyframes pulseHotspotHigh {
+        0%, 100% {
+            stroke-opacity: 0.9;
+            fill-opacity: 0.35;
+            stroke-width: 3;
+        }
+        50% {
+            stroke-opacity: 1;
+            fill-opacity: 0.5;
+            stroke-width: 4;
+        }
+    }
+    
+    @keyframes pulseHotspotMedium {
+        0%, 100% {
+            stroke-opacity: 0.8;
+            fill-opacity: 0.3;
+            stroke-width: 3;
+        }
+        50% {
+            stroke-opacity: 1;
+            fill-opacity: 0.45;
+            stroke-width: 4;
+        }
+    }
+    
+    @keyframes pulseHotspotLow {
+        0%, 100% {
+            stroke-opacity: 0.7;
+            fill-opacity: 0.25;
+            stroke-width: 3;
+        }
+        50% {
+            stroke-opacity: 0.9;
+            fill-opacity: 0.4;
+            stroke-width: 3.5;
+        }
+    }
+    
     @media (max-width: 768px) {
         #map {
             height: 400px;
@@ -702,16 +854,20 @@
         <div class="legend-title">Crime Type Legends</div>
         <div class="legend-items">
             <div class="legend-item">
-                <img src="/legends/001-close.png" style="width: 20px; height: 20px;" alt="Carnapping">
-                <span>Carnapping</span>
+                <img src="/legends/squareMURDER.png" style="width: 20px; height: 20px;" alt="Murder">
+                <span>Murder</span>
+            </div>
+            <div class="legend-item">
+                <img src="/legends/diamondHOMICIDE.png" style="width: 20px; height: 20px;" alt="Homicide">
+                <span>Homicide</span>
             </div>
             <div class="legend-item">
                 <img src="/legends/001-pointed-star.png" style="width: 20px; height: 20px;" alt="Physical Injury">
                 <span>Physical Injury</span>
             </div>
             <div class="legend-item">
-                <img src="/legends/002-plus.png" style="width: 20px; height: 20px;" alt="Motornapping">
-                <span>Motornapping</span>
+                <img src="/legends/moonRAPE.png" style="width: 20px; height: 20px;" alt="Rape">
+                <span>Rape</span>
             </div>
             <div class="legend-item">
                 <img src="/legends/002-rectangle.png" style="width: 20px; height: 20px;" alt="Robbery">
@@ -722,16 +878,12 @@
                 <span>Theft</span>
             </div>
             <div class="legend-item">
-                <img src="/legends/diamondHOMICIDE.png" style="width: 20px; height: 20px;" alt="Homicide">
-                <span>Homicide</span>
+                <img src="/legends/001-close.png" style="width: 20px; height: 20px;" alt="Carnapping">
+                <span>Carnapping</span>
             </div>
             <div class="legend-item">
-                <img src="/legends/moonRAPE.png" style="width: 20px; height: 20px;" alt="Rape">
-                <span>Rape</span>
-            </div>
-            <div class="legend-item">
-                <img src="/legends/squareMURDER.png" style="width: 20px; height: 20px;" alt="Murder">
-                <span>Murder</span>
+                <img src="/legends/002-plus.png" style="width: 20px; height: 20px;" alt="Motornapping">
+                <span>Motornapping</span>
             </div>
         </div>
     </div>
@@ -766,29 +918,34 @@
 @section('scripts')
 <!-- Leaflet JavaScript -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<!-- Leaflet MarkerCluster JavaScript -->
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
 <script>
     // Global variables
     let map;
     let markers = [];
+    let markerClusterGroup; // Cluster group for performance
     let allReports = [];
     let streetLayer, satelliteLayer;
     let hotspotLayer;
     let hotspotCircles = [];
     let hotspotOverlayVisible = false;
     
-    // Crime type to icon mapping
+    // Crime type to icon mapping (sorted by severity)
     const crimeIcons = {
-        'carnapping': '/legends/001-close.png',
-        'physical injury': '/legends/001-pointed-star.png',
-        'assault': '/legends/001-pointed-star.png', // Using physical injury icon
-        'motornapping': '/legends/002-plus.png',
-        'robbery': '/legends/002-rectangle.png',
-        'burglary': '/legends/002-rectangle.png', // Using robbery icon
-        'theft': '/legends/003-ellipse.png',
+        'murder': '/legends/squareMURDER.png',
         'homicide': '/legends/diamondHOMICIDE.png',
         'rape': '/legends/moonRAPE.png',
-        'murder': '/legends/squareMURDER.png'
+        'physical injury': '/legends/001-pointed-star.png',
+        'assault': '/legends/001-pointed-star.png',
+        'robbery': '/legends/002-rectangle.png',
+        'burglary': '/legends/002-rectangle.png',
+        'theft': '/legends/003-ellipse.png',
+        'carnapping': '/legends/001-close.png',
+        'motornapping': '/legends/002-plus.png',
+        'vehicle theft': '/legends/001-close.png',
+        'motorcycle theft': '/legends/002-plus.png'
     };
     
     // Davao City bounds (approximate)
@@ -821,8 +978,88 @@
                 maxZoom: 18,
             });
             
+            // Initialize marker cluster group with custom icons
+            markerClusterGroup = L.markerClusterGroup({
+                showCoverageOnHover: false,
+                zoomToBoundsOnClick: true,
+                spiderfyOnMaxZoom: true,
+                removeOutsideVisibleBounds: true,
+                chunkedLoading: true,
+                chunkInterval: 200,
+                chunkDelay: 50,
+                iconCreateFunction: function(cluster) {
+                    const childMarkers = cluster.getAllChildMarkers();
+                    const crimeTypes = new Set();
+                    
+                    // Collect unique crime types from all markers in cluster
+                    childMarkers.forEach(marker => {
+                        if (marker.crimeType) {
+                            crimeTypes.add(marker.crimeType.toLowerCase());
+                        }
+                    });
+                    
+                    const uniqueTypes = Array.from(crimeTypes).slice(0, 4);
+                    const count = childMarkers.length;
+                    
+                    // Build icon HTML with crime symbols
+                    let iconsHtml = '';
+                    uniqueTypes.forEach(type => {
+                        const icon = getCrimeIcon(type);
+                        if (icon) {
+                            iconsHtml += `<img src="${icon}" style="width: 16px; height: 16px; margin: 1px;" alt="${type}"/>`;
+                        }
+                    });
+                    
+                    const clusterHtml = `
+                        <div style="
+                            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+                            width: ${40 + Math.min(count / 10, 20)}px;
+                            height: ${40 + Math.min(count / 10, 20)}px;
+                            border-radius: 50%;
+                            border: 3px solid white;
+                            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            position: relative;
+                            overflow: hidden;
+                        ">
+                            <div style="
+                                display: flex;
+                                flex-wrap: wrap;
+                                justify-content: center;
+                                align-items: center;
+                                max-width: 32px;
+                                gap: 2px;
+                            ">${iconsHtml}</div>
+                            <div style="
+                                background: rgba(220, 38, 38, 0.95);
+                                color: white;
+                                font-size: 10px;
+                                font-weight: 700;
+                                padding: 2px 6px;
+                                border-radius: 10px;
+                                margin-top: 2px;
+                                border: 1px solid white;
+                            ">${count}</div>
+                        </div>
+                    `;
+                    
+                    return L.divIcon({
+                        html: clusterHtml,
+                        className: 'custom-cluster-icon',
+                        iconSize: L.point(40 + Math.min(count / 10, 20), 40 + Math.min(count / 10, 20))
+                    });
+                }
+            });
+            
+            // Add cluster group to map
+            map.addLayer(markerClusterGroup);
+            
             // Load initial data
             loadReports();
+            loadCsvCrimes();
             loadHotspotRankingData();
         }, 100); // End setTimeout
     }); // End DOMContentLoaded
@@ -932,73 +1169,274 @@
         const url = '{{ route("api.reports") }}' + (params ? '?' + params : '');
         
         console.log('Loading reports from:', url);
+        console.log('Filters applied:', filters);
         
         fetch(url)
             .then(response => {
                 console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 return response.json();
             })
             .then(data => {
                 console.log('Received data:', data);
                 console.log('Reports count:', data.reports ? data.reports.length : 0);
+                console.log('Database count:', data.database_count);
+                console.log('DCPO clusters:', data.dcpo_clusters);
+                console.log('Total count:', data.total_count);
+                
+                if (data.is_limited) {
+                    console.warn(`Data is limited to ${data.limit_applied} out of ${data.database_total} total reports`);
+                }
                 
                 allReports = data.reports;
+                
+                if (!data.reports || data.reports.length === 0) {
+                    console.warn('No reports received from API');
+                    alert('No crime data found for the selected filters.');
+                    return;
+                }
+                
                 updateMapMarkers(data.reports);
             })
             .catch(error => {
                 console.error('Error loading reports:', error);
-                alert('Error loading map data. Check console for details.');
+                alert('Error loading map data: ' + error.message + '. Check console for details.');
             });
+    }
+    
+    // Function to load CSV crime data
+    function loadCsvCrimes() {
+        console.log('Loading CSV crime data...');
+        
+        fetch('{{ route("api.csv-crimes") }}')
+            .then(response => response.json())
+            .then(data => {
+                console.log('CSV crimes loaded:', data.total);
+                
+                if (data.status === 'success' && data.data) {
+                    addCsvCrimesToMap(data.data);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading CSV crimes:', error);
+            });
+    }
+    
+    // Function to add CSV crimes to map
+    function addCsvCrimesToMap(crimes) {
+        // Group crimes by location (lat,lng)
+        const crimeGroups = {};
+        
+        crimes.forEach(crime => {
+            const key = `${crime.lat},${crime.lng}`;
+            if (!crimeGroups[key]) {
+                crimeGroups[key] = [];
+            }
+            crimeGroups[key].push(crime);
+        });
+        
+        // Add markers for each location
+        Object.keys(crimeGroups).forEach(key => {
+            const group = crimeGroups[key];
+            const firstCrime = group[0];
+            
+            // Get unique offense types
+            const offenseTypes = [...new Set(group.map(c => c.offense))];
+            
+            // Create marker icon
+            let icon;
+            if (offenseTypes.length === 1) {
+                icon = createCrimeMarker(offenseTypes[0], group.length);
+            } else {
+                icon = createMultiCrimeIcon(offenseTypes);
+            }
+            
+            // Create marker
+            const marker = L.marker([firstCrime.lat, firstCrime.lng], { icon: icon });
+            
+            // Create popup content
+            let popupContent = `
+                <div style="min-width: 250px;">
+                    <div style="font-weight: 700; font-size: 1.1rem; color: #1f2937; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 2px solid #e5e7eb;">
+                        ${group.length} Crime${group.length > 1 ? 's' : ''} at this Location
+                    </div>
+                    <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem;">
+                        <strong>Barangay:</strong> ${firstCrime.barangay}
+                    </div>
+            `;
+            
+            // Add crime details
+            group.forEach((crime, idx) => {
+                popupContent += `
+                    <div style="background: ${idx % 2 === 0 ? '#f9fafb' : '#ffffff'}; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px; border-left: 3px solid ${getCrimeColor(crime.offense)};">
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 0.25rem;">${crime.offense}</div>
+                        <div style="font-size: 0.75rem; color: #6b7280;">
+                            📍 ${crime.type_of_place}<br>
+                            📅 ${crime.date_committed} at ${crime.time_committed}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            popupContent += `</div>`;
+            
+            marker.bindPopup(popupContent, {
+                maxWidth: 350,
+                className: 'custom-popup'
+            });
+            
+            marker.addTo(map);
+            markers.push(marker);
+        });
+        
+        console.log(`Added ${markers.length} markers from CSV data`);
+    }
+    
+    // Create icon for multiple crime types at one location
+    function createMultiCrimeIcon(offenseTypes) {
+        const colors = offenseTypes.slice(0, 4).map(offense => getCrimeColor(offense));
+        
+        const iconHtml = `
+            <div style="
+                background: white;
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                border: 3px solid #3b82f6;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+            ">
+                <div style="
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 2px;
+                    width: 24px;
+                    height: 24px;
+                ">
+                    ${colors.map(color => `<div style="width: 10px; height: 10px; background: ${color}; border-radius: 2px;"></div>`).join('')}
+                </div>
+                <div style="
+                    position: absolute;
+                    bottom: -8px;
+                    right: -8px;
+                    background: #dc2626;
+                    color: white;
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 11px;
+                    font-weight: 700;
+                    border: 2px solid white;
+                ">${offenseTypes.length}</div>
+            </div>
+        `;
+        
+        return L.divIcon({
+            className: 'custom-multi-crime-marker',
+            html: iconHtml,
+            iconSize: [44, 44],
+            iconAnchor: [22, 22],
+            popupAnchor: [0, -22]
+        });
+    }
+    
+    // Get color for crime type
+    function getCrimeColor(offense) {
+        const offenseLower = offense.toLowerCase();
+        
+        if (offenseLower.includes('physical injury') || offenseLower.includes('assault')) return '#dc2626';
+        if (offenseLower.includes('theft') || offenseLower.includes('robbery')) return '#ea580c';
+        if (offenseLower.includes('drug') || offenseLower.includes('dangerous')) return '#7c2d12';
+        if (offenseLower.includes('reckless') || offenseLower.includes('driving')) return '#f59e0b';
+        if (offenseLower.includes('vandalism') || offenseLower.includes('damage')) return '#84cc16';
+        if (offenseLower.includes('hacking') || offenseLower.includes('cyber')) return '#6366f1';
+        
+        return '#6b7280'; // Default gray
     }
     
     // Function to update map markers
     function updateMapMarkers(reports) {
         console.log('Updating map markers with', reports.length, 'reports');
         
-        // Clear existing markers
-        markers.forEach(marker => {
-            map.removeLayer(marker);
-        });
+        // Clear existing markers from cluster group
+        if (markerClusterGroup) {
+            markerClusterGroup.clearLayers();
+        }
         markers = [];
         
-        // Add new markers
+        // Add new markers to cluster group
         reports.forEach((report, index) => {
             console.log('Processing report', index, ':', report);
             
-            if (report.is_cluster) {
-                // Check if all crimes in cluster are the same type
-                const crimeTypes = report.crimes.map(c => c.crime_type);
-                const uniqueTypes = [...new Set(crimeTypes)];
+            if (report.is_cluster || report.is_dcpo_cluster) {
+                let uniqueTypes = [];
+                
+                // Handle DCPO cluster format (has crime_types array)
+                if (report.is_dcpo_cluster && report.crime_types) {
+                    uniqueTypes = report.crime_types.map(ct => ct.type);
+                } 
+                // Handle regular cluster format (has crimes array)
+                else if (report.crimes) {
+                    const crimeTypes = report.crimes.map(c => c.crime_type);
+                    uniqueTypes = [...new Set(crimeTypes)];
+                }
                 
                 // Create cluster icon showing legend icons instead of count
                 const icon = createClusterIcon(uniqueTypes);
                 
-                // Build popup content showing all crimes
-                let popupContent = `<div style="max-height: 300px; overflow-y: auto;">
-                    <div class="popup-title">${report.count} Crimes at this location</div>
-                    <div class="popup-details">
-                        <strong>Location:</strong> ${report.location_name}<br><hr style="margin: 0.5rem 0;">`;
+                // Build popup content
+                let popupContent = `<div style="max-height: 350px; overflow-y: auto; min-width: 250px;">
+                    <div class="popup-title">${report.count} Crimes at ${report.location_name}</div>
+                    <div class="popup-details"><hr style="margin: 0.5rem 0;">`;
                 
-                report.crimes.forEach((crime, index) => {
-                    const cleanedCrimeType = cleanCrimeType(crime.crime_type || crime.title);
-                    const iconUrl = getCrimeIcon(crime.crime_type);
-                    const iconHtml = iconUrl ? `<img src="${iconUrl}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${cleanedCrimeType}">` : '';
-                    
-                    popupContent += `
-                        <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; ${index < report.crimes.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
-                            ${iconHtml}<strong>${cleanedCrimeType}</strong><br>
-                            <span style="font-size: 0.875rem; color: #6b7280;">
-                                Status: ${crime.status}<br>
-                                Date: ${new Date(crime.date_reported).toLocaleDateString()}
-                            </span>
-                        </div>`;
-                });
+                if (report.is_dcpo_cluster && report.crime_types) {
+                    // DCPO cluster - show crime types with counts
+                    report.crime_types.forEach((crimeType, index) => {
+                        const cleanedType = cleanCrimeType(crimeType.type);
+                        const iconUrl = getCrimeIcon(crimeType.type);
+                        const iconHtml = iconUrl ? `<img src="${iconUrl}" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px;" alt="${cleanedType}">` : '';
+                        
+                        popupContent += `
+                            <div style="margin-bottom: 0.65rem; padding: 0.5rem; ${index < report.crime_types.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''} background: ${index % 2 === 0 ? '#f9fafb' : 'white'}; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    ${iconHtml}<strong style="font-size: 0.9rem;">${cleanedType}</strong>
+                                </div>
+                                <span style="background: #3b82f6; color: white; padding: 0.2rem 0.6rem; border-radius: 14px; font-size: 0.75rem; font-weight: 700;">${crimeType.count}</span>
+                            </div>`;
+                    });
+                    popupContent += `<div style="margin-top: 0.75rem; padding: 0.5rem; font-size: 0.75rem; color: #6b7280; text-align: center; background: #f0f9ff; border-radius: 6px; border: 1px solid #bae6fd;">📊 Historical Data (2020-2025)</div>`;
+                } else if (report.crimes) {
+                    // Regular cluster - show individual crimes
+                    report.crimes.forEach((crime, index) => {
+                        const cleanedCrimeType = cleanCrimeType(crime.crime_type || crime.title);
+                        const iconUrl = getCrimeIcon(crime.crime_type);
+                        const iconHtml = iconUrl ? `<img src="${iconUrl}" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;" alt="${cleanedCrimeType}">` : '';
+                        
+                        popupContent += `
+                            <div style="margin-bottom: 0.75rem; padding-bottom: 0.75rem; ${index < report.crimes.length - 1 ? 'border-bottom: 1px solid #e5e7eb;' : ''}">
+                                ${iconHtml}<strong>${cleanedCrimeType}</strong><br>
+                                <span style="font-size: 0.875rem; color: #6b7280;">
+                                    Status: ${crime.status}<br>
+                                    Date: ${new Date(crime.date_reported).toLocaleDateString()}
+                                </span>
+                            </div>`;
+                    });
+                }
                 
                 popupContent += '</div></div>';
                 
-                const marker = L.marker([report.latitude, report.longitude], { icon: icon })
-                    .addTo(map)
-                    .bindPopup(popupContent);
+                // Create marker with crimeType property for cluster grouping
+                const marker = L.marker([report.latitude, report.longitude], { icon: icon });
+                marker.crimeType = uniqueTypes[0]; // Store primary crime type
+                marker.bindPopup(popupContent);
                 
                 // Add tooltip on hover
                 if (uniqueTypes.length === 1) {
@@ -1009,31 +1447,32 @@
                         offset: [0, -16]
                     });
                 } else {
-                    marker.bindTooltip(`${report.count} crimes here`, {
+                    marker.bindTooltip(`${report.count} crimes (${uniqueTypes.length} types)`, {
                         permanent: false,
                         direction: 'top',
                         offset: [0, -18]
                     });
                 }
                 
+                markerClusterGroup.addLayer(marker);
                 markers.push(marker);
             } else {
                 // Single crime
                 const cleanedCrimeType = cleanCrimeType(report.crime_type || report.title);
                 const icon = createCrimeMarker(report.crime_type, 1);
                 
-                const marker = L.marker([report.latitude, report.longitude], { icon: icon })
-                    .addTo(map)
-                    .bindPopup(`
-                        <div class="popup-title">${cleanedCrimeType}</div>
-                        <div class="popup-details">
-                            <strong>Location:</strong> ${report.location_name}<br>
-                            <strong>Status:</strong> ${report.status}<br>
-                            <strong>Date:</strong> ${new Date(report.date_reported).toLocaleDateString()}<br>
-                            <strong>Reporter:</strong> ${report.reporter}<br>
-                            <strong>Description:</strong> ${report.description}
-                        </div>
-                    `);
+                const marker = L.marker([report.latitude, report.longitude], { icon: icon });
+                marker.crimeType = cleanedCrimeType; // Store crime type for cluster grouping
+                marker.bindPopup(`
+                    <div class="popup-title">${cleanedCrimeType}</div>
+                    <div class="popup-details">
+                        <strong>Location:</strong> ${report.location_name}<br>
+                        <strong>Status:</strong> ${report.status}<br>
+                        <strong>Date:</strong> ${new Date(report.date_reported).toLocaleDateString()}<br>
+                        <strong>Reporter:</strong> ${report.reporter}<br>
+                        <strong>Description:</strong> ${report.description}
+                    </div>
+                `);
                 
                 // Add tooltip on hover showing crime type
                 marker.bindTooltip(cleanedCrimeType, {
@@ -1042,16 +1481,21 @@
                     offset: [0, -14]
                 });
                 
+                markerClusterGroup.addLayer(marker);
                 markers.push(marker);
             }
         });
         
+        console.log(`Added ${markers.length} markers to cluster group`);
+        
         // Fit bounds if there are markers
         if (markers.length > 0) {
-            const group = L.featureGroup(markers);
-            map.fitBounds(group.getBounds().pad(0.1), {
-                maxZoom: 15
-            });
+            const bounds = markerClusterGroup.getBounds();
+            if (bounds.isValid()) {
+                map.fitBounds(bounds.pad(0.1), {
+                    maxZoom: 15
+                });
+            }
         }
     }
     
@@ -1230,22 +1674,22 @@
     // Get color based on crime rate (weather-forecast style)
     function getHotspotColor(crimeRate) {
         if (crimeRate > 8) {
-            return { color: '#dc2626', opacity: 0.8 }; // High - Red
+            return { color: '#dc2626', opacity: 0.85 }; // High - Red (more visible)
         } else if (crimeRate >= 4) {
-            return { color: '#f59e0b', opacity: 0.7 }; // Medium - Orange
+            return { color: '#f59e0b', opacity: 0.75 }; // Medium - Orange (more visible)
         } else {
-            return { color: '#10b981', opacity: 0.6 }; // Low - Green
+            return { color: '#10b981', opacity: 0.65 }; // Low - Green (more visible)
         }
     }
     
     // Render hotspot circles overlay (weather-forecast style)
     function renderHotspotOverlay(hotspots) {
-        console.log('renderHotspotOverlay called with', hotspots.length, 'hotspots');
+        console.log('🎯 renderHotspotOverlay called with', hotspots.length, 'hotspots');
         
         // Create layer if it doesn't exist
         if (!hotspotLayer) {
             hotspotLayer = L.layerGroup();
-            console.log('Created new hotspotLayer');
+            console.log('✅ Created new hotspotLayer');
         }
         
         // Clear existing circles from layer
@@ -1253,12 +1697,17 @@
             hotspotLayer.removeLayer(circle);
         });
         hotspotCircles = [];
-        console.log('Cleared existing circles');
+        console.log('🗑️ Cleared existing circles');
         
-        // Add hotspot layer to map if not already present
+        // Ensure hotspot layer is added to map FIRST before adding circles
         if (!map.hasLayer(hotspotLayer)) {
             map.addLayer(hotspotLayer);
-            console.log('Added hotspotLayer to map');
+            console.log('✅ Added hotspotLayer to map');
+        }
+        
+        // Set higher pane for visibility
+        if (hotspotLayer.options) {
+            hotspotLayer.options.pane = 'overlayPane';
         }
         
         // Render each hotspot
@@ -1275,19 +1724,24 @@
                 }
                 
                 // Calculate radius based on crime rate (scale for visibility)
-                const baseRadius = 1500; // 1.5km base
+                const baseRadius = 2000; // Increased from 1500 to 2km base for better visibility
                 const radiusScale = Math.min(barangay.crime_rate / 8, 3); // Scale up to 3x for high crime
-                const radius = baseRadius * (0.8 + radiusScale);
+                const radius = baseRadius * (1 + radiusScale); // More dramatic scaling
                 
+                // Enhanced styling with more dramatic effects
                 const circle = L.circle([barangay.latitude, barangay.longitude], {
                     color: colorData.color,
-                    weight: 3,
-                    opacity: 0.9,
+                    weight: 5,
+                    opacity: 1,
                     fillColor: colorData.color,
-                    fillOpacity: colorData.opacity * 0.4, // Semi-transparent fill
+                    fillOpacity: 0.6, // More visible fill
                     radius: radius,
-                    className: `hotspot-circle hotspot-circle-${riskLevel.toLowerCase()}`
+                    className: `hotspot-circle hotspot-circle-${riskLevel.toLowerCase()}`,
+                    interactive: true,
+                    bubblingMouseEvents: true
                 });
+                
+                console.log(`Created circle for ${barangay.name}: lat=${barangay.latitude}, lng=${barangay.longitude}, radius=${radius}, color=${colorData.color}`);
                 
                 // Add popup on click with enhanced styling
                 circle.bindPopup(`
@@ -1333,13 +1787,41 @@
                 
                 // Add circle to layer and track it
                 hotspotLayer.addLayer(circle);
+                circle.bringToFront(); // Ensure circles are above markers
                 hotspotCircles.push(circle);
+                
+                console.log(`✅ Added circle #${hotspotCircles.length} to layer`);
             } catch (error) {
-                console.error('Error rendering hotspot', index, barangay.name, ':', error);
+                console.error('❌ Error rendering hotspot', index, barangay.name, ':', error);
             }
         });
         
-        console.log('Rendered', hotspotCircles.length, 'hotspot circles');
+        console.log('✅ Rendered', hotspotCircles.length, 'hotspot circles with pulsing animations');
+        
+        // Show success notification
+        if (hotspotCircles.length > 0) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: linear-gradient(135deg, #10b981, #059669);
+                color: white;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                z-index: 10000;
+                font-weight: 600;
+                animation: slideInRight 0.3s ease-out;
+            `;
+            notification.innerHTML = `🎯 ${hotspotCircles.length} crime hotspots displayed`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOutRight 0.3s ease-in';
+                setTimeout(() => notification.remove(), 300);
+            }, 2500);
+        }
     }
     
     // Toggle hotspot overlay visibility
@@ -1350,21 +1832,33 @@
         hotspotOverlayVisible = checkbox.checked;
         
         if (hotspotOverlayVisible) {
+            console.log('🔴 Hotspot overlay ENABLED - showing crime intensity circles');
             // Show overlay
             legend.classList.add('active');
-            if (hotspotLayer) {
+            if (hotspotLayer && hotspotCircles.length > 0) {
+                console.log('Adding existing hotspot layer with', hotspotCircles.length, 'circles to map');
                 map.addLayer(hotspotLayer);
             } else {
+                console.log('Loading fresh hotspot data from API');
                 loadHotspotOverlayData();
             }
-            console.log('Hotspot overlay enabled');
+            
+            // Visual feedback - briefly flash the legend
+            setTimeout(() => {
+                legend.style.transform = 'scale(1.05)';
+                setTimeout(() => {
+                    legend.style.transform = 'scale(1)';
+                }, 200);
+            }, 100);
+            
         } else {
+            console.log('⚪ Hotspot overlay DISABLED - hiding crime intensity circles');
             // Hide overlay
             legend.classList.remove('active');
             if (hotspotLayer) {
+                console.log('Removing hotspot layer from map');
                 map.removeLayer(hotspotLayer);
             }
-            console.log('Hotspot overlay disabled');
         }
     }
 </script>

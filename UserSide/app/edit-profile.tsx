@@ -185,6 +185,26 @@ export default function EditProfileScreen() {
             return;
         }
 
+        // Use street address from location picker if available, otherwise use the text input
+        const finalAddress = streetAddress.trim() || userInfo.address.trim();
+
+        // Validate Davao City address
+        if (finalAddress) {
+            const davaoKeywords = ['davao', 'davao city'];
+            const addressLower = finalAddress.toLowerCase();
+            const isDavaoAddress = davaoKeywords.some(keyword => addressLower.includes(keyword));
+            
+            if (!isDavaoAddress) {
+                console.log('❌ Validation failed: Address is not in Davao City');
+                Alert.alert(
+                    'Invalid Address',
+                    'Please enter an address within Davao City only. This app is specifically for Davao City residents.',
+                    [{ text: 'OK' }]
+                );
+                return;
+            }
+        }
+
         console.log('✅ Validation passed, starting save process...');
         showLoading('Updating profile...');
         try {
@@ -213,9 +233,6 @@ export default function EditProfileScreen() {
             console.log('✅ Backend connection successful');
 
             // Prepare profile data for update
-            // Use street address from location picker if available, otherwise use the text input
-            const finalAddress = streetAddress.trim() || userInfo.address.trim();
-
             const profileUpdates = {
                 firstName: userInfo.firstName.trim(),
                 lastName: userInfo.lastName.trim(),

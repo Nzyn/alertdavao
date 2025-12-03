@@ -46,6 +46,9 @@ class HotspotDataController extends Controller
             
             // Process each barangay
              $hotspotData = [];
+             $matchedCount = 0;
+             $unmatchedCount = 0;
+             
              foreach ($barangayData as $barangay) {
                  $name = trim($barangay['name'] ?? 'Unknown');
                  $totalCrimes = intval($barangay['total_crimes'] ?? 0);
@@ -59,16 +62,19 @@ class HotspotDataController extends Controller
                  // Crime Rate Formula: (Total Incidents / Population) × 1000
                  $crimeRate = ($totalCrimes / $population) * 1000;
                 
-                // Get coordinates
-                $lat = 7.1907;
-                $lng = 125.4553;
+                // Get coordinates with fuzzy matching
+                $coordinates = $this->findBarangayCoordinates($name, $barangayCoordinates);
                 
-                if (isset($barangayCoordinates[$name])) {
-                    $lat = $barangayCoordinates[$name][0];
-                    $lng = $barangayCoordinates[$name][1];
-                } elseif (isset($barangayCoordinates[strtoupper($name)])) {
-                    $lat = $barangayCoordinates[strtoupper($name)][0];
-                    $lng = $barangayCoordinates[strtoupper($name)][1];
+                if ($coordinates) {
+                    $lat = $coordinates[0];
+                    $lng = $coordinates[1];
+                    $matchedCount++;
+                } else {
+                    // Use Davao City center as fallback
+                    $lat = 7.1907;
+                    $lng = 125.4553;
+                    $unmatchedCount++;
+                    \Log::debug("No coordinates found for barangay: $name");
                 }
                 
                 // Determine risk level
@@ -95,9 +101,13 @@ class HotspotDataController extends Controller
                 return $b['crime_rate'] <=> $a['crime_rate'];
             });
             
+            \Log::info("Hotspot data processed: {$matchedCount} matched, {$unmatchedCount} unmatched barangays");
+            
             return response()->json([
                 'barangays' => $hotspotData,
                 'total_barangays' => count($hotspotData),
+                'matched_coordinates' => $matchedCount,
+                'unmatched_coordinates' => $unmatchedCount,
                 'highest_crime_rate' => !empty($hotspotData) ? $hotspotData[0]['crime_rate'] : 0,
                 'risk_thresholds' => [
                     'high' => 'Greater than 8 per 1,000',
@@ -116,66 +126,42 @@ class HotspotDataController extends Controller
     }
     
     /**
-     * Load barangay data from hardcoded CSV
+     * Load barangay data from database
      * Contains barangay names, total crimes, and population
      */
     private function loadBarangayDataFromCSV()
     {
-        // The admin app is at: D:\Codes\alertdavao\alertdavao\AdminSide\admin
-        // We need to go to: D:\Codes\alertdavao\alertdavao\for hotspot
-        // That's up 3 directories from admin: admin -> AdminSide -> alertdavao -> up
-        $possiblePaths = [
-            base_path('../../../for hotspot/DCPO_Data_barangay_totals (1).csv'),
-            'D:/Codes/alertdavao/alertdavao/for hotspot/DCPO_Data_barangay_totals (1).csv',
-            'D:\\Codes\\alertdavao\\alertdavao\\for hotspot\\DCPO_Data_barangay_totals (1).csv',
-        ];
-        
-        $csvPath = null;
-        foreach ($possiblePaths as $path) {
-            if (file_exists($path)) {
-                $csvPath = $path;
-                break;
-            }
-        }
-        
-        if (!$csvPath) {
-            \Log::warning('Barangay CSV file not found. Tried paths: ' . json_encode($possiblePaths));
-            return [];
-        }
-        
-        \Log::info('Loading barangay data from: ' . $csvPath);
-        
-        $barangays = [];
-        $handle = fopen($csvPath, 'r');
-        
-        if ($handle === false) {
-            \Log::error('Cannot open barangay CSV file: ' . $csvPath);
-            return [];
-        }
-        
-        // Skip header
-        fgetcsv($handle);
-        
-        while (($row = fgetcsv($handle)) !== false) {
-            if (count($row) >= 3) {
-                // Remove quotes and parse population (remove commas)
-                $name = trim(str_replace('"', '', $row[0]));
-                $totalCrimes = intval(str_replace('"', '', $row[1]));
-                $population = intval(str_replace(['"', ','], '', $row[2]));
+        try {
+            // Query the database for crime statistics by barangay
+            $barangayStats = DB::table('locations')
+                ->select('barangay', DB::raw('COUNT(*) as total_crimes'))
+                ->whereNotNull('barangay')
+                ->where('barangay', '!=', '')
+                ->groupBy('barangay')
+                ->get();
+            
+            \Log::info('Loaded ' . $barangayStats->count() . ' barangays from database');
+            
+            $barangays = [];
+            foreach ($barangayStats as $stat) {
+                // Use default population of 50,000 for all barangays
+                // In production, this should come from actual census data
+                $population = 50000;
                 
                 $barangays[] = [
-                    'name' => $name,
-                    'total_crimes' => $totalCrimes,
+                    'name' => trim($stat->barangay),
+                    'total_crimes' => (int)$stat->total_crimes,
                     'population' => $population
                 ];
             }
+            
+            \Log::info('Processed ' . count($barangays) . ' barangays with crime data');
+            
+            return $barangays;
+        } catch (\Exception $e) {
+            \Log::error('Error loading barangay data from database: ' . $e->getMessage());
+            return [];
         }
-        
-        fclose($handle);
-        
-        \Log::info('Loaded ' . count($barangays) . ' barangays from CSV');
-        
-        return $barangays;
     }
     
     /**
@@ -191,41 +177,104 @@ class HotspotDataController extends Controller
                 $coords = [];
                 
                 foreach ($cached['barangays'] as $brgy) {
-                    $simpleName = $brgy['name'];
+                    $simpleName = trim($brgy['name']);
                     $lat = $brgy['latitude'];
                     $lng = $brgy['longitude'];
+                    
+                    // Normalize the name for better matching
+                    $normalizedName = $this->normalizeBarangayName($simpleName);
                     
                     // Add entry for multiple name variations
                     $coords[$simpleName] = [$lat, $lng];
                     $coords[strtoupper($simpleName)] = [$lat, $lng];
-                    $coords[$simpleName . ' (POB.)'] = [$lat, $lng];
+                    $coords[$normalizedName] = [$lat, $lng];
                     
-                    // Handle special cases
-                    if ($simpleName === 'BARANGAY 19-B') {
-                        $coords['BARANGAY 19-B (POB.) (BRGY UNDER ps 14, DCPO)'] = [$lat, $lng];
+                    // Add common suffixes
+                    $coords[$simpleName . ' (POB.)'] = [$lat, $lng];
+                    $coords[$simpleName . ' PROPER'] = [$lat, $lng];
+                    
+                    // Handle special barangay name patterns
+                    if (preg_match('/^(\d+)-([A-Z])/', $simpleName, $matches)) {
+                        // Handle numbered barangays like "19-B", "76-A BUCANA"
+                        $coords["BARANGAY $simpleName"] = [$lat, $lng];
                     }
-                    if ($simpleName === 'BUNAWAN') {
-                        $coords['BUNAWAN (POB.)'] = [$lat, $lng];
-                    }
-                    if ($simpleName === '76-A BUCANA') {
-                        $coords['76-A (BUCANA)'] = [$lat, $lng];
-                    }
-                    if ($simpleName === '74-A MATINA CROSSING') {
-                        $coords['74-A (MATINA CROSSING)'] = [$lat, $lng];
+                    
+                    // Remove parenthetical info for matching
+                    if (preg_match('/^([^(]+)/', $simpleName, $matches)) {
+                        $baseName = trim($matches[1]);
+                        $coords[$baseName] = [$lat, $lng];
                     }
                 }
+                
+                \Log::info('Loaded ' . count($cached['barangays']) . ' barangay coordinates with variations');
                 
                 return $coords;
             }
         }
         
-        // Fallback coordinates
-        return [
-            'BAGO APLAYA (BRGY IS NOW UNDER PS 17, DCPO)' => [7.0456, 125.5789],
-            'PAMPANGA' => [7.0623, 125.5534],
-            'BARANGAY 37-D' => [7.0812, 125.6234],
-            'BUNAWAN (POB.)' => [7.2353, 125.6428],
-            '40-D BOLTON ISLA' => [7.0389, 125.6634],
-        ];
+        \Log::warning('barangay_coordinates.json not found or empty at: ' . $cacheFile);
+        
+        // Fallback: Use Davao City center for unmatched barangays
+        return [];
+    }
+    
+    /**
+     * Find coordinates for a barangay with fuzzy matching
+     */
+    private function findBarangayCoordinates($barangayName, $coordinatesMap)
+    {
+        // Try exact match first
+        if (isset($coordinatesMap[$barangayName])) {
+            return $coordinatesMap[$barangayName];
+        }
+        
+        // Try uppercase
+        $upperName = strtoupper($barangayName);
+        if (isset($coordinatesMap[$upperName])) {
+            return $coordinatesMap[$upperName];
+        }
+        
+        // Try normalized name
+        $normalizedName = $this->normalizeBarangayName($barangayName);
+        if (isset($coordinatesMap[$normalizedName])) {
+            return $coordinatesMap[$normalizedName];
+        }
+        
+        // Try fuzzy matching - find best match
+        $bestMatch = null;
+        $bestScore = 0;
+        
+        foreach ($coordinatesMap as $coordName => $coords) {
+            $normalizedCoordName = $this->normalizeBarangayName($coordName);
+            
+            // Calculate similarity
+            $similarity = 0;
+            similar_text($normalizedName, $normalizedCoordName, $similarity);
+            
+            if ($similarity > $bestScore && $similarity > 80) { // 80% similarity threshold
+                $bestScore = $similarity;
+                $bestMatch = $coords;
+            }
+        }
+        
+        return $bestMatch;
+    }
+    
+    /**
+     * Normalize barangay name for better matching
+     */
+    private function normalizeBarangayName($name)
+    {
+        $name = strtoupper(trim($name));
+        
+        // Remove common suffixes and patterns
+        $name = preg_replace('/\s*\(POB\.\)\s*/i', '', $name);
+        $name = preg_replace('/\s*\(BRGY.*?\)\s*/i', '', $name);
+        $name = preg_replace('/\s*PROPER\s*/i', '', $name);
+        
+        // Normalize numbered barangays
+        $name = preg_replace('/^BARANGAY\s+/', '', $name);
+        
+        return trim($name);
     }
 }
