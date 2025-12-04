@@ -1,66 +1,48 @@
 # ==========================================
-# Node.js / Expo (UserSide)
+# Dependencies (auto-generated, reinstall with composer/npm)
 # ==========================================
 node_modules/
-.expo/
-.expo-shared/
+AdminSide/admin/vendor/
+AdminSide/admin/node_modules/
+AdminSide/sarima_api/__pycache__/
+AdminSide/sarima_api/venv/
+AdminSide/sarima_api/env/
+
+# ==========================================
+# Logs & Caches (temporary runtime files)
+# ==========================================
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
-
-# ==========================================
-# Laravel (AdminSide)
-# ==========================================
-AdminSide/admin/vendor/
-AdminSide/admin/node_modules/
-AdminSide/admin/public/hot
-AdminSide/admin/public/storage
-AdminSide/admin/storage/*.key
+AdminSide/sarima_api/*.log
+AdminSide/admin/storage/logs/*
 AdminSide/admin/storage/framework/cache/data/*
 AdminSide/admin/storage/framework/sessions/*
 AdminSide/admin/storage/framework/views/*
-AdminSide/admin/storage/logs/*
 AdminSide/admin/bootstrap/cache/*
+!AdminSide/admin/storage/logs/.gitignore
 !AdminSide/admin/storage/framework/cache/data/.gitignore
 !AdminSide/admin/storage/framework/sessions/.gitignore
 !AdminSide/admin/storage/framework/views/.gitignore
-!AdminSide/admin/storage/logs/.gitignore
 !AdminSide/admin/bootstrap/cache/.gitignore
-
-# Keep .env files for easy setup
-# AdminSide/admin/.env
+.phpunit.result.cache
 
 # ==========================================
-# Python / SARIMA API
+# Build & Compilation Output
 # ==========================================
-AdminSide/sarima_api/__pycache__/
-AdminSide/sarima_api/*.pyc
-AdminSide/sarima_api/.pytest_cache/
-AdminSide/sarima_api/venv/
-AdminSide/sarima_api/env/
-AdminSide/sarima_api/*.log
-AdminSide/sarima_api/data/*.csv
+.expo/
+.expo-shared/
+AdminSide/admin/public/hot
+/dist
+/build
+**/android/.gradle/
+**/android/build/
+**/ios/Pods/
+**/ios/build/
 
 # ==========================================
-# Test & Development Files
-# ==========================================
-AdminSide/admin/test_*.php
-AdminSide/admin/verify_*.php
-AdminSide/admin/check_*.php
-AdminSide/admin/debug_*.php
-AdminSide/admin/export_*.php
-AdminSide/admin/assign_*.php
-AdminSide/admin/restore_*.php
-AdminSide/admin/update_*.php
-AdminSide/admin/reset_*.php
-AdminSide/admin/find_*.php
-AdminSide/admin/*.json
-AdminSide/admin/temp_*.json
-
-# ==========================================
-# OS & Editor
+# OS & Editor Files
 # ==========================================
 .DS_Store
 Thumbs.db
@@ -74,13 +56,15 @@ Thumbs.db
 *.sln.docstates
 
 # ==========================================
-# Build & Distribution
+# Temporary Files
 # ==========================================
-/dist
-/build
+*.bak
+*.tmp
+*.temp
+composer.phar
 
 # ==========================================
-# Uploads & Media
+# User Uploads (keep structure, not content)
 # ==========================================
 UserSide/uploads/*
 !UserSide/uploads/.gitkeep
@@ -88,20 +72,8 @@ AdminSide/admin/public/uploads/*
 !AdminSide/admin/public/uploads/.gitkeep
 
 # ==========================================
-# Mobile Development
+# Platform-Specific
 # ==========================================
 **/android/local.properties
-**/android/.gradle/
-**/android/build/
-**/ios/Pods/
-**/ios/build/
-
-# ==========================================
-# Misc
-# ==========================================
-*.bak
-*.tmp
-*.temp
-.phpunit.result.cache
-composer.phar
-auth.json
+AdminSide/admin/public/storage
+AdminSide/admin/storage/*.key
